@@ -15,6 +15,12 @@ import {
   saveGuestToken,
   setFirebaseEnvForTests,
   shouldFallbackToRedirect,
+  maskEmail,
+  maskDisplayName,
+  markRedirectPending,
+  hasRedirectPending,
+  needsFirebaseNow,
+  REDIRECT_FLAG_KEY,
 } from '../src/lib/firebase-auth';
 
 const store: Record<string, string> = {};
@@ -97,6 +103,28 @@ describe('Firebase Auth config (no emulator)', () => {
     clearAuthUser();
     expect(loadAuthUser()).toBeNull();
     expect(loadGuestToken()).toBe('guest-token-1');
+  });
+
+  it('masks Google email and name for the account panel', () => {
+    expect(maskEmail('parent@example.com')).toBe('pa…@example.com');
+    expect(maskDisplayName('Ada Lovelace')).toBe('Ad…e');
+  });
+
+  it('treats a pending redirect flag as needing Firebase now', () => {
+    const sess: Record<string, string> = {};
+    (globalThis as { sessionStorage?: Storage }).sessionStorage = {
+      getItem: (k: string) => sess[k] ?? null,
+      setItem: (k: string, v: string) => { sess[k] = v; },
+      removeItem: (k: string) => { delete sess[k]; },
+      clear: () => { for (const key of Object.keys(sess)) delete sess[key]; },
+      key: (i: number) => Object.keys(sess)[i] ?? null,
+      get length() { return Object.keys(sess).length; },
+    } as Storage;
+    expect(hasRedirectPending()).toBe(false);
+    markRedirectPending();
+    expect(sess[REDIRECT_FLAG_KEY]).toBe('1');
+    expect(hasRedirectPending()).toBe(true);
+    expect(needsFirebaseNow()).toBe(true);
   });
 
   it('falls back to redirect on popup-blocked and auth/internal-error', () => {

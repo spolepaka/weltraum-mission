@@ -558,46 +558,73 @@ class SpacetimeClient {
     }
   }
 
-  requestLevelData(level: number): boolean {
-    console.log('[SpacetimeDB] requestLevelData:', level);
+  requestLevelData(level: number, claimedUnlock?: number): boolean {
     const data = this.getLocalData();
-    if (level > data.unlockedLevel) {
-      console.warn('[SpacetimeDB] Level not unlocked:', level, 'max:', data.unlockedLevel);
+    const allowed = Math.max(data.unlockedLevel || 1, claimedUnlock || 1);
+    if (level > allowed) {
       this.lastError = 'level_locked';
       return false;
     }
-
+    if (allowed > data.unlockedLevel) {
+      data.unlockedLevel = allowed;
+      this.saveLocalData(data);
+    }
     this.queueOrCallReducer(() => {
       this.connection?.reducers.requestLevelData({ level });
     });
     return true;
   }
 
-  async fetchLevelData(level: number): Promise<{ level: number; dataJson: string } | null> {
-    console.log('[SpacetimeDB] fetchLevelData (procedure):', level);
-    this.lastError = null;
+  isOnline(): boolean {
+    try {
+      return typeof navigator === 'undefined' || navigator.onLine !== false;
+    } catch {
+      return true;
+    }
+  }
 
-    if (!this.connection || !this.isConnected()) {
-      const data = this.getLocalData();
-      if (level > data.unlockedLevel) {
-        this.lastError = 'level_locked';
-        return null;
-      }
+  async fetchLevelData(level: number, claimedUnlock?: number): Promise<{ level: number; dataJson: string } | null> {
+    this.lastError = null;
+    const data = this.getLocalData();
+    const claimed = Math.max(1, Math.min(100, claimedUnlock || data.unlockedLevel || 1));
+    if (level > claimed && level > data.unlockedLevel) {
+      this.lastError = 'level_locked';
       return null;
     }
+    if (claimed > data.unlockedLevel) {
+      data.unlockedLevel = claimed;
+      this.saveLocalData(data);
+    }
 
-    try {
-      const result = await this.connection.procedures.getLevelData({ level });
-      if (result) {
-        return { level: result.level, dataJson: result.dataJson };
-      }
+    if (!this.isConnected()) {
+      await this.waitUntilConnected(8000);
+    }
+
+    const tryOnce = async (): Promise<{ level: number; dataJson: string } | null> => {
+      if (!this.connection || !this.isConnected()) return null;
+      const proc = this.connection.procedures.getLevelData as unknown as (a: {
+        level: number; claimedUnlock: number;
+      }) => Promise<{ level: number; dataJson: string } | undefined>;
+      const result = await proc({ level, claimedUnlock: claimed });
+      if (result) return { level: result.level, dataJson: result.dataJson };
       this.lastError = 'level_locked_or_missing';
       return null;
-    } catch (error) {
-      this.lastError = error instanceof Error ? error.message : String(error);
-      console.error('[SpacetimeDB] fetchLevelData error:', error);
-      return null;
+    };
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const row = await Promise.race([
+          tryOnce(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+        ]);
+        if (row) return row;
+      } catch (error) {
+        this.lastError = error instanceof Error ? error.message : String(error);
+      }
+      if (!this.isOnline()) break;
+      await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
     }
+    return null;
   }
 
   getLevelDataFromCache(level: number): object | null {
@@ -876,6 +903,9 @@ class SpacetimeClient {
     if (remote.equippedShip) local.equippedShip = local.equippedShip || remote.equippedShip;
     local.ownedShips = Array.from(new Set([...(local.ownedShips || []), ...remote.ownedShips]));
     this.saveLocalData(local);
+    if (local.unlockedLevel > remote.unlockedLevel) {
+      this.syncProgress(local.unlockedLevel, local.coins, local.equippedShip);
+    }
     if (delta > 0n) {
       this.queueOrCallReducer(() => {
         this.connection?.reducers.addCoins({ amount: delta });

@@ -5,14 +5,17 @@ import {
   markAllDone,
   markJit,
   markMapTour,
+  markRevealed,
   markTraining,
   markWelcome,
   nextMapStep,
   nextTrainStep,
   phaseOf,
+  pickProgressiveTip,
   resetTutorial,
   TRAIN_STEPS,
   MAP_TOUR_STEPS,
+  PROGRESSIVE_TIPS,
 } from '../src/lib/onboarding';
 
 describe('onboarding state machine', () => {
@@ -42,6 +45,23 @@ describe('onboarding state machine', () => {
       tour = nextMapStep(tour);
     }
     expect(tours).toEqual([...MAP_TOUR_STEPS]);
+    expect(MAP_TOUR_STEPS).toEqual(['planets']);
+  });
+
+  it('reveals later tips one at a time after wins', () => {
+    let st = markMapTour(markTraining(markWelcome(emptyOnboard())));
+    expect(pickProgressiveTip(st, {
+      unlocked: 2, finishedCount: 1, canAffordShip: true, coins: 80, justReturnedFromPlay: true,
+    })).toBe('shop');
+    st = markRevealed(st, 'shop');
+    expect(pickProgressiveTip(st, {
+      unlocked: 2, finishedCount: 1, canAffordShip: true, coins: 80, justReturnedFromPlay: true,
+    })).toBe('missions');
+    const second = pickProgressiveTip(st, {
+      unlocked: 2, finishedCount: 1, canAffordShip: true, coins: 80, justReturnedFromPlay: true,
+    });
+    expect(second).toBe('missions');
+    expect(PROGRESSIVE_TIPS.length).toBeGreaterThan(4);
   });
 
   it('shows each just-in-time tip only once', () => {

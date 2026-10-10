@@ -7,6 +7,7 @@ export const AUTH_STORAGE_KEY = 'spaceMissionFirebaseAuth';
 export const ANON_SNAPSHOT_KEY = 'spaceMissionAnonSnapshot';
 export const GUEST_TOKEN_KEY = 'spaceMissionGuestIdentityToken';
 export const EMAIL_FOR_LINK_KEY = 'spaceMissionEmailForLink';
+export const REDIRECT_FLAG_KEY = 'spaceMissionAuthRedirect';
 
 export type AuthProviderId = 'google' | 'emailLink' | 'apple';
 
@@ -22,6 +23,7 @@ export interface AuthUser {
   expiresAt: number;
   uid: string;
   email?: string;
+  displayName?: string;
   provider?: AuthProviderId | string;
 }
 
@@ -188,11 +190,48 @@ export function shouldFallbackToRedirect(err: unknown): boolean {
 type AuthImpl = typeof import('./firebase-auth-impl');
 let implPromise: Promise<AuthImpl> | null = null;
 
+export function markRedirectPending(): void {
+  try { sessionStorage.setItem(REDIRECT_FLAG_KEY, '1'); } catch { /* ignore */ }
+}
+
+export function clearRedirectPending(): void {
+  try { sessionStorage.removeItem(REDIRECT_FLAG_KEY); } catch { /* ignore */ }
+}
+
+export function hasRedirectPending(): boolean {
+  try {
+    if (sessionStorage.getItem(REDIRECT_FLAG_KEY) === '1') return true;
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i) || '';
+      if (/pendingRedirect|firebase/i.test(k)) return true;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+export function maskEmail(email?: string): string {
+  if (!email) return '';
+  const [user, domain] = email.split('@');
+  if (!domain) return `${email.slice(0, 2)}…`;
+  const keep = Math.min(2, user.length);
+  return `${user.slice(0, keep)}…@${domain}`;
+}
+
+export function maskDisplayName(name?: string): string {
+  if (!name) return '';
+  const trimmed = name.trim();
+  if (trimmed.length <= 3) return `${trimmed[0] || ''}…`;
+  return `${trimmed.slice(0, 2)}…${trimmed.slice(-1)}`;
+}
+
 export function needsFirebaseNow(): boolean {
   if (loadAuthUser()) return true;
   if (typeof window === 'undefined') return false;
   const href = window.location.href;
-  return /[?&#](oobCode|apiKey|mode)=/.test(href) || href.includes('firebase');
+  if (/[?&#](oobCode|apiKey|mode)=/.test(href) || href.includes('firebase')) return true;
+  return hasRedirectPending();
 }
 
 export function ensureFirebase(): Promise<AuthImpl> {
@@ -202,9 +241,11 @@ export function ensureFirebase(): Promise<AuthImpl> {
 
 export async function completeRedirectIfNeeded(): Promise<AuthUser | null> {
   if (!needsFirebaseNow() && !isAuthConfigured()) return loadAuthUser();
-  if (!needsFirebaseNow() && !loadAuthUser()) return null;
+  if (!needsFirebaseNow() && !loadAuthUser() && !hasRedirectPending()) return null;
   const impl = await ensureFirebase();
-  return impl.completeRedirectIfNeeded();
+  const user = await impl.completeRedirectIfNeeded();
+  clearRedirectPending();
+  return user;
 }
 
 export async function completeEmailLinkIfNeeded(): Promise<AuthUser | null> {

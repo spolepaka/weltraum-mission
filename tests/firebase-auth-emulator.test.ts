@@ -206,4 +206,26 @@ describe('Firebase Auth emulator', () => {
     expect(() => assertTrustedCaller({ hasJWT: false })).not.toThrow();
     expect(() => assertTrustedCaller({ hasJWT: true, issuer: firebaseIssuer() })).not.toThrow();
   });
+
+  it('maps a brand-new Google user into the saved AuthUser profile', async () => {
+    stubStorage();
+    const auth = getFirebaseAuth()!;
+    const cred = GoogleAuthProvider.credential(
+      JSON.stringify({ sub: `new-kid-${Date.now()}`, email: 'leo@example.com', email_verified: true, name: 'Leo Pilot' }),
+    );
+    const result = await signInWithCredential(auth, cred);
+    saveAuthUser({
+      idToken: await result.user.getIdToken(),
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      uid: result.user.uid,
+      email: result.user.email || undefined,
+      displayName: result.user.displayName || 'Leo Pilot',
+      provider: 'google',
+    });
+    const stored = loadAuthUser();
+    expect(stored?.email).toBe('leo@example.com');
+    expect(stored?.uid).toBeTruthy();
+    expect(stored?.displayName || stored?.email).toBeTruthy();
+    expect(result.user.metadata.creationTime).toBeTruthy();
+  });
 });

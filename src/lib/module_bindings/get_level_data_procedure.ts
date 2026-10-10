@@ -16,5 +16,6 @@ import {
 
 export const params = {
   level: __t.u32(),
+  claimedUnlock: __t.u32(),
 };
 export const returnType = __t.option(LevelDataResult)

@@ -353,9 +353,9 @@ export const syncProgress = spacetimedb.reducer(
     
     if (newUnlocked < serverUnlocked) {
       // Keep the higher server unlock; do not reject a stale client.
-    } else if (newUnlocked > serverUnlocked + 1 && newUnlocked !== MAX_LEVEL) {
-      throw new Error('Cannot skip levels');
-    } else {
+    } else if (newUnlocked !== serverUnlocked) {
+      // Catch-up for legacy localStorage, ALLELEVEL, and identity migration.
+      // Rewards still go through completeLevelResult anti-cheat caps.
       ctx.db.playerProgress.identity.update({
         ...progress,
         unlockedLevel: newUnlocked,
@@ -551,12 +551,12 @@ export const requestLevelData = spacetimedb.reducer(
 );
 
 export const getLevelData = spacetimedb.procedure(
-  { level: t.u32() },
+  { level: t.u32(), claimedUnlock: t.u32() },
   t.option(t.object('LevelDataResult', {
     level: t.u32(),
     dataJson: t.string(),
   })),
-  (ctx, { level }) => {
+  (ctx, { level, claimedUnlock }) => {
     return ctx.withTx(txCtx => {
       const identity = ctx.sender;
       
@@ -565,8 +565,17 @@ export const getLevelData = spacetimedb.procedure(
       }
       
       const progress = txCtx.db.playerProgress.identity.find(identity);
-      if (!progress || level > progress.unlockedLevel) {
+      const claimed = clamp(claimedUnlock, 1, MAX_LEVEL);
+      const serverUnlock = progress?.unlockedLevel ?? 1;
+      const allowed = Math.max(serverUnlock, claimed);
+      if (level > allowed) {
         return undefined;
+      }
+      if (progress && claimed > progress.unlockedLevel) {
+        txCtx.db.playerProgress.identity.update({
+          ...progress,
+          unlockedLevel: claimed,
+        });
       }
       
       const levelData = txCtx.db.levelData.level.find(level);

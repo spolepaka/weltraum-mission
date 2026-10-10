@@ -12,14 +12,9 @@ export const TRAIN_STEPS = [
   'miniBoss',
 ] as const;
 
+/** First-session map coach only. Later features use PROGRESSIVE_TIPS. */
 export const MAP_TOUR_STEPS = [
   'planets',
-  'stars',
-  'shop',
-  'missions',
-  'twoPlayer',
-  'online',
-  'account',
 ] as const;
 
 export const JIT_IDS = [
@@ -42,7 +37,39 @@ export interface OnboardState {
   trainingDone: boolean;
   mapTourDone: boolean;
   skipped: boolean;
+  skipAllTips: boolean;
+  revealed: Partial<Record<string, boolean>>;
   jitShown: Partial<Record<JitId, boolean>>;
+}
+
+export interface ProgressiveTip {
+  id: string;
+  /** Minimum completed levels (stars > 0). */
+  afterWins: number;
+  minUnlocked?: number;
+  when: 'firstMap' | 'afterLevel' | 'sessionStart';
+  needsAfford?: boolean;
+}
+
+export const PROGRESSIVE_TIPS: ProgressiveTip[] = [
+  { id: 'planets', when: 'firstMap', afterWins: 0 },
+  { id: 'shop', when: 'afterLevel', afterWins: 1, needsAfford: true },
+  { id: 'missions', when: 'afterLevel', afterWins: 1, minUnlocked: 2 },
+  { id: 'twoPlayer', when: 'afterLevel', afterWins: 2, minUnlocked: 3 },
+  { id: 'weekly', when: 'afterLevel', afterWins: 3, minUnlocked: 4 },
+  { id: 'difficulty', when: 'afterLevel', afterWins: 4, minUnlocked: 5 },
+  { id: 'account', when: 'afterLevel', afterWins: 5, minUnlocked: 6 },
+];
+
+export interface ProgressiveTipContext {
+  unlocked: number;
+  finishedCount: number;
+  canAffordShip: boolean;
+  coins: number;
+  signedIn?: boolean;
+  firstMap?: boolean;
+  justReturnedFromPlay?: boolean;
+  sessionStart?: boolean;
 }
 
 const EMPTY: OnboardState = {
@@ -50,11 +77,13 @@ const EMPTY: OnboardState = {
   trainingDone: false,
   mapTourDone: false,
   skipped: false,
+  skipAllTips: false,
+  revealed: {},
   jitShown: {},
 };
 
 export function emptyOnboard(): OnboardState {
-  return { ...EMPTY, jitShown: {} };
+  return { ...EMPTY, revealed: {}, jitShown: {} };
 }
 
 export function loadOnboard(): OnboardState {
@@ -65,6 +94,7 @@ export function loadOnboard(): OnboardState {
     return {
       ...EMPTY,
       ...parsed,
+      revealed: parsed.revealed || {},
       jitShown: parsed.jitShown || {},
     };
   } catch {
@@ -103,6 +133,8 @@ export function markMapTour(state: OnboardState, skipped = false): OnboardState 
     trainingDone: true,
     mapTourDone: true,
     skipped: state.skipped || skipped,
+    skipAllTips: state.skipAllTips || skipped,
+    revealed: { ...state.revealed, planets: true },
   });
 }
 
@@ -113,7 +145,17 @@ export function markAllDone(state: OnboardState, skipped = true): OnboardState {
     trainingDone: true,
     mapTourDone: true,
     skipped,
+    skipAllTips: skipped,
   });
+}
+
+export function markSkipAllTips(state: OnboardState): OnboardState {
+  return saveOnboard({ ...state, skipAllTips: true, mapTourDone: true });
+}
+
+export function markRevealed(state: OnboardState, id: string): OnboardState {
+  if (state.revealed[id]) return state;
+  return saveOnboard({ ...state, revealed: { ...state.revealed, [id]: true } });
 }
 
 export function markJit(state: OnboardState, id: JitId): OnboardState {
@@ -122,6 +164,7 @@ export function markJit(state: OnboardState, id: JitId): OnboardState {
 }
 
 export function canShowJit(state: OnboardState, id: JitId): boolean {
+  if (state.skipAllTips) return false;
   return !state.jitShown[id];
 }
 
@@ -131,6 +174,8 @@ export function resetTutorial(state: OnboardState): OnboardState {
     trainingDone: false,
     mapTourDone: false,
     skipped: false,
+    skipAllTips: false,
+    revealed: {},
   });
 }
 
@@ -156,4 +201,26 @@ export function mapTourPromptKey(step: MapTourStep): string {
 
 export function jitPromptKey(id: JitId): string {
   return `tips.jit_${id}`;
+}
+
+export function pickProgressiveTip(
+  state: OnboardState,
+  ctx: ProgressiveTipContext,
+): string | null {
+  if (state.skipAllTips) return null;
+  for (const tip of PROGRESSIVE_TIPS) {
+    if (state.revealed[tip.id]) continue;
+    if (tip.minUnlocked && ctx.unlocked < tip.minUnlocked) continue;
+    if (ctx.finishedCount < tip.afterWins) continue;
+    if (tip.needsAfford && !ctx.canAffordShip && ctx.coins < 60) continue;
+    if (tip.id === 'account' && ctx.signedIn) continue;
+    if (tip.when === 'firstMap' && !ctx.firstMap) continue;
+    if (tip.when === 'afterLevel' && !ctx.justReturnedFromPlay && !ctx.sessionStart) continue;
+    if (tip.when === 'sessionStart' && !ctx.sessionStart) continue;
+    if (tip.when === 'afterLevel' && ctx.sessionStart && !ctx.justReturnedFromPlay && tip.id !== 'shop') {
+      // Session start may reveal at most one leftover tip.
+    }
+    return tip.id;
+  }
+  return null;
 }

@@ -23,6 +23,8 @@ import {
   watchIdToken,
   ensureFirebase,
   needsFirebaseNow,
+  maskEmail,
+  maskDisplayName,
   type ProgressSnapshot,
 } from './lib/firebase-auth';
 import { mergeCoins, shouldAcceptServerCoins } from './lib/coin-ledger';
@@ -37,6 +39,7 @@ import {
 } from './lib/level-runtime';
 import {
   generateDisplayName,
+  generateNameChoices,
   loadDisplayName,
   saveDisplayName,
   validateDisplayName,
@@ -86,6 +89,7 @@ export interface WeltraumApi {
   names: {
     current: () => { name: string; kind: NameKind } | null;
     generate: (lang?: 'en' | 'de') => string;
+    choices: (lang?: 'en' | 'de', count?: number) => string[];
     validate: (name: string, kind: NameKind) => { ok: true; name: string } | { ok: false; reason: string };
     save: (name: string, kind: NameKind) => { ok: true; name: string } | { ok: false; reason: string };
   };
@@ -116,6 +120,16 @@ export interface WeltraumApi {
     prepareAuth: () => Promise<void>;
     status: () => SyncStatus;
     guestLabel: () => string;
+    profile: () => {
+      signedIn: boolean;
+      email?: string;
+      emailMasked?: string;
+      googleName?: string;
+      googleNameMasked?: string;
+      username?: string;
+      uid?: string;
+    };
+    onChange: (cb: () => void) => () => void;
     signInGoogle: () => Promise<void>;
     startEmailLink: (email: string) => Promise<void>;
     signInApple: () => Promise<void>;
@@ -207,6 +221,39 @@ function applyHigherServerCoins(client: SpacetimeClient): void {
 let importedOnce = false;
 let watchBound = false;
 let authFlowLock = false;
+const accountListeners: Array<() => void> = [];
+
+function notifyAccount(): void {
+  accountListeners.forEach((fn) => {
+    try { fn(); } catch { /* ignore */ }
+  });
+}
+
+function adoptGameProgress(client: SpacetimeClient): number {
+  const game = window.__spaceGame?.progress?.();
+  const shop = window.__spaceGame?.shop?.();
+  const local = client.getLocalData();
+  const unlocked = Math.max(local.unlockedLevel || 1, game?.unlocked || 1);
+  local.unlockedLevel = unlocked;
+  if (shop) {
+    local.coins = mergeCoins(local.coins, BigInt(shop.coins || 0));
+    local.equippedShip = shop.equipped || local.equippedShip;
+    local.ownedShips = shop.owned || local.ownedShips;
+    if (shop.up) local.upgrades = shop.up;
+  }
+  client.saveLocalData(local);
+  return unlocked;
+}
+
+async function afterProgressReady(client: SpacetimeClient): Promise<void> {
+  const unlocked = adoptGameProgress(client);
+  syncFromGame(client);
+  await client.reconcileWithServer();
+  applyHigherServerCoins(client);
+  const cap = Math.max(unlocked, client.getLocalData().unlockedLevel || 1);
+  prefetchUnlocked(cap);
+  notifyAccount();
+}
 
 async function mergeAfterSignIn(client: SpacetimeClient): Promise<void> {
   if (importedOnce) return;
@@ -282,10 +329,13 @@ function installApi(client: SpacetimeClient): WeltraumApi {
     onEquipShip: (shipId) => client.equipShip(shipId),
     onPurchaseUpgrade: (upgradeId, price) => client.purchaseUpgrade(upgradeId, BigInt(price)),
     onSecretCode: (code) => client.applySecretCode(code),
-    canStartLevel: (level) => client.requestLevelData(level),
+    canStartLevel: (level) => {
+      const claimed = adoptGameProgress(client);
+      return client.requestLevelData(level, claimed);
+    },
     levels: {
-      ensure: (level, unlocked) => ensureLevel(level, unlocked),
-      prefetch: (unlocked) => prefetchUnlocked(unlocked),
+      ensure: (level, unlocked) => ensureLevel(level, Math.max(unlocked, adoptGameProgress(client))),
+      prefetch: (unlocked) => prefetchUnlocked(Math.max(unlocked, adoptGameProgress(client))),
       cached: (level) => cachedLevel(level),
       bundled: (level) => isBundledLevel(level),
       prefetchLog,
@@ -294,12 +344,14 @@ function installApi(client: SpacetimeClient): WeltraumApi {
     names: {
       current: () => loadDisplayName(),
       generate: (lang) => generateDisplayName(lang === 'de' ? 'de' : 'en', Date.now()),
+      choices: (lang, count = 3) => generateNameChoices(lang === 'de' ? 'de' : 'en', count, Date.now()),
       validate: (name, kind) => validateDisplayName(name, kind),
       save: (name, kind) => {
         const checked = validateDisplayName(name, kind);
         if (!checked.ok) return checked;
         saveDisplayName({ name: checked.name, kind });
         client.setDisplayName(checked.name, kind);
+        notifyAccount();
         return checked;
       },
     },
@@ -345,8 +397,28 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       status: () => client.getStatus(),
       guestLabel: () => {
         const user = loadAuthUser();
-        if (user?.email) return user.email;
-        return client.isSignedIn() ? t('account.signedIn') : t('account.guest');
+        if (user) return t('account.signedIn');
+        return t('account.guest');
+      },
+      profile: () => {
+        const user = loadAuthUser();
+        const username = loadDisplayName()?.name || '';
+        return {
+          signedIn: !!(user || client.isSignedIn()),
+          email: user?.email,
+          emailMasked: maskEmail(user?.email),
+          googleName: user?.displayName,
+          googleNameMasked: maskDisplayName(user?.displayName),
+          username,
+          uid: user?.uid,
+        };
+      },
+      onChange: (cb) => {
+        accountListeners.push(cb);
+        return () => {
+          const i = accountListeners.indexOf(cb);
+          if (i >= 0) accountListeners.splice(i, 1);
+        };
       },
       signInGoogle: async () => {
         if (!isAuthConfigured()) throw new Error('auth_not_configured');
@@ -356,6 +428,7 @@ function installApi(client: SpacetimeClient): WeltraumApi {
           if (snap) saveAnonSnapshot(snap);
           await signInWithGoogle();
           await connectFirebaseIdentity(client, true);
+          await afterProgressReady(client);
         } finally {
           authFlowLock = false;
         }
@@ -374,6 +447,7 @@ function installApi(client: SpacetimeClient): WeltraumApi {
           if (snap) saveAnonSnapshot(snap);
           await signInWithApple();
           await connectFirebaseIdentity(client, true);
+          await afterProgressReady(client);
         } finally {
           authFlowLock = false;
         }
@@ -384,6 +458,7 @@ function installApi(client: SpacetimeClient): WeltraumApi {
         await client.restoreGuestIdentity();
         await client.reconcileWithServer();
         applyHigherServerCoins(client);
+        notifyAccount();
       },
     },
   };
@@ -426,8 +501,7 @@ function bindTokenWatch(client: SpacetimeClient): void {
     if (!client.isSignedIn()) return;
     void (async () => {
       await client.reconnectWithToken(user.idToken);
-      await client.reconcileWithServer();
-      applyHigherServerCoins(client);
+      await afterProgressReady(client);
     })();
   });
 }
@@ -437,7 +511,10 @@ async function init(): Promise<void> {
   initLanguage();
 
   const client = getSpacetimeClient();
-  setLevelFetcher((level) => client.fetchLevelData(level));
+  setLevelFetcher((level) => {
+    const claimed = adoptGameProgress(client);
+    return client.fetchLevelData(level, claimed);
+  });
   const api = installApi(client);
   window.__weltraum = api;
   api.onSyncStatusChange(() => undefined);
@@ -456,12 +533,12 @@ async function init(): Promise<void> {
     console.log('[Weltraum] SpacetimeDB connected', client.getIdentityHex());
     if (signed) {
       await connectFirebaseIdentity(client, true);
-    } else {
+    } else if (loadAuthUser()) {
       await mergeAfterSignIn(client);
     }
-    await client.reconcileWithServer();
-    applyHigherServerCoins(client);
+    await afterProgressReady(client);
     showGameSync('saved');
+    notifyAccount();
   } else {
     console.log('[Weltraum] Running in offline mode (local cache)');
     showGameSync('offline');
