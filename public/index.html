@@ -694,7 +694,12 @@
   function shipBottom() { return 120 + safeBottom; }
   function currentMode() {
     var api = window.__weltraum && window.__weltraum.difficulty;
-    return (api && api.current && api.current()) || "normal";
+    if (api && api.current) return api.current();
+    try {
+      var raw = localStorage.getItem("spaceMissionDifficulty");
+      if (raw === "easy" || raw === "veteran") return raw;
+    } catch (e) {}
+    return "normal";
   }
   function modeTune() {
     var m = currentMode();
@@ -6409,7 +6414,14 @@
     namePickVisible: function () { return !$("namePickScreen").classList.contains("hidden"); },
     shopBadgeOn: function () { return $("shopBtn").classList.contains("hasDeal"); },
     mode: function () { return currentMode(); },
-    setMode: function (m) { var api = window.__weltraum && window.__weltraum.difficulty; if (api) api.set(m); refreshModeBar(); return currentMode(); },
+    setMode: function (m) {
+      var api = window.__weltraum && window.__weltraum.difficulty;
+      var next = (m === "easy" || m === "veteran") ? m : "normal";
+      if (api) api.set(next);
+      else { try { localStorage.setItem("spaceMissionDifficulty", next); } catch (e) {} }
+      refreshModeBar();
+      return currentMode();
+    },
     weeklyLevel: function () { var w = window.__weltraum && window.__weltraum.weekly; return w && w.challenge ? w.challenge() : null; },
     displayName: function () { var n = window.__weltraum && window.__weltraum.names && window.__weltraum.names.current(); return n && n.name; },
     forceFinish: function (opts) {
