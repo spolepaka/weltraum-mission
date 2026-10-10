@@ -88,7 +88,8 @@ function patternName(lang: NameLang, rnd: () => number): string {
   }
   if (kind === 3) {
     const title = lang === 'de' ? 'Käptn' : 'Captain';
-    return `${title} ${pick(noun, rnd)}`;
+    const shortNouns = noun.filter((w) => w.length <= (lang === 'de' ? 8 : 9));
+    return `${title} ${pick(shortNouns.length ? shortNouns : noun, rnd)}`;
   }
   if (kind === 4) {
     const core = pick(noun, rnd).replace(/e$/i, '');
