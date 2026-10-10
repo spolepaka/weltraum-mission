@@ -246,6 +246,18 @@ function adoptGameProgress(client: SpacetimeClient): number {
 }
 
 async function afterProgressReady(client: SpacetimeClient): Promise<void> {
+  const gameUnlock = window.__spaceGame?.progress?.()?.unlocked || 1;
+  const remote = await client.fetchMyProgress();
+  if (remote && gameUnlock > remote.unlockedLevel && !remote.legacyImported) {
+    const snap = snapshotFromGame();
+    if (snap) {
+      try {
+        await client.legacyImport(snap);
+      } catch (err) {
+        console.warn('[Weltraum] legacyImport failed', err);
+      }
+    }
+  }
   const unlocked = adoptGameProgress(client);
   syncFromGame(client);
   await client.reconcileWithServer();
@@ -330,8 +342,8 @@ function installApi(client: SpacetimeClient): WeltraumApi {
     onPurchaseUpgrade: (upgradeId, price) => client.purchaseUpgrade(upgradeId, BigInt(price)),
     onSecretCode: (code) => client.applySecretCode(code),
     canStartLevel: (level) => {
-      const claimed = adoptGameProgress(client);
-      return client.requestLevelData(level, claimed);
+      adoptGameProgress(client);
+      return client.requestLevelData(level);
     },
     levels: {
       ensure: (level, unlocked) => ensureLevel(level, Math.max(unlocked, adoptGameProgress(client))),
@@ -512,8 +524,8 @@ async function init(): Promise<void> {
 
   const client = getSpacetimeClient();
   setLevelFetcher((level) => {
-    const claimed = adoptGameProgress(client);
-    return client.fetchLevelData(level, claimed);
+    adoptGameProgress(client);
+    return client.fetchLevelData(level);
   });
   const api = installApi(client);
   window.__weltraum = api;

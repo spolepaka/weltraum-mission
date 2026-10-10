@@ -41,6 +41,7 @@ export const MyProgressResult = __t.object("MyProgressResult", {
   ownedShipsCsv: __t.string(),
   language: __t.string(),
   totalScore: __t.u64(),
+  legacyImported: __t.bool(),
 });
 export type MyProgressResult = __Infer<typeof MyProgressResult>;
 

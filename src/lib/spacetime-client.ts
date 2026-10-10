@@ -77,6 +77,8 @@ class SpacetimeClient {
   private connectWaiters: Array<(ok: boolean) => void> = [];
   private silentReconnect = false;
   lastError: string | null = null;
+  private lastServerUnlock: number | null = null;
+  private lastLegacyImported = false;
 
   constructor(config: Partial<SpacetimeConfig> = {}) {
     this.config = this.resolveConfig(config);
@@ -499,9 +501,12 @@ class SpacetimeClient {
   }
 
   syncProgress(unlockedLevel: number, coins: bigint, equippedShip: string): void {
-    console.log('[SpacetimeDB] syncProgress:', { unlockedLevel, coins, equippedShip });
+    const capped = this.lastServerUnlock == null
+      ? unlockedLevel
+      : Math.min(unlockedLevel, this.lastServerUnlock + 1);
+    console.log('[SpacetimeDB] syncProgress:', { unlockedLevel: capped, coins, equippedShip });
     this.queueOrCallReducer(() => {
-      this.connection?.reducers.syncProgress({ unlockedLevel, coins: BigInt(coins), equippedShip });
+      this.connection?.reducers.syncProgress({ unlockedLevel: capped, coins: BigInt(coins), equippedShip });
     });
   }
 
@@ -558,16 +563,12 @@ class SpacetimeClient {
     }
   }
 
-  requestLevelData(level: number, claimedUnlock?: number): boolean {
+  requestLevelData(level: number): boolean {
     const data = this.getLocalData();
-    const allowed = Math.max(data.unlockedLevel || 1, claimedUnlock || 1);
+    const allowed = data.unlockedLevel || 1;
     if (level > allowed) {
       this.lastError = 'level_locked';
       return false;
-    }
-    if (allowed > data.unlockedLevel) {
-      data.unlockedLevel = allowed;
-      this.saveLocalData(data);
     }
     this.queueOrCallReducer(() => {
       this.connection?.reducers.requestLevelData({ level });
@@ -583,18 +584,8 @@ class SpacetimeClient {
     }
   }
 
-  async fetchLevelData(level: number, claimedUnlock?: number): Promise<{ level: number; dataJson: string } | null> {
+  async fetchLevelData(level: number): Promise<{ level: number; dataJson: string } | null> {
     this.lastError = null;
-    const data = this.getLocalData();
-    const claimed = Math.max(1, Math.min(100, claimedUnlock || data.unlockedLevel || 1));
-    if (level > claimed && level > data.unlockedLevel) {
-      this.lastError = 'level_locked';
-      return null;
-    }
-    if (claimed > data.unlockedLevel) {
-      data.unlockedLevel = claimed;
-      this.saveLocalData(data);
-    }
 
     if (!this.isConnected()) {
       await this.waitUntilConnected(8000);
@@ -603,9 +594,9 @@ class SpacetimeClient {
     const tryOnce = async (): Promise<{ level: number; dataJson: string } | null> => {
       if (!this.connection || !this.isConnected()) return null;
       const proc = this.connection.procedures.getLevelData as unknown as (a: {
-        level: number; claimedUnlock: number;
+        level: number;
       }) => Promise<{ level: number; dataJson: string } | undefined>;
-      const result = await proc({ level, claimedUnlock: claimed });
+      const result = await proc({ level });
       if (result) return { level: result.level, dataJson: result.dataJson };
       this.lastError = 'level_locked_or_missing';
       return null;
@@ -866,6 +857,55 @@ class SpacetimeClient {
     });
   }
 
+  snapshotArgs(snapshot: ProgressSnapshot) {
+    return {
+      unlockedLevel: snapshot.unlockedLevel,
+      coins: BigInt(snapshot.coins),
+      equippedShip: snapshot.equippedShip || 'starter',
+      ownedShipsCsv: (snapshot.ownedShips || ['starter']).join(','),
+      upgradesJson: JSON.stringify(snapshot.upgrades || {}),
+      starsJson: JSON.stringify(snapshot.stars || {}),
+      language: snapshot.language || 'en',
+    };
+  }
+
+  async legacyImport(snapshot: ProgressSnapshot): Promise<{ ok: boolean; reason?: string }> {
+    this.lastError = null;
+    const data = this.getLocalData();
+    data.unlockedLevel = Math.max(data.unlockedLevel, snapshot.unlockedLevel || 1);
+    data.coins = mergeCoins(data.coins, snapshot.coins);
+    data.equippedShip = snapshot.equippedShip || data.equippedShip;
+    data.ownedShips = Array.from(new Set([...(data.ownedShips || []), ...(snapshot.ownedShips || [])]));
+    data.upgrades = { ...data.upgrades, ...snapshot.upgrades };
+    data.language = snapshot.language || data.language;
+    this.saveLocalData(data);
+
+    try {
+      if (!this.isConnected()) await this.waitUntilConnected(8000);
+      const reducers = this.connection?.reducers as {
+        legacyImport?: (a: ReturnType<SpacetimeClient['snapshotArgs']>) => Promise<void>;
+      } | undefined;
+      if (!reducers?.legacyImport) {
+        this.lastError = 'legacy_import_unavailable';
+        return { ok: false, reason: this.lastError };
+      }
+      await reducers.legacyImport(this.snapshotArgs(snapshot));
+      this.lastLegacyImported = true;
+      const remote = await this.fetchMyProgress();
+      if (remote) this.lastServerUnlock = remote.unlockedLevel;
+      return { ok: true };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.lastError = reason;
+      console.warn('[SpacetimeDB] legacyImport rejected:', reason);
+      return { ok: false, reason };
+    }
+  }
+
+  hasLegacyImported(): boolean {
+    return this.lastLegacyImported;
+  }
+
   async fetchMyProgress(): Promise<{
     unlockedLevel: number;
     coins: bigint;
@@ -873,11 +913,15 @@ class SpacetimeClient {
     ownedShips: string[];
     language: string;
     totalScore: bigint;
+    legacyImported: boolean;
   } | null> {
     if (!this.connection || !this.isConnected()) return null;
     try {
       const result = await this.connection.procedures.getMyProgress({});
       if (!result) return null;
+      const legacyImported = !!(result as { legacyImported?: boolean }).legacyImported;
+      this.lastServerUnlock = result.unlockedLevel;
+      this.lastLegacyImported = legacyImported || this.lastLegacyImported;
       return {
         unlockedLevel: result.unlockedLevel,
         coins: BigInt(result.coins),
@@ -885,6 +929,7 @@ class SpacetimeClient {
         ownedShips: result.ownedShipsCsv ? result.ownedShipsCsv.split(',').filter(Boolean) : ['starter'],
         language: result.language,
         totalScore: BigInt(result.totalScore),
+        legacyImported,
       };
     } catch (error) {
       console.warn('[SpacetimeDB] getMyProgress failed:', error);
@@ -903,7 +948,7 @@ class SpacetimeClient {
     if (remote.equippedShip) local.equippedShip = local.equippedShip || remote.equippedShip;
     local.ownedShips = Array.from(new Set([...(local.ownedShips || []), ...remote.ownedShips]));
     this.saveLocalData(local);
-    if (local.unlockedLevel > remote.unlockedLevel) {
+    if (local.unlockedLevel === remote.unlockedLevel + 1) {
       this.syncProgress(local.unlockedLevel, local.coins, local.equippedShip);
     }
     if (delta > 0n) {

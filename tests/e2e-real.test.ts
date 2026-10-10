@@ -477,6 +477,97 @@ describe('Lazy levels: returning-player edges', { timeout: 45000 }, () => {
     await context.close();
   });
 
+  it('refuses getLevelData for an inflated claim on a normal account', async () => {
+    const { context, page } = await openFreshPage();
+    const out = await page.evaluate(async () => {
+      const w = window as unknown as {
+        __weltraum?: {
+          spacetime?: {
+            fetchLevelData: (n: number) => Promise<{ level: number; dataJson: string } | null>;
+            fetchMyProgress: () => Promise<{ unlockedLevel: number } | null>;
+          };
+        };
+      };
+      const locked = await w.__weltraum!.spacetime!.fetchLevelData(50);
+      const remote = await w.__weltraum!.spacetime!.fetchMyProgress();
+      return { locked, unlocked: remote?.unlockedLevel ?? 0 };
+    });
+    expect(out.locked).toBeNull();
+    expect(out.unlocked).toBe(1);
+    await context.close();
+  });
+
+  it('rejects a second legacy import for the same identity', async () => {
+    const { context, page } = await openFreshPage();
+    const out = await page.evaluate(async () => {
+      const w = window as unknown as {
+        __spaceGame?: { unlockTo: (n: number) => void };
+        __weltraum?: {
+          spacetime?: {
+            legacyImport: (s: {
+              unlockedLevel: number; coins: number; equippedShip: string; ownedShips: string[];
+              upgrades: Record<string, number>; stars: Record<string, number>; best: Record<string, number>; language: string;
+            }) => Promise<{ ok: boolean; reason?: string }>;
+          };
+        };
+      };
+      const stars: Record<string, number> = { '1': 2, '2': 2, '3': 2, '4': 2 };
+      w.__spaceGame!.unlockTo(5);
+      const first = await w.__weltraum!.spacetime!.legacyImport({
+        unlockedLevel: 5, coins: 40, equippedShip: 'starter', ownedShips: ['starter'],
+        upgrades: {}, stars, best: {}, language: 'en',
+      });
+      const second = await w.__weltraum!.spacetime!.legacyImport({
+        unlockedLevel: 40, coins: 40, equippedShip: 'starter', ownedShips: ['starter'],
+        upgrades: {}, stars, best: {}, language: 'en',
+      });
+      return { first, second };
+    });
+    expect(out.first.ok).toBe(true);
+    expect(out.second.ok).toBe(false);
+    expect(out.second.reason || '').toMatch(/already used|Legacy import/i);
+    await context.close();
+  });
+
+  it('owner-like signed-in local-ahead imports once and unlocks getLevelData', async () => {
+    const { context, page } = await openFreshPage();
+    const out = await page.evaluate(async () => {
+      const w = window as unknown as {
+        __spaceGame?: { unlockTo: (n: number) => void };
+        __weltraum?: {
+          spacetime?: {
+            legacyImport: (s: {
+              unlockedLevel: number; coins: number; equippedShip: string; ownedShips: string[];
+              upgrades: Record<string, number>; stars: Record<string, number>; best: Record<string, number>; language: string;
+            }) => Promise<{ ok: boolean; reason?: string }>;
+            fetchLevelData: (n: number) => Promise<{ level: number; dataJson: string } | null>;
+            fetchMyProgress: () => Promise<{ unlockedLevel: number; legacyImported?: boolean } | null>;
+          };
+        };
+      };
+      const stars: Record<string, number> = {};
+      for (let i = 1; i <= 19; i++) stars[String(i)] = 2;
+      w.__spaceGame!.unlockTo(20);
+      const imported = await w.__weltraum!.spacetime!.legacyImport({
+        unlockedLevel: 20, coins: 400, equippedShip: 'starter', ownedShips: ['starter'],
+        upgrades: {}, stars, best: {}, language: 'en',
+      });
+      const row = await w.__weltraum!.spacetime!.fetchLevelData(20);
+      const remote = await w.__weltraum!.spacetime!.fetchMyProgress();
+      return {
+        imported,
+        level: row?.level ?? null,
+        unlocked: remote?.unlockedLevel ?? 0,
+        legacyImported: remote?.legacyImported,
+      };
+    });
+    expect(out.imported.ok).toBe(true);
+    expect(out.level).toBe(20);
+    expect(out.unlocked).toBeGreaterThanOrEqual(20);
+    expect(out.legacyImported).toBe(true);
+    await context.close();
+  });
+
   it('(g) token-refresh reconnect still starts an unlocked level', async () => {
     const { context, page } = await openFreshPage();
     const out = await page.evaluate(async () => {
