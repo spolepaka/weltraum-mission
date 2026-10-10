@@ -66,7 +66,18 @@ export interface FirebaseWebConfig {
   storageBucket?: string;
 }
 
+let testEnvOverride: Record<string, string | undefined> | null = null;
+
+/** Test-only: pin or clear VITE_FIREBASE_* without depending on the process env. */
+export function setFirebaseEnvForTests(env: Record<string, string | undefined> | null): void {
+  testEnvOverride = env;
+}
+
 function viteEnv(name: string): string | undefined {
+  if (testEnvOverride && Object.prototype.hasOwnProperty.call(testEnvOverride, name)) {
+    const pinned = testEnvOverride[name];
+    return pinned || undefined;
+  }
   try {
     const env = (import.meta as { env?: Record<string, string | undefined> }).env;
     if (env?.[name]) return env[name];
@@ -205,13 +216,27 @@ function preferRedirect(): boolean {
   return iPad || iPhone;
 }
 
-function isPopupBlocked(err: unknown): boolean {
-  const code = (err as { code?: string })?.code || '';
+function errCode(err: unknown): string {
+  return String((err as { code?: string })?.code || '');
+}
+
+function errMessage(err: unknown): string {
+  return String((err as { message?: string })?.message || err || '');
+}
+
+/** Popup failed in a way that redirect can recover (iPad Safari, CSP, blocker). */
+export function shouldFallbackToRedirect(err: unknown): boolean {
+  const code = errCode(err);
+  const msg = errMessage(err);
   return (
     code === 'auth/popup-blocked' ||
     code === 'auth/popup-closed-by-user' ||
     code === 'auth/cancelled-popup-request' ||
-    code === 'auth/operation-not-supported-in-this-environment'
+    code === 'auth/operation-not-supported-in-this-environment' ||
+    code === 'auth/internal-error' ||
+    /auth\/internal-error/i.test(msg) ||
+    /popup-blocked/i.test(msg) ||
+    /popup-closed/i.test(msg)
   );
 }
 
@@ -278,7 +303,7 @@ export async function signInWithGoogle(): Promise<AuthUser> {
     saveAuthUser(user);
     return user;
   } catch (err) {
-    if (isPopupBlocked(err) || preferRedirect()) {
+    if (shouldFallbackToRedirect(err) || preferRedirect()) {
       await signInWithRedirect(a, provider);
       throw new Error('redirecting');
     }
@@ -315,7 +340,7 @@ export async function signInWithApple(): Promise<AuthUser> {
     saveAuthUser(user);
     return user;
   } catch (err) {
-    if (isPopupBlocked(err)) {
+    if (shouldFallbackToRedirect(err) || preferRedirect()) {
       await signInWithRedirect(a, provider);
       throw new Error('redirecting');
     }
@@ -365,4 +390,5 @@ export async function resetFirebaseForTests(): Promise<void> {
   app = null;
   auth = null;
   emulatorBound = false;
+  testEnvOverride = null;
 }

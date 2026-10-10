@@ -166,7 +166,7 @@ describe.each([
       (document.getElementById('accountGoogle') as HTMLButtonElement | null)?.click();
       return document.getElementById('accountNote')?.textContent || '';
     });
-    expect(note).toMatch(/VITE_FIREBASE_|Firebase|Gast|guest/i);
+    expect(note).toMatch(/VITE_FIREBASE_|Firebase|Gast|guest|Saving your progress|Fortschritt wird/i);
     await page.evaluate(() => {
       const w = window as GameWin;
       w.__spaceGame?.setLang?.('de');

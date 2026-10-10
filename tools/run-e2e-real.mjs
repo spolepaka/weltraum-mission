@@ -84,7 +84,17 @@ async function main() {
   }
 
   console.log('[e2e] building production game');
-  await run('npm', ['run', 'build'], LOCAL ? { env: { ...process.env, E2E_LOCAL: '1' } } : undefined);
+  const buildEnv = { ...process.env };
+  if (LOCAL) {
+    buildEnv.E2E_LOCAL = '1';
+    // Guest play is the default for local e2e; do not bake a leftover Firebase config.
+    delete buildEnv.VITE_FIREBASE_API_KEY;
+    delete buildEnv.VITE_FIREBASE_AUTH_DOMAIN;
+    delete buildEnv.VITE_FIREBASE_PROJECT_ID;
+    delete buildEnv.VITE_FIREBASE_APP_ID;
+    delete buildEnv.VITE_FIREBASE_AUTH_EMULATOR;
+  }
+  await run('npm', ['run', 'build'], LOCAL ? { env: buildEnv } : undefined);
 
   if (await portOpen(4173)) {
     console.log('[e2e] stopping leftover preview on :4173');
@@ -108,8 +118,11 @@ async function main() {
   if (!html.includes('https://maincloud.spacetimedb.com') || !html.includes('wss://maincloud.spacetimedb.com')) {
     throw new Error('Production HTML missing Maincloud connect-src hosts');
   }
-  if (!html.includes('identitytoolkit.googleapis.com') || !html.includes('securetoken.googleapis.com') || !html.includes('apis.google.com') || !html.includes('accounts.google.com')) {
+  if (!html.includes('identitytoolkit.googleapis.com') || !html.includes('securetoken.googleapis.com') || !html.includes('apis.google.com') || !html.includes('accounts.google.com') || !html.includes('www.gstatic.com') || !html.includes('www.googleapis.com')) {
     throw new Error('Production HTML missing Firebase / Google CSP hosts');
+  }
+  if (!/script-src[^;]*https:\/\/apis\.google\.com/.test(html) || !/script-src[^;]*https:\/\/www\.gstatic\.com/.test(html)) {
+    throw new Error('Production HTML script-src missing Firebase gapi / gstatic hosts');
   }
   if (html.includes('auth.spacetimedb.com')) {
     throw new Error('Production HTML still allows SpacetimeAuth host');

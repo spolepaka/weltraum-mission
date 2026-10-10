@@ -13,6 +13,8 @@ import {
   resetFirebaseForTests,
   saveAuthUser,
   saveGuestToken,
+  setFirebaseEnvForTests,
+  shouldFallbackToRedirect,
 } from '../src/lib/firebase-auth';
 
 const store: Record<string, string> = {};
@@ -30,26 +32,33 @@ function stubStorage(): void {
 
 afterEach(async () => {
   for (const k of Object.keys(store)) delete store[k];
-  delete process.env.VITE_FIREBASE_API_KEY;
-  delete process.env.VITE_FIREBASE_AUTH_DOMAIN;
-  delete process.env.VITE_FIREBASE_PROJECT_ID;
-  delete process.env.VITE_FIREBASE_APP_ID;
-  delete process.env.VITE_FIREBASE_APPLE_ENABLED;
   await resetFirebaseForTests();
 });
 
 describe('Firebase Auth config (no emulator)', () => {
   it('is unconfigured when VITE_FIREBASE_* are unset (guests keep playing)', () => {
+    setFirebaseEnvForTests({
+      VITE_FIREBASE_API_KEY: '',
+      VITE_FIREBASE_AUTH_DOMAIN: '',
+      VITE_FIREBASE_PROJECT_ID: '',
+      VITE_FIREBASE_APP_ID: '',
+    });
     expect(getFirebaseConfig()).toBeNull();
     expect(isAuthConfigured()).toBe(false);
   });
 
   it('reads the four required Vite env vars', async () => {
-    process.env.VITE_FIREBASE_API_KEY = 'k';
-    process.env.VITE_FIREBASE_AUTH_DOMAIN = 'p.firebaseapp.com';
-    process.env.VITE_FIREBASE_PROJECT_ID = 'p';
-    process.env.VITE_FIREBASE_APP_ID = '1:1:web:x';
+    const pinned = {
+      VITE_FIREBASE_API_KEY: 'k',
+      VITE_FIREBASE_AUTH_DOMAIN: 'p.firebaseapp.com',
+      VITE_FIREBASE_PROJECT_ID: 'p',
+      VITE_FIREBASE_APP_ID: '1:1:web:x',
+      VITE_FIREBASE_MESSAGING_SENDER_ID: '',
+      VITE_FIREBASE_STORAGE_BUCKET: '',
+    };
+    setFirebaseEnvForTests(pinned);
     await resetFirebaseForTests();
+    setFirebaseEnvForTests(pinned);
     expect(getFirebaseConfig()).toEqual({
       apiKey: 'k',
       authDomain: 'p.firebaseapp.com',
@@ -65,7 +74,7 @@ describe('Firebase Auth config (no emulator)', () => {
     expect(AUTH_PROVIDERS.map((p) => p.id)).toEqual(['google', 'emailLink', 'apple']);
     expect(isAppleEnabled()).toBe(false);
     expect(enabledProviders()).toEqual(['google', 'emailLink']);
-    process.env.VITE_FIREBASE_APPLE_ENABLED = '1';
+    setFirebaseEnvForTests({ VITE_FIREBASE_APPLE_ENABLED: '1' });
     expect(isAppleEnabled()).toBe(true);
     expect(enabledProviders()).toEqual(['google', 'emailLink', 'apple']);
   });
@@ -88,5 +97,12 @@ describe('Firebase Auth config (no emulator)', () => {
     clearAuthUser();
     expect(loadAuthUser()).toBeNull();
     expect(loadGuestToken()).toBe('guest-token-1');
+  });
+
+  it('falls back to redirect on popup-blocked and auth/internal-error', () => {
+    expect(shouldFallbackToRedirect({ code: 'auth/popup-blocked' })).toBe(true);
+    expect(shouldFallbackToRedirect({ code: 'auth/internal-error' })).toBe(true);
+    expect(shouldFallbackToRedirect({ message: 'Firebase: Error (auth/internal-error).' })).toBe(true);
+    expect(shouldFallbackToRedirect({ code: 'auth/invalid-email' })).toBe(false);
   });
 });
