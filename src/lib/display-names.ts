@@ -184,9 +184,20 @@ function withOptionalNumber(base: string, rnd: () => number): string | null {
   return null;
 }
 
+const LEET_MAPS: Record<string, string>[] = [
+  { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a', '$': 's', '!': 'i' },
+  { '0': 'o', '1': 'i', '3': 'e', '4': 'u', '5': 's', '7': 't', '@': 'a', '$': 's', '!': 'i' },
+];
+
+function compactLeet(value: string, map: Record<string, string>): string {
+  return value.toLowerCase().replace(/[013457@$!]/g, (c) => map[c] || c).replace(/[^a-zäöüß]/g, '');
+}
+
 export function hasProfanity(value: string): boolean {
-  const compact = value.toLowerCase().replace(/[^a-zäöüß]/g, '');
-  return BLOCKED.some((w) => compact.includes(w));
+  return LEET_MAPS.some((map) => {
+    const compact = compactLeet(value, map);
+    return BLOCKED.some((w) => compact.includes(w));
+  });
 }
 
 function shortDeNouns(max = 8): readonly DeNoun[] {
@@ -446,8 +457,7 @@ export function looksLikeUrl(value: string): boolean {
 }
 
 export function looksLikePhone(value: string): boolean {
-  const digits = value.replace(/\D/g, '');
-  return digits.length >= 7;
+  return value.replace(/\D/g, '').length > 4;
 }
 
 export function validateDisplayName(raw: string, kind: NameKind): { ok: true; name: string } | { ok: false; reason: string } {
