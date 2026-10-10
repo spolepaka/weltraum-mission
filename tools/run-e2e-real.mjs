@@ -1,13 +1,15 @@
 /**
- * CI-style runner: local SpacetimeDB + published module + built game + Playwright E2E.
- * Does NOT publish to Maincloud.
+ * CI-style runner for the production build + Playwright E2E.
+ *
+ * Default: Maincloud `weltraum-mission` (does NOT publish).
+ * Local:   `node tools/run-e2e-real.mjs --local` (in-memory server + weltraum-dev).
  */
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
 
-const STDB_URL = 'http://localhost:3000';
 const PREVIEW_URL = 'http://localhost:4173';
 const ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '') || process.cwd();
+const LOCAL = process.argv.includes('--local');
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
@@ -54,20 +56,26 @@ async function main() {
   process.on('exit', cleanup);
   process.on('SIGINT', () => { cleanup(); process.exit(1); });
 
-  if (!(await portOpen(3000))) {
-    console.log('[e2e] starting spacetime start --in-memory');
-    stdbProc = spawn('spacetime', ['start', '--in-memory'], { cwd: ROOT, stdio: 'inherit' });
-    await waitForPort(3000, 'SpacetimeDB');
-    await sleep(1000);
+  if (LOCAL) {
+    if (!(await portOpen(3000))) {
+      console.log('[e2e] starting spacetime start --in-memory');
+      stdbProc = spawn('spacetime', ['start', '--in-memory'], { cwd: ROOT, stdio: 'inherit' });
+      await waitForPort(3000, 'SpacetimeDB');
+      await sleep(1000);
+    } else {
+      console.log('[e2e] SpacetimeDB already listening on :3000');
+    }
+    console.log('[e2e] publishing module to LOCAL server only (not Maincloud)');
+    await run('npm', ['run', 'build'], { cwd: `${ROOT}/server/spacetimedb` });
+    await run('spacetime', ['publish', '--server', 'http://localhost:3000', 'weltraum-dev'], {
+      cwd: `${ROOT}/server/spacetimedb`,
+    });
   } else {
-    console.log('[e2e] SpacetimeDB already listening on :3000');
+    console.log('[e2e] Maincloud target: https://maincloud.spacetimedb.com / weltraum-mission');
+    console.log('[e2e] will NOT publish or modify the remote module');
   }
 
-  console.log('[e2e] building + publishing module to local server (not Maincloud)');
-  await run('npm', ['run', 'build'], { cwd: `${ROOT}/server/spacetimedb` });
-  await run('spacetime', ['publish', '--server', STDB_URL, 'weltraum-dev'], { cwd: `${ROOT}/server/spacetimedb` });
-
-  console.log('[e2e] building game (Vercel output)');
+  console.log('[e2e] building production game');
   await run('npm', ['run', 'build']);
 
   if (await portOpen(4173)) {
@@ -82,17 +90,34 @@ async function main() {
   });
   await waitForPort(4173, 'vite preview');
 
-  // sanity: preview serves the game, not the stub
   const html = await fetch(PREVIEW_URL).then(r => r.text());
   if (!html.includes('__spaceGame') || !html.includes('/assets/')) {
     throw new Error('Built game is not being served (missing __spaceGame or bundled assets)');
   }
+  if (!LOCAL && html.includes('http://localhost:*')) {
+    throw new Error('Production HTML still allows localhost in CSP');
+  }
+  if (!html.includes('https://maincloud.spacetimedb.com') || !html.includes('wss://maincloud.spacetimedb.com')) {
+    throw new Error('Production HTML missing Maincloud connect-src hosts');
+  }
   console.log('[e2e] preview is serving the bundled game (' + html.length + ' bytes HTML)');
 
+  const env = {
+    ...process.env,
+    E2E_BASE_URL: PREVIEW_URL,
+  };
+  if (LOCAL) {
+    env.E2E_STDB_QS = 'stdb_host=localhost:3000&stdb_module=weltraum-dev&stdb_ssl=false';
+    env.E2E_EXPECT_HOST = 'localhost:3000';
+    env.E2E_EXPECT_MODULE = 'weltraum-dev';
+  } else {
+    delete env.E2E_STDB_QS;
+    env.E2E_EXPECT_HOST = 'maincloud.spacetimedb.com';
+    env.E2E_EXPECT_MODULE = 'weltraum-mission';
+  }
+
   console.log('[e2e] running Playwright suite');
-  await run('npx', ['vitest', 'run', 'tests/e2e-real.test.ts'], {
-    env: { ...process.env, E2E_BASE_URL: PREVIEW_URL },
-  });
+  await run('npx', ['vitest', 'run', 'tests/e2e-real.test.ts'], { env });
 
   if (previewProc) previewProc.kill('SIGTERM');
   console.log('[e2e] real suite passed');

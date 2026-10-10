@@ -38,16 +38,27 @@
 
 ### Configuring the Client
 
-The client automatically connects to Maincloud by default. To override:
+The production build always defaults to Maincloud:
 
-**URL Parameters:**
-- `?stdb_host=localhost:3000` - Use local server
-- `?stdb_module=weltraum-dev` - Use different module name
-- `?stdb_ssl=false` - Disable SSL (for local dev)
+- Host: `maincloud.spacetimedb.com` (`wss://` + `https://`)
+- Module: `weltraum-mission`
+- Anonymous clients need no login token (the SDK stores the issued identity in `localStorage`)
 
-**Example local development:**
+Override for local / CI only:
+
+**URL parameters**
+- `?server=ws://localhost:3000` — host + scheme (module stays `weltraum-mission` unless also set)
+- `?stdb_host=localhost:3000`
+- `?stdb_module=weltraum-dev`
+- `?stdb_ssl=false`
+
+**Env (Vite)**
+- `VITE_STDB_HOST` / `VITE_STDB_MODULE` / `VITE_STDB_SSL`
+- or `STDB_HOST` / `STDB_MODULE` / `STDB_SSL`
+
+**Example local development (Vite dev server, localhost allowed in CSP):**
 ```
-http://localhost:5173/?stdb_host=localhost:3000&stdb_module=weltraum-dev&stdb_ssl=false
+http://localhost:5173/?server=ws://localhost:3000&stdb_module=weltraum-dev
 ```
 
 ## Local Development
@@ -83,9 +94,11 @@ npm test
 node tools/smoke.mjs 9222 "$(pwd)/public/index.html" 1024 768
 node tools/smoke.mjs 9223 "$(pwd)/public/index.html" 768 1024
 
-# Real E2E tests (requires running SpacetimeDB and dev server)
-npm run dev &
-npx vitest run tests/e2e-real.test.ts
+# Real E2E against Maincloud + production build
+npm run test:e2e:real
+
+# Real E2E against a local in-memory server
+npm run test:e2e:local
 ```
 
 ## Module Overview
@@ -155,12 +168,14 @@ The server validates all submitted results:
 
 ## Content Security Policy
 
-The CSP header restricts script execution. `'unsafe-eval'` is required because the official SpacetimeDB TypeScript SDK builds deserializers with `new Function()`:
+Production (`vercel.json` + built `index.html`) does **not** allow localhost. Vite's dev server injects localhost into `connect-src` only while `npm run dev` is running.
+
+`'unsafe-eval'` stays because the official SpacetimeDB TypeScript SDK builds BSATN deserializers with `new Function()` (`makeDeserializer`). Without it, `DbConnection.builder().build()` throws `EvalError` and the client never connects.
 
 ```
 default-src 'self';
 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net;
-connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* https://*.spacetimedb.com wss://*.spacetimedb.com https://0.peerjs.com wss://0.peerjs.com;
+connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://0.peerjs.com wss://0.peerjs.com;
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:;
 media-src 'self' data: blob:;

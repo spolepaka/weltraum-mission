@@ -1,14 +1,17 @@
 /**
- * Real E2E against a local SpacetimeDB server and the built game.
- * Started by `npm run test:e2e:real` (do not skip).
+ * Real E2E against a running SpacetimeDB and the built game.
+ * Default: production build → Maincloud `weltraum-mission` (no query override).
+ * Local: `E2E_STDB_QS=stdb_host=localhost:3000&stdb_module=weltraum-dev&stdb_ssl=false`
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { chromium, Browser, Page, BrowserContext } from 'playwright';
 
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:4173';
-const STDB_QS = 'stdb_host=localhost:3000&stdb_module=weltraum-dev&stdb_ssl=false';
-const GAME_URL = `${BASE_URL}/?${STDB_QS}`;
+const STDB_QS = process.env.E2E_STDB_QS ?? '';
+const GAME_URL = STDB_QS ? `${BASE_URL}/?${STDB_QS}` : `${BASE_URL}/`;
+const EXPECT_HOST = process.env.E2E_EXPECT_HOST || 'maincloud.spacetimedb.com';
+const EXPECT_MODULE = process.env.E2E_EXPECT_MODULE || 'weltraum-mission';
 
 let browser: Browser;
 
@@ -29,7 +32,7 @@ async function openFreshPage(): Promise<{ context: BrowserContext; page: Page }>
   return { context, page };
 }
 
-describe('Real E2E: built game + local SpacetimeDB', { timeout: 30000 }, () => {
+describe('Real E2E: built game + SpacetimeDB', { timeout: 45000 }, () => {
   beforeAll(async () => {
     browser = await chromium.launch({
       headless: true,
@@ -48,11 +51,17 @@ describe('Real E2E: built game + local SpacetimeDB', { timeout: 30000 }, () => {
       const w = window as unknown as { __weltraum?: { spacetime?: { getIdentityHex: () => string | null } } };
       return w.__weltraum?.spacetime?.getIdentityHex() ?? null;
     });
+    const config = await page.evaluate(() => {
+      const w = window as unknown as { __weltraum?: { spacetime?: { getConfig: () => { host: string; moduleName: string; ssl: boolean } } } };
+      return w.__weltraum?.spacetime?.getConfig() ?? null;
+    });
     expect(token).toBeTruthy();
     expect(typeof token).toBe('string');
     expect(token!.length).toBeGreaterThan(10);
     expect(identity).toBeTruthy();
     expect(identity!.length).toBeGreaterThan(8);
+    expect(config?.host).toBe(EXPECT_HOST);
+    expect(config?.moduleName).toBe(EXPECT_MODULE);
     await context.close();
   });
 

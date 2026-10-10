@@ -75,38 +75,87 @@ class SpacetimeClient {
     this.loadLocalData();
   }
 
+  getConfig(): SpacetimeConfig {
+    return { ...this.config };
+  }
+
   private resolveConfig(override: Partial<SpacetimeConfig>): SpacetimeConfig {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const host = params.get('stdb_host');
-      const module = params.get('stdb_module');
-      const ssl = params.get('stdb_ssl');
-
-      if (host || module) {
-        return {
-          host: host || LOCAL_DEV_CONFIG.host,
-          moduleName: module || LOCAL_DEV_CONFIG.moduleName,
-          ssl: ssl === 'true' || (host?.includes('spacetimedb.com') ?? false),
-          ...override,
-        };
+      const fromQuery = this.configFromSearchParams(params);
+      if (fromQuery) {
+        return { ...fromQuery, ...override };
       }
     }
 
-    // Server-side env check (Node.js only)
-    if (typeof globalThis !== 'undefined' && 'process' in globalThis) {
-      const nodeProcess = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
-      const envHost = nodeProcess?.env?.STDB_HOST;
-      if (envHost) {
-        return {
-          host: envHost,
-          moduleName: nodeProcess?.env?.STDB_MODULE || LOCAL_DEV_CONFIG.moduleName,
-          ssl: envHost.includes('spacetimedb.com'),
-          ...override,
-        };
-      }
+    const fromEnv = this.configFromEnv();
+    if (fromEnv) {
+      return { ...fromEnv, ...override };
     }
 
     return { ...MAINCLOUD_CONFIG, ...override };
+  }
+
+  private configFromSearchParams(params: URLSearchParams): SpacetimeConfig | null {
+    const server = params.get('server');
+    const hostParam = params.get('stdb_host');
+    const moduleParam = params.get('stdb_module') || params.get('module');
+    const sslParam = params.get('stdb_ssl');
+
+    if (server) {
+      try {
+        const url = new URL(server);
+        const ssl = url.protocol === 'https:' || url.protocol === 'wss:';
+        return {
+          host: url.host,
+          moduleName: moduleParam || MAINCLOUD_CONFIG.moduleName,
+          ssl,
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    if (hostParam || moduleParam) {
+      const host = hostParam || LOCAL_DEV_CONFIG.host;
+      return {
+        host,
+        moduleName: moduleParam || (host.includes('spacetimedb.com') ? MAINCLOUD_CONFIG.moduleName : LOCAL_DEV_CONFIG.moduleName),
+        ssl: sslParam === 'true' || (sslParam !== 'false' && host.includes('spacetimedb.com')),
+      };
+    }
+
+    return null;
+  }
+
+  private configFromEnv(): SpacetimeConfig | null {
+    let host: string | undefined;
+    let moduleName: string | undefined;
+    let sslRaw: string | undefined;
+
+    try {
+      const viteEnv = (import.meta as { env?: Record<string, string | undefined> }).env;
+      host = viteEnv?.VITE_STDB_HOST || viteEnv?.STDB_HOST;
+      moduleName = viteEnv?.VITE_STDB_MODULE || viteEnv?.STDB_MODULE;
+      sslRaw = viteEnv?.VITE_STDB_SSL || viteEnv?.STDB_SSL;
+    } catch {
+      // not a Vite runtime
+    }
+
+    if (!host && typeof globalThis !== 'undefined' && 'process' in globalThis) {
+      const nodeProcess = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+      host = nodeProcess?.env?.VITE_STDB_HOST || nodeProcess?.env?.STDB_HOST;
+      moduleName = nodeProcess?.env?.VITE_STDB_MODULE || nodeProcess?.env?.STDB_MODULE;
+      sslRaw = nodeProcess?.env?.VITE_STDB_SSL || nodeProcess?.env?.STDB_SSL;
+    }
+
+    if (!host && !moduleName) return null;
+    const resolvedHost = host || MAINCLOUD_CONFIG.host;
+    return {
+      host: resolvedHost,
+      moduleName: moduleName || (resolvedHost.includes('spacetimedb.com') ? MAINCLOUD_CONFIG.moduleName : LOCAL_DEV_CONFIG.moduleName),
+      ssl: sslRaw === 'true' || (sslRaw !== 'false' && resolvedHost.includes('spacetimedb.com')),
+    };
   }
 
   private loadIdentityToken(): void {
