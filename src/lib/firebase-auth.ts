@@ -66,7 +66,18 @@ export interface FirebaseWebConfig {
   storageBucket?: string;
 }
 
+let testEnvOverride: Record<string, string | undefined> | null = null;
+
+/** Test-only: pin or clear VITE_FIREBASE_* without depending on the process env. */
+export function setFirebaseEnvForTests(env: Record<string, string | undefined> | null): void {
+  testEnvOverride = env;
+}
+
 function viteEnv(name: string): string | undefined {
+  if (testEnvOverride && Object.prototype.hasOwnProperty.call(testEnvOverride, name)) {
+    const pinned = testEnvOverride[name];
+    return pinned || undefined;
+  }
   try {
     const env = (import.meta as { env?: Record<string, string | undefined> }).env;
     if (env?.[name]) return env[name];
@@ -379,4 +390,5 @@ export async function resetFirebaseForTests(): Promise<void> {
   app = null;
   auth = null;
   emulatorBound = false;
+  testEnvOverride = null;
 }
