@@ -68,10 +68,7 @@ async function completeWelcome(page: Page, tag: string): Promise<void> {
   await page.waitForFunction(() => document.getElementById('welcomeScreen')?.classList.contains('hidden'), { timeout: 5000 });
 }
 
-const TRAIN_ORDER = ['moveLeft', 'moveRight', 'shootRock', 'collectCoin', 'grabPower', 'avoidHazard', 'miniBoss'];
-
 async function waitStep(page: Page, step: string): Promise<void> {
-  const idx = TRAIN_ORDER.indexOf(step);
   await page.waitForFunction((want) => {
     const cur = (window as GameWin).__spaceGame?.trainStep?.() || '';
     const order = ['moveLeft', 'moveRight', 'shootRock', 'collectCoin', 'grabPower', 'avoidHazard', 'miniBoss'];
