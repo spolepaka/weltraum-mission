@@ -3,7 +3,7 @@
  * Tests the full game flow against a local SpacetimeDB server
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 describe('E2E: Anonymous Player Flow', () => {
   it('should create new player on first connect', () => {

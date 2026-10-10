@@ -3,12 +3,12 @@
  * Initializes i18n, SpacetimeDB, and game systems
  */
 
-import { initLanguage, getLanguage, setLanguage, toggleLanguage, t, onLanguageChange, type Language } from './i18n';
-import { initSpacetime, getSpacetimeClient, type SyncStatus } from './lib/spacetime-client';
+import { initLanguage, getLanguage, setLanguage, toggleLanguage, t, onLanguageChange } from './i18n';
+import { initSpacetime, getSpacetimeClient, type SyncStatus, type SpacetimeClient } from './lib/spacetime-client';
 
 declare global {
   interface Window {
-    __weltraum: {
+    __weltraum?: {
       i18n: {
         t: typeof t;
         getLanguage: typeof getLanguage;
@@ -16,7 +16,7 @@ declare global {
         toggleLanguage: typeof toggleLanguage;
         onLanguageChange: typeof onLanguageChange;
       };
-      spacetime: ReturnType<typeof getSpacetimeClient>;
+      spacetime: SpacetimeClient;
       syncStatus: SyncStatus;
       onSyncStatusChange: (callback: (status: SyncStatus) => void) => () => void;
     };
@@ -41,9 +41,11 @@ async function init(): Promise<void> {
     },
     spacetime: spacetimeClient,
     syncStatus: 'disconnected',
-    onSyncStatusChange: (callback) => {
-      return spacetimeClient.onStatusChange((status) => {
-        window.__weltraum.syncStatus = status;
+    onSyncStatusChange: (callback: (status: SyncStatus) => void) => {
+      return spacetimeClient.onStatusChange((status: SyncStatus) => {
+        if (window.__weltraum) {
+          window.__weltraum.syncStatus = status;
+        }
         callback(status);
       });
     },

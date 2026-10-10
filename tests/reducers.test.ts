@@ -6,8 +6,6 @@
 import { describe, it, expect } from 'vitest';
 
 const MAX_LEVEL = 100;
-const MAX_COINS = 10_000_000;
-const MAX_SCORE = 10_000_000;
 const MAX_UPGRADE_LEVEL = 5;
 
 const VALID_SHIPS = new Set([

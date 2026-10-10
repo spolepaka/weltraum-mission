@@ -3,10 +3,10 @@
  * Patches the existing game with i18n and SpacetimeDB support
  */
 
-import { initLanguage, getLanguage, setLanguage, toggleLanguage, t, onLanguageChange, type Language } from './i18n';
+import { initLanguage, getLanguage, toggleLanguage, onLanguageChange, type Language } from './i18n';
 import { initSpacetime, getSpacetimeClient, type SyncStatus } from './lib/spacetime-client';
 
-const I18N_STRINGS: Record<string, { de: string; en: string }> = {
+const I18N_STRINGS: Record<string, Record<Language, string>> = {
   // Title and map
   'Weltraum-Mission': { de: 'Weltraum-Mission', en: 'Space Mission' },
   'Weltraum': { de: 'Weltraum', en: 'Space' },
@@ -80,7 +80,7 @@ function translateText(text: string, lang: Language): string {
     return entry[lang];
   }
   
-  for (const [de, translations] of Object.entries(I18N_STRINGS)) {
+  for (const [, translations] of Object.entries(I18N_STRINGS)) {
     if (translations.de === text) {
       return translations[lang];
     }
@@ -236,29 +236,33 @@ function setupErrorReporting(): void {
 function hookGameEvents(): void {
   const client = getSpacetimeClient();
   
-  const originalSave = (window as any).saveProgress;
+  const originalSave = (window as unknown as { saveProgress?: (...args: unknown[]) => void }).saveProgress;
   if (typeof originalSave === 'function') {
-    (window as any).saveProgress = function() {
-      originalSave.apply(this, arguments);
+    (window as unknown as { saveProgress: (...args: unknown[]) => void }).saveProgress = function(...args: unknown[]) {
+      originalSave.apply(this, args);
       
-      const progress = (window as any).progress;
+      const progress = (window as unknown as { progress?: { unlocked?: number; stars?: Record<string, { stars: number; bestScore: number }> } }).progress;
       if (progress) {
-        client.queueSync({
-          unlockedLevel: progress.unlocked,
-          totalScore: BigInt(0),
-          coins: BigInt((window as any).shop?.coins || 0),
-          equippedShip: (window as any).shop?.equipped || 'starter',
-          ownedShips: (window as any).shop?.owned || ['starter'],
-          upgrades: (window as any).shop?.up || {},
-          stars: progress.stars || {},
-          achievements: [],
-          settings: {
-            muted: false,
-            twoPlayerMode: false,
-            ghostMode: true,
-          },
-          language: currentLang,
-        });
+        const shop = (window as unknown as { shop?: { coins?: number; equipped?: string; owned?: string[]; up?: Record<string, number> } }).shop;
+        const coins = BigInt(shop?.coins || 0);
+        const equipped = shop?.equipped || 'starter';
+        client.syncProgress(progress.unlocked || 1, coins, equipped);
+        
+        const levelStars = progress.stars || {};
+        for (const [levelStr, starData] of Object.entries(levelStars)) {
+          const level = parseInt(levelStr, 10);
+          if (!isNaN(level) && starData) {
+            client.syncLevelStars(level, starData.stars, BigInt(starData.bestScore || 0));
+          }
+        }
+        
+        const localData = client.getLocalData();
+        localData.coins = coins;
+        localData.equippedShip = equipped;
+        localData.ownedShips = shop?.owned || ['starter'];
+        localData.upgrades = shop?.up || {};
+        localData.language = currentLang;
+        client.saveLocalData(localData);
       }
     };
   }
@@ -299,25 +303,8 @@ export async function initGameIntegration(): Promise<void> {
   console.log('[GameIntegration] Ready, language:', currentLang);
 }
 
-declare global {
-  interface Window {
-    __weltraum: {
-      i18n: {
-        t: typeof t;
-        getLanguage: typeof getLanguage;
-        setLanguage: typeof setLanguage;
-        toggleLanguage: typeof toggleLanguage;
-      };
-      spacetime: ReturnType<typeof getSpacetimeClient>;
-      initGameIntegration: typeof initGameIntegration;
-    };
-  }
+// Extend global with game integration
+if (typeof window !== 'undefined') {
+  (window as typeof window & { initGameIntegration?: typeof initGameIntegration }).initGameIntegration = initGameIntegration;
+  initGameIntegration();
 }
-
-window.__weltraum = {
-  i18n: { t, getLanguage, setLanguage, toggleLanguage },
-  spacetime: getSpacetimeClient(),
-  initGameIntegration,
-};
-
-initGameIntegration();
