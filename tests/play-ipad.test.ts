@@ -30,6 +30,7 @@ type GameWin = Window & {
     getLang?: () => string;
     addCoins?: (n: number) => void;
     killBoss?: () => void;
+    boss?: () => void;
     setTime?: (t: number) => void;
     unlockTo?: (n: number) => void;
     simInfo?: () => { state: string; level: number };
@@ -227,7 +228,7 @@ describe.each([
     await page.waitForTimeout(100);
     await page.evaluate(() => {
       const w = window as GameWin;
-      w.__spaceGame!.setTime?.(9);
+      w.__spaceGame!.boss?.();
       w.__spaceGame!.killBoss?.();
     });
     await page.waitForFunction(() => {

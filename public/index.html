@@ -5816,7 +5816,7 @@
     unlockAll: function () { ACH.forEach(function (a) { achDone[a[0]] = 1; }); save("spaceMissionAch", JSON.stringify(achDone)); updateAchBtn(); },
     ufoAboveShip: function () { ufos.push({ x: ship.x, baseX: ship.x, y: ship.y - 250, t: 0, amp: 0, vy: 0, r: 24 }); },
     powerAtShip: function (type) { powers.push({ x: ship.x, y: ship.y, type: type, vy: 0, t: 0 }); },
-    boss: function () { spawnBoss(); boss.y = boss.targetY; boss.x = ship.x; boss.vx = 0; },
+    boss: function () { bossSpawned = true; spawnBoss(); boss.y = boss.targetY; boss.x = ship.x; boss.vx = 0; },
     bossX: function () { return boss ? boss.x : null; },
     setTime: function (t) { levelTime = t; },
     wormAt: function (a, b, y) { worm = { ax: a, bx: b, t: 0, y: y === undefined ? -90 : y, vy: 70 * speedScale() }; wormT = 999; },
@@ -5885,7 +5885,10 @@
     coinAt: function (dx, dy, v) { coinsArr.push({ x: ship.x + dx, y: ship.y + dy, vx: 0, vy: 0, t: 0, v: v || COIN_VALUE, r: 11 }); },
     coinsList: function () { return coinsArr.map(function (c) { return [Math.round(c.x), Math.round(c.y)]; }); },
     droneX: function () { return drones.length ? drones[0].x : (ship ? ship.x : 0); },
-    killBoss: function () { if (boss) { boss.hp = 1; damageBoss(1, boss.x, boss.y); } },
+    killBoss: function () {
+      if (!boss) { bossSpawned = true; spawnBoss(); if (boss) { boss.y = boss.targetY; boss.x = ship.x; } }
+      if (boss) { boss.hp = 1; damageBoss(1, boss.x, boss.y); }
+    },
     dims: function () { return { W: W, H: H, S: S, cw: canvas.width, ch: canvas.height, shipY: ship ? ship.y : null }; }
   };
 
