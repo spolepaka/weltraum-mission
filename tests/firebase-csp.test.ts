@@ -142,6 +142,8 @@ describe('Firebase Auth production CSP', { timeout: 45000 }, () => {
 
     await page.locator('#accountBtn').click();
     await page.waitForSelector('#accountScreen:not(.hidden)');
+    await page.locator('#accountSignIn').click();
+    await page.waitForSelector('#accountProviderList.open', { timeout: 2000 }).catch(() => {});
     await page.locator('#accountEmail').fill(`parent+csp@example.com`);
     await page.locator('#accountEmailLink').click();
     await page.waitForFunction(() => {
