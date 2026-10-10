@@ -45,6 +45,14 @@ async function waitForPort(port, label, timeoutMs = 30000) {
   throw new Error(`Timed out waiting for ${label} on :${port}`);
 }
 
+async function waitForPortClosed(port, timeoutMs = 10000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (!(await portOpen(port))) return;
+    await sleep(250);
+  }
+}
+
 async function main() {
   let stdbProc = null;
   let previewProc = null;
@@ -81,11 +89,7 @@ async function main() {
   if (await portOpen(4173)) {
     console.log('[e2e] stopping leftover preview on :4173');
     try { await run('fuser', ['-k', '4173/tcp']); } catch { /* ignore */ }
-    await sleep(1500);
-    if (await portOpen(4173)) {
-      try { await run('fuser', ['-k', '4173/tcp']); } catch { /* ignore */ }
-      await sleep(1000);
-    }
+    await waitForPortClosed(4173);
   }
   console.log('[e2e] starting vite preview on :4173');
   previewProc = spawn('npx', ['vite', 'preview', '--host', '127.0.0.1', '--port', '4173', '--strictPort'], {
