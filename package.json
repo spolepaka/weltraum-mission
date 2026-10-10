@@ -15,7 +15,8 @@
     "test:firebase:csp": "node tools/run-firebase-csp-tests.mjs",
     "firebase:emulators": "firebase emulators:start --only auth --project demo-weltraum",
     "test:smoke": "node tools/smoke.mjs 9222 \"$PWD/public/index.html\" 1024 768 && node tools/smoke.mjs 9223 \"$PWD/public/index.html\" 768 1024",
-    "spacetime:build": "cd server/spacetimedb && spacetime build",
+    "spacetime:typecheck": "tsc --noEmit -p server/spacetimedb",
+    "spacetime:build": "npm run spacetime:typecheck && cd server/spacetimedb && spacetime build",
     "spacetime:generate": "spacetime generate --lang typescript --module-path server/spacetimedb --out-dir src/lib/module_bindings",
     "spacetime:start": "spacetime start --in-memory",
     "spacetime:publish:local": "cd server/spacetimedb && spacetime publish --server http://localhost:3000 weltraum-dev"
