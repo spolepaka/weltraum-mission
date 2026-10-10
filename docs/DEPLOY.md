@@ -159,7 +159,7 @@ The CSP header restricts script execution:
 ```
 default-src 'self';
 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net;
-connect-src 'self' ws://localhost:* wss://*.spacetimedb.com https://0.peerjs.com wss://0.peerjs.com;
+connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* https://*.spacetimedb.com wss://*.spacetimedb.com https://0.peerjs.com wss://0.peerjs.com;
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:;
 media-src 'self' data: blob:;

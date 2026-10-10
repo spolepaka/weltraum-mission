@@ -70,16 +70,17 @@ async function main() {
   console.log('[e2e] building game (Vercel output)');
   await run('npm', ['run', 'build']);
 
+  if (await portOpen(4173)) {
+    console.log('[e2e] stopping leftover preview on :4173');
+    try { await run('fuser', ['-k', '4173/tcp']); } catch { /* ignore */ }
+    await sleep(500);
+  }
   console.log('[e2e] starting vite preview on :4173');
   previewProc = spawn('npx', ['vite', 'preview', '--host', '127.0.0.1', '--port', '4173', '--strictPort'], {
     cwd: ROOT,
     stdio: 'inherit',
   });
-  try {
-    await waitForPort(4173, 'vite preview');
-  } catch (err) {
-    console.log('[e2e] :4173 busy, assuming existing preview; continuing');
-  }
+  await waitForPort(4173, 'vite preview');
 
   // sanity: preview serves the game, not the stub
   const html = await fetch(PREVIEW_URL).then(r => r.text());
