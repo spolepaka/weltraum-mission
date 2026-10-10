@@ -1,9 +1,36 @@
-import { describe, expect, it } from 'vitest';
-import { generateDisplayName, generateNameChoices, hasProfanity, inflectDeAdj, validateDisplayName } from '../src/lib/display-names';
+import { describe, expect, it, beforeEach } from 'vitest';
+import {
+  adjectiveStemOf,
+  firstWord,
+  generateDisplayName,
+  generateNameChoices,
+  hasProfanity,
+  inflectDeAdj,
+  resetNameHistory,
+  validateDisplayName,
+} from '../src/lib/display-names';
 import { validateDisplayName as serverValidate } from '../server/spacetimedb/src/display-names';
-import { ADJ_DE, ADJ_EN, NOUN_DE, NOUN_EN, PUNS_DE, type DeGender } from '../src/lib/name-words';
+import {
+  ADJ_DE,
+  ADJ_EN,
+  DOOM_TAILS_DE,
+  NOUN_DE,
+  NOUN_EN,
+  PUNS_DE,
+  RHYMES_DE,
+  TITLE_NOUNS_DE,
+  fugenForm,
+  type DeGender,
+} from '../src/lib/name-words';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 describe('kid-safe display names', () => {
+  beforeEach(() => {
+    resetNameHistory();
+  });
+
   it('keeps large curated EN/DE word lists', () => {
     expect(new Set(ADJ_EN).size).toBeGreaterThanOrEqual(100);
     expect(new Set(NOUN_EN).size).toBeGreaterThanOrEqual(150);
@@ -25,6 +52,11 @@ describe('kid-safe display names', () => {
     expect(inflectDeAdj('Fidel', 'm')).toBe('Fideler');
     expect(inflectDeAdj('Neugierig', 'f')).toBe('Neugierige');
     expect(inflectDeAdj('Sternig', 'n')).toBe('Sterniges');
+    expect(inflectDeAdj('Wackelig', 'f')).toBe('Wackelige');
+    expect(inflectDeAdj('Flauschig', 'm')).toBe('Flauschiger');
+    expect(inflectDeAdj('Blitzschnell', 'm')).toBe('Blitzschneller');
+    expect(inflectDeAdj('Kichernd', 'n')).toBe('Kicherndes');
+    expect(inflectDeAdj('Schusselig', 'f')).toBe('Schusselige');
     expect(NOUN_DE.find((n) => n.word === 'Robbe')?.gender).toBe('f');
     expect(NOUN_DE.find((n) => n.word === 'Komet')?.gender).toBe('m');
     expect(NOUN_DE.find((n) => n.word === 'Kessel')?.gender).toBe('m');
@@ -33,33 +65,52 @@ describe('kid-safe display names', () => {
     expect(NOUN_DE.find((n) => n.word === 'Ufo')?.gender).toBe('n');
   });
 
-  it('uses noun-noun German hyphens and inflected adjective-noun pairs', () => {
-    const nounSet = new Set(NOUN_DE.map((n) => n.word.toLowerCase()));
-    const adjSet = new Set(ADJ_DE.map((a) => a.toLowerCase()));
+  it('applies Fugenlaut on German compound first parts', () => {
+    expect(fugenForm({ word: 'Flocke', gender: 'f' })).toBe('Flocken');
+    expect(fugenForm({ word: 'Rakete', gender: 'f' })).toBe('Raketen');
+    expect(fugenForm({ word: 'Erbse', gender: 'f' })).toBe('Erbsen');
+    expect(fugenForm({ word: 'Gabel', gender: 'f' })).toBe('Gabeln');
+    expect(fugenForm({ word: 'Wolke', gender: 'f' })).toBe('Wolken');
+    expect(fugenForm({ word: 'Hase', gender: 'm' })).toBe('Hasen');
+    expect(fugenForm({ word: 'Fuchs', gender: 'm' })).toBe('Fuchs');
+    expect(fugenForm(NOUN_DE.find((n) => n.word === 'Stern')!)).toBe('Sternen');
+    expect(fugenForm(NOUN_DE.find((n) => n.word === 'Flocke')!)).toBe('Flocken');
+    expect(fugenForm(NOUN_DE.find((n) => n.word === 'Maus')!)).toBe('Mäuse');
+  });
+
+  it('uses Fugen noun-noun hyphens and inflected adjective-noun pairs', () => {
+    const fugenSet = new Set(NOUN_DE.map((n) => fugenForm(n).toLowerCase()));
+    const lemmaSet = new Set(NOUN_DE.map((n) => n.word.toLowerCase()));
     const punSet = new Set(PUNS_DE);
-    for (let i = 0; i < 80; i++) {
-      const name = generateDisplayName('de', i * 31 + 4);
+    const skipFirst = new Set([
+      'käptn', 'agent', 'doktor', 'der', 'die', 'das', 'weltraum',
+      'baron', 'graf', 'scout', 'spion', 'pilot', 'major', 'kadett', 'ritter',
+    ]);
+    let compounds = 0;
+    for (let i = 0; i < 120; i++) {
+      const name = generateDisplayName('de');
       if (punSet.has(name) || punSet.has(name.replace(/\s+\d{1,3}$/, ''))) continue;
       const core = name.replace(/\s+\d{1,3}$/, '');
-      if (/-inator$/i.test(core)) continue;
+      if (/-inator$/i.test(core) || / Mc/i.test(core) || / von /i.test(core)) continue;
       const hyphen = core.match(/^([\p{L}]+)-([\p{L}]+)$/u);
       if (hyphen) {
-        expect(nounSet.has(hyphen[1].toLowerCase())).toBe(true);
-        expect(nounSet.has(hyphen[2].toLowerCase())).toBe(true);
-        expect(adjSet.has(hyphen[1].toLowerCase())).toBe(false);
+        expect(fugenSet.has(hyphen[1].toLowerCase())).toBe(true);
+        expect(lemmaSet.has(hyphen[2].toLowerCase())).toBe(true);
+        compounds += 1;
       }
       const spaced = core.match(/^([\p{L}]+) ([\p{L}]+)$/u);
-      if (spaced && spaced[1] !== 'Käptn') {
+      if (spaced && !skipFirst.has(spaced[1].toLowerCase())) {
         const noun = NOUN_DE.find((n) => n.word === spaced[2]);
         if (noun) {
           expect(ADJ_DE.some((adj) => inflectDeAdj(adj, noun.gender) === spaced[1])).toBe(true);
         }
       }
     }
+    expect(compounds).toBeGreaterThan(0);
   });
 
   it('puts numbers on English names only about a quarter of the time', () => {
-    const names = Array.from({ length: 200 }, (_, i) => generateDisplayName('en', i * 53 + 2));
+    const names = Array.from({ length: 200 }, () => generateDisplayName('en'));
     const numbered = names.filter((n) => /\s\d{1,3}$/.test(n)).length;
     expect(numbered / names.length).toBeGreaterThanOrEqual(0.08);
     expect(numbered / names.length).toBeLessThanOrEqual(0.42);
@@ -67,8 +118,8 @@ describe('kid-safe display names', () => {
 
   it('generates localized space names within 3–16 chars', () => {
     for (let i = 0; i < 40; i++) {
-      const en = generateDisplayName('en', i * 17 + 3);
-      const de = generateDisplayName('de', i * 19 + 5);
+      const en = generateDisplayName('en');
+      const de = generateDisplayName('de');
       expect(en.length).toBeGreaterThanOrEqual(3);
       expect(en.length).toBeLessThanOrEqual(16);
       expect(de.length).toBeLessThanOrEqual(16);
@@ -77,14 +128,26 @@ describe('kid-safe display names', () => {
     }
   });
 
-  it('offers three unique choices at a time', () => {
-    const picks = generateNameChoices('en', 3, 42);
-    expect(picks).toHaveLength(3);
-    expect(new Set(picks.map((n) => n.toLowerCase())).size).toBe(3);
+  it('offers three unique choices with no repeated adjective', () => {
+    for (let i = 0; i < 200; i++) {
+      const lang = i % 2 ? 'de' : 'en';
+      const picks = generateNameChoices(lang, 3);
+      expect(picks).toHaveLength(3);
+      expect(new Set(picks.map((n) => n.toLowerCase())).size).toBe(3);
+      const adjs = picks.map((n) => adjectiveStemOf(n, lang)).filter((a): a is string => !!a);
+      expect(new Set(adjs).size).toBe(adjs.length);
+    }
   });
 
-  it('generates 1000 names that stay unique and unblocked', () => {
-    const names = Array.from({ length: 1000 }, (_, i) => generateDisplayName(i % 2 ? 'de' : 'en', i * 97 + 11));
+  it('keeps the most common first word under 3% in 1000 random names', () => {
+    const names = Array.from({ length: 1000 }, (_, i) => generateDisplayName(i % 2 ? 'de' : 'en'));
+    const counts = new Map<string, number>();
+    for (const name of names) {
+      const word = firstWord(name);
+      counts.set(word, (counts.get(word) || 0) + 1);
+    }
+    const top = Math.max(...counts.values());
+    expect(top / names.length).toBeLessThan(0.03);
     const unique = new Set(names.map((n) => n.toLowerCase()));
     expect(unique.size / names.length).toBeGreaterThanOrEqual(0.95);
     for (const name of names) {
@@ -101,6 +164,7 @@ describe('kid-safe display names', () => {
     expect(validateDisplayName('ab', 'custom').ok).toBe(false);
     expect(validateDisplayName('PilotKid', 'custom').ok).toBe(true);
     expect(validateDisplayName('Raketen-Pinguin', 'generated').ok).toBe(true);
+    expect(validateDisplayName('Flocken-Frosch', 'generated').ok).toBe(true);
   });
 
   it('server copy rejects the same invalid names', () => {
@@ -109,5 +173,70 @@ describe('kid-safe display names', () => {
     expect(serverValidate('Cosmic Fox 42', 'generated').ok).toBe(true);
     expect(serverValidate('PilotKid', 'generated').ok).toBe(true);
     expect(serverValidate('Raketen-Pinguin', 'generated').ok).toBe(true);
+    expect(serverValidate('Flocken-Frosch', 'generated').ok).toBe(true);
+    expect(serverValidate('Kühnes Kätzchen', 'generated').ok).toBe(true);
+  });
+
+  it('uses real German umlauts and ß instead of ae/oe/ue/ss transliterations', () => {
+    const words = [
+      ...ADJ_DE,
+      ...NOUN_DE.map((n) => n.word),
+      ...NOUN_DE.map((n) => fugenForm(n)),
+      ...PUNS_DE,
+      ...RHYMES_DE.flat(),
+      ...DOOM_TAILS_DE,
+      ...TITLE_NOUNS_DE,
+      'Käptn',
+    ];
+    const allowedAeOeUe = new Set([
+      'feuer', 'neue', 'quelle', 'steuer', 'bauer', 'mauer', 'dauer', 'trauer',
+      'sauer', 'teuer', 'abenteuer', 'schauen', 'bauen', 'phoenix',
+    ]);
+    const hits: string[] = [];
+    for (const word of words) {
+      const lower = word.toLowerCase();
+      if (!/ae|oe|ue/.test(lower)) continue;
+      const ok = [...allowedAeOeUe].some((allow) => lower === allow || lower.includes(allow));
+      if (!ok) hits.push(word);
+    }
+    expect(hits, `transliterated umlauts: ${hits.join(', ')}`).toEqual([]);
+    expect(ADJ_DE).toContain('Kühn');
+    expect(ADJ_DE).toContain('Süß');
+    expect(NOUN_DE.some((n) => n.word === 'Bär')).toBe(true);
+    expect(NOUN_DE.some((n) => n.word === 'Käse')).toBe(true);
+    expect(NOUN_DE.some((n) => n.word === 'Mütze')).toBe(true);
+    expect(NOUN_DE.some((n) => n.word === 'Fuß')).toBe(true);
+    expect(DOOM_TAILS_DE).toContain('Spaß');
+    expect(words.join(' ')).not.toMatch(/Baer|Kaese|Kuehn|Muetze|Spass|Suess|Floete|Loeffel/);
+  });
+
+  it('pairs German titles with natural funny nouns and keeps McX sparse', () => {
+    const titleWords = new Set(['käptn', 'agent', 'spion', 'doktor', 'baron', 'graf', 'scout', 'pilot', 'kadett', 'ritter']);
+    const allowed = new Set(TITLE_NOUNS_DE.map((w) => w.toLowerCase()));
+    let titles = 0;
+    let mcx = 0;
+    for (let i = 0; i < 400; i++) {
+      const name = generateDisplayName('de');
+      const core = name.replace(/\s+\d{1,3}$/, '');
+      if (/ Mc/i.test(core)) mcx += 1;
+      const spaced = core.match(/^([\p{L}]+) ([\p{L}]+)$/u);
+      if (spaced && titleWords.has(spaced[1].toLowerCase())) {
+        expect(allowed.has(spaced[2].toLowerCase())).toBe(true);
+        titles += 1;
+      }
+    }
+    expect(titles).toBeGreaterThan(10);
+    expect(mcx / 400).toBeGreaterThanOrEqual(0.02);
+    expect(mcx / 400).toBeLessThanOrEqual(0.09);
+    const lemmas = new Set(NOUN_DE.map((n) => n.word));
+    for (const word of TITLE_NOUNS_DE) expect(lemmas.has(word)).toBe(true);
+  });
+
+  it('uses a Latin-capable UI font stack for canvas and DOM', () => {
+    const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'index.html'), 'utf8');
+    expect(html).toMatch(/font-family:\s*"Trebuchet MS",\s*"Segoe UI",\s*Arial,\s*"Noto Sans",\s*"DejaVu Sans",\s*sans-serif/);
+    expect(html).toMatch(/Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans/);
+    expect(html).toContain('Noto Sans');
+    expect(html).toContain('DejaVu Sans');
   });
 });

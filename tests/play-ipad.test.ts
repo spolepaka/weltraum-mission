@@ -380,3 +380,42 @@ describe.each([
     await context.close();
   });
 });
+
+describe('German umlaut rendering', { timeout: 45000 }, () => {
+  it('draws äöüß on canvas and shows them in the DOM name picker', async () => {
+    const { context, page } = await openPage(LANDSCAPE);
+    const info = await page.evaluate(() => {
+      const canvas = document.getElementById('game') as HTMLCanvasElement | null;
+      const ctx = canvas?.getContext('2d');
+      if (!ctx) return { ink: 0, width: 0, family: '', dom: '' };
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, 200, 60);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 28px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText('Bär Käse Süß', 8, 8);
+      const width = ctx.measureText('Bär Käse Süß').width;
+      const data = ctx.getImageData(0, 0, 200, 60).data;
+      let ink = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i] > 20) ink += 1;
+      ctx.restore();
+      const show = document.getElementById('welcomeNameShow');
+      if (show) {
+        show.classList.remove('hidden');
+        show.textContent = 'Kühnes Kätzchen';
+      }
+      return {
+        ink,
+        width,
+        family: getComputedStyle(document.body).fontFamily,
+        dom: show?.textContent || '',
+      };
+    });
+    expect(info.width).toBeGreaterThan(40);
+    expect(info.ink).toBeGreaterThan(80);
+    expect(info.family).toMatch(/Arial|Trebuchet|Segoe|Noto|DejaVu/i);
+    expect(info.dom).toBe('Kühnes Kätzchen');
+    await context.close();
+  });
+});
