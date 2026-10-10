@@ -28,7 +28,42 @@
           "value": "strict-origin-when-cross-origin"
         }
       ]
+    },
+    {
+      "source": "/__/auth/:path*",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; connect-src 'self' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*.web.app; frame-ancestors 'self';"
+        }
+      ]
+    },
+    {
+      "source": "/__/firebase/:path*",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; connect-src 'self' https:; frame-ancestors 'self';"
+        }
+      ]
     }
   ],
-  "rewrites": []
+  "rewrites": [
+    {
+      "source": "/__/auth/:path*",
+      "destination": "https://weltraum-mission.firebaseapp.com/__/auth/:path*"
+    },
+    {
+      "source": "/__/firebase/:path*",
+      "destination": "https://weltraum-mission.firebaseapp.com/__/firebase/:path*"
+    }
+  ]
 }

@@ -311,6 +311,7 @@
     <div class="accRow"><span id="accountIdLabel">Player ID</span><b id="accountId">----</b></div>
     <div class="accRow"><span id="accountSyncLabel">Sync</span><b id="accountSync">Offline</b></div>
     <p id="accountNote" class="small" style="color:#aab4e8"></p>
+    <p id="accountAuthDebug" class="small" style="color:#7a82a8;font-size:11px;margin:6px 0 0;letter-spacing:.01em"></p>
     <div id="accountGuestActions">
       <button class="big" id="accountSignIn" type="button">Parent: save progress</button>
       <p id="accountBusy">Opening sign-in…</p>
@@ -6789,6 +6790,7 @@
         setTxt("accountKind", tr("account.guest"));
         $("accountNote").textContent = acc.isConfigured() ? tr("account.anonymousPlay") : tr("account.needConfigDetail");
       }
+      refreshAuthDebug();
     }
     setTxt("overYouHave", tr("youScored"));
     if (typeof renderShop === "function" && (shopOpen || !$("shopScreen").classList.contains("hidden"))) renderShop();
@@ -6831,12 +6833,34 @@
   }
   $("accountBtn").addEventListener("click", function (e) { e.stopPropagation(); openAccount(); });
   $("accountClose").addEventListener("click", function () { $("accountScreen").classList.add("hidden"); });
+  function authErrText(err) {
+    if (!err) return "";
+    if (err.message === "redirecting") return "";
+    if (err.code) return String(err.code);
+    var msg = err.message ? String(err.message) : String(err);
+    var m = /auth\/[a-z0-9-]+/i.exec(msg);
+    return (m && m[0]) || msg;
+  }
+  function refreshAuthDebug() {
+    var el = $("accountAuthDebug");
+    if (!el) return;
+    var acc = window.__weltraum && window.__weltraum.account;
+    var d = acc && acc.debug ? acc.debug() : null;
+    if (!d) {
+      el.textContent = "auth: — · err: — · firebase: no · issuer: —";
+      return;
+    }
+    el.textContent = "auth: " + d.path + " · err: " + (d.lastError || "—") + " · firebase: " + (d.firebaseUser ? "yes" : "no") + " · issuer: " + d.issuer;
+  }
   function showAccountError(err) {
     if (err && err.message === "redirecting") {
       $("accountNote").textContent = tr("account.linking");
+      refreshAuthDebug();
       return;
     }
-    $("accountNote").textContent = tr("account.linkFailed") + " (" + (err && err.message ? err.message : err) + ")";
+    var detail = authErrText(err);
+    $("accountNote").textContent = tr("account.linkFailed") + (detail ? " (" + detail + ")" : "");
+    refreshAuthDebug();
   }
   function requireConfiguredAccount() {
     var acc = window.__weltraum && window.__weltraum.account;
@@ -6883,10 +6907,12 @@
     var acc = requireConfiguredAccount();
     if (!acc) return;
     $("accountNote").textContent = tr("account.linking");
-    acc.signInGoogle().then(function () {
+    var started = acc.signInGoogle();
+    started.then(function () {
       $("accountNote").textContent = tr("account.linked");
       applyAllI18n();
       refreshAccountBtn();
+      refreshAuthDebug();
       maybePickName();
     }).catch(showAccountError);
   });

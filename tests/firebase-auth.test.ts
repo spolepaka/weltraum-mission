@@ -3,6 +3,7 @@ import {
   AUTH_PROVIDERS,
   AUTH_STORAGE_KEY,
   GUEST_TOKEN_KEY,
+  PRODUCTION_APP_HOST,
   clearAuthUser,
   enabledProviders,
   getFirebaseConfig,
@@ -11,6 +12,7 @@ import {
   loadAuthUser,
   loadGuestToken,
   resetFirebaseForTests,
+  resolveAuthDomain,
   saveAuthUser,
   saveGuestToken,
   setFirebaseEnvForTests,
@@ -21,6 +23,7 @@ import {
   hasRedirectPending,
   needsFirebaseNow,
   REDIRECT_FLAG_KEY,
+  tokenIssuerKind,
 } from '../src/lib/firebase-auth';
 
 const store: Record<string, string> = {};
@@ -127,10 +130,37 @@ describe('Firebase Auth config (no emulator)', () => {
     expect(needsFirebaseNow()).toBe(true);
   });
 
-  it('falls back to redirect on popup-blocked and auth/internal-error', () => {
+  it('falls back to redirect only when the popup is actually blocked', () => {
     expect(shouldFallbackToRedirect({ code: 'auth/popup-blocked' })).toBe(true);
-    expect(shouldFallbackToRedirect({ code: 'auth/internal-error' })).toBe(true);
-    expect(shouldFallbackToRedirect({ message: 'Firebase: Error (auth/internal-error).' })).toBe(true);
+    expect(shouldFallbackToRedirect({ message: 'popup-blocked by Safari' })).toBe(true);
+    expect(shouldFallbackToRedirect({ code: 'auth/operation-not-supported-in-this-environment' })).toBe(true);
+    expect(shouldFallbackToRedirect({ code: 'auth/internal-error' })).toBe(false);
+    expect(shouldFallbackToRedirect({ code: 'auth/popup-closed-by-user' })).toBe(false);
     expect(shouldFallbackToRedirect({ code: 'auth/invalid-email' })).toBe(false);
+  });
+
+  it('uses first-party authDomain on the production host even if env is firebaseapp.com', () => {
+    const pinned = {
+      VITE_FIREBASE_API_KEY: 'k',
+      VITE_FIREBASE_AUTH_DOMAIN: 'weltraum-mission.firebaseapp.com',
+      VITE_FIREBASE_PROJECT_ID: 'weltraum-mission',
+      VITE_FIREBASE_APP_ID: '1:1:web:x',
+    };
+    setFirebaseEnvForTests(pinned);
+    expect(resolveAuthDomain('weltraum-mission.firebaseapp.com', PRODUCTION_APP_HOST)).toBe(PRODUCTION_APP_HOST);
+    expect(getFirebaseConfig(PRODUCTION_APP_HOST)?.authDomain).toBe(PRODUCTION_APP_HOST);
+    expect(resolveAuthDomain('weltraum-mission.firebaseapp.com', 'localhost:4173')).toBe('weltraum-mission.firebaseapp.com');
+    expect(getFirebaseConfig('localhost:4173')?.authDomain).toBe('weltraum-mission.firebaseapp.com');
+  });
+
+  it('classifies Firebase vs anonymous JWT issuers', () => {
+    const payload = Buffer.from(JSON.stringify({
+      iss: 'https://securetoken.google.com/weltraum-mission',
+      aud: 'weltraum-mission',
+    })).toString('base64url');
+    expect(tokenIssuerKind(`e30.${payload}.sig`)).toBe('firebase');
+    const anon = Buffer.from(JSON.stringify({ iss: 'https://auth.spacetimedb.com/identity' })).toString('base64url');
+    expect(tokenIssuerKind(`e30.${anon}.sig`)).toBe('anon');
+    expect(tokenIssuerKind(null)).toBe('unknown');
   });
 });
