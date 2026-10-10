@@ -447,11 +447,12 @@ describe('Lazy levels: returning-player edges', { timeout: 45000 }, () => {
       return w.__weltraum!.spacetime!.getIdentityToken();
     });
     expect(token).toBeTruthy();
+    const savedToken = token as string;
     const ctx2 = await browser.newContext();
     await ctx2.addInitScript((tok) => {
       localStorage.setItem('spaceMissionIdentityToken', tok);
       localStorage.setItem('spaceMissionProgress', JSON.stringify({ unlocked: 5, stars: {}, best: {} }));
-    }, token);
+    }, savedToken);
     const page2 = await ctx2.newPage();
     await page2.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page2.waitForFunction(() => {
