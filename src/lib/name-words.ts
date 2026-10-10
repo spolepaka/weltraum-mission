@@ -43,7 +43,8 @@ export const ADJ_DE = [
   'Funkel', 'Leucht', 'Blitz', 'Zoom', 'Wackel', 'Kicher', 'Knackig', 'Funkelig', 'Eisig', 'Stuermisch',
   'Windig', 'Wolkig', 'Regnerisch', 'Schneelig', 'Moosig', 'Blaettrig', 'Raketen', 'Galaxie', 'Meteor', 'Orbit',
   'Kosmo', 'Quark', 'Tapfer', 'Freundlich', 'Sanft', 'Schlau', 'Witzig', 'Frohlich', 'Heiter', 'Spielerisch',
-  'Neugierig', 'Kuehn', 'Bunt', 'Flauschig', 'Knuffig', 'Flitzig', 'Flinkig', 'Knuff', 'Muntermacher', 'Buntstift',
+  'Neugierig', 'Kuehn', 'Bunt', 'Flauschig', 'Knuffig', 'Flitzig', 'Flinkig', 'Knuff', 'Buntstift', 'Flitz',
+  'Holde', 'Fidele',
 ] as const;
 
 export const NOUN_DE = [

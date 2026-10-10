@@ -228,10 +228,10 @@ export function maskDisplayName(name?: string): string {
 
 export function needsFirebaseNow(): boolean {
   if (loadAuthUser()) return true;
+  if (hasRedirectPending()) return true;
   if (typeof window === 'undefined') return false;
   const href = window.location.href;
-  if (/[?&#](oobCode|apiKey|mode)=/.test(href) || href.includes('firebase')) return true;
-  return hasRedirectPending();
+  return /[?&#](oobCode|apiKey|mode)=/.test(href) || href.includes('firebase');
 }
 
 export function ensureFirebase(): Promise<AuthImpl> {

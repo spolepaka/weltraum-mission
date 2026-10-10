@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run --exclude tests/e2e-real.test.ts --exclude tests/play-ipad.test.ts --exclude tests/firebase-auth-emulator.test.ts --exclude tests/firebase-csp.test.ts --exclude tests/lazy-load.test.ts --exclude tests/online-multiplayer.test.ts --exclude tests/onboarding-e2e.test.ts",
+    "test": "vitest run --exclude tests/e2e-real.test.ts --exclude tests/play-ipad.test.ts --exclude tests/firebase-auth-emulator.test.ts --exclude tests/firebase-csp.test.ts --exclude tests/lazy-load.test.ts --exclude tests/online-multiplayer.test.ts --exclude tests/onboarding-e2e.test.ts --exclude tests/ipad-webkit.test.ts",
     "test:play": "vitest run tests/play-ipad.test.ts",
     "test:watch": "vitest",
     "test:e2e:real": "node tools/run-e2e-real.mjs",

@@ -52,12 +52,16 @@ function clip(name: string): string {
   return trimmed.slice(0, NAME_MAX).trim();
 }
 
-function withOptionalNumber(base: string, rnd: () => number): string {
-  if (rnd() > 0.28) return clip(base);
-  const n = 10 + Math.floor(rnd() * 90);
-  const spaced = `${clip(base.replace(/\s+\d{1,3}$/, ''))} ${n}`;
-  if (spaced.length <= NAME_MAX) return spaced;
-  return clip(base);
+function withOptionalNumber(base: string, rnd: () => number, salt = 0): string {
+  const n = 10 + (Math.abs(Math.floor(salt)) % 90);
+  const core = clip(base.replace(/\s+\d{1,3}$/, ''));
+  const spaced = `${core} ${n}`;
+  if (rnd() < 0.78 && spaced.length <= NAME_MAX && validateDisplayName(spaced, 'generated').ok) {
+    return spaced;
+  }
+  if (core.length >= NAME_MIN && validateDisplayName(core, 'generated').ok) return core;
+  if (spaced.length <= NAME_MAX) return clip(spaced);
+  return core;
 }
 
 export function hasProfanity(value: string): boolean {
@@ -99,16 +103,18 @@ function patternName(lang: NameLang, rnd: () => number): string {
 }
 
 export function generateDisplayName(lang: NameLang = 'en', salt = 0): string {
-  const rnd = mulberry(Math.abs(Math.floor(salt) || Date.now()));
+  const seed = Math.abs(Math.floor(salt) || Date.now());
+  const rnd = mulberry(seed);
   for (let i = 0; i < 40; i++) {
-    const raw = withOptionalNumber(patternName(lang, rnd), rnd);
+    const raw = withOptionalNumber(patternName(lang, rnd), rnd, seed + i * 17);
     const name = clip(raw);
     if (name.length < NAME_MIN) continue;
     if (hasProfanity(name)) continue;
     const checked = validateDisplayName(name, 'generated');
     if (checked.ok) return checked.name;
   }
-  return lang === 'de' ? 'Turbo Fuchs 11' : 'Turbo Fox 11';
+  const fallback = lang === 'de' ? 'Turbo Fuchs' : 'Turbo Fox';
+  return `${fallback} ${10 + (seed % 90)}`.slice(0, NAME_MAX);
 }
 
 export function generateNameChoices(lang: NameLang = 'en', count = 3, salt = 0): string[] {

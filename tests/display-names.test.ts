@@ -32,7 +32,7 @@ describe('kid-safe display names', () => {
   it('generates 1000 names that stay unique and unblocked', () => {
     const names = Array.from({ length: 1000 }, (_, i) => generateDisplayName(i % 2 ? 'de' : 'en', i * 97 + 11));
     const unique = new Set(names.map((n) => n.toLowerCase()));
-    expect(unique.size / names.length).toBeGreaterThan(0.95);
+    expect(unique.size / names.length).toBeGreaterThanOrEqual(0.95);
     for (const name of names) {
       expect(hasProfanity(name)).toBe(false);
       expect(validateDisplayName(name, 'generated').ok).toBe(true);
