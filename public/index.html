@@ -1,14 +1,15 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Weltraum">
+<meta name="apple-mobile-web-app-title" content="Space Mission">
 <meta name="theme-color" content="#050816">
-<title>Weltraum-Mission</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; connect-src 'self' ws://localhost:* wss://*.spacetimedb.com https://0.peerjs.com wss://0.peerjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:;">
+<title>Space Mission</title>
 <style>
   * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; width: 100%; height: 100%; position: fixed; inset: 0; overscroll-behavior: none; -webkit-text-size-adjust: 100%; -webkit-touch-callout: none; overflow: hidden; background: #050816; font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif; color: #fff; touch-action: none; }
@@ -206,13 +207,15 @@
 </div>
 
 <div id="mapHud" class="hidden">
-  <div id="mapTitle"><h1>🚀 Weltraum-Mission</h1><div class="sub">Gesamtpunkte: <b id="totalScore">0</b> &nbsp;·&nbsp; Rekord: <b id="bestStart">0</b> &nbsp;·&nbsp; 🪙 <b id="mapCoins">0</b></div></div>
+  <div id="mapTitle"><h1 id="gameTitle">🚀 Space Mission</h1><div class="sub"><span id="lblTotalScore">Total Score</span>: <b id="totalScore">0</b> &nbsp;·&nbsp; <span id="lblRecord">Record</span>: <b id="bestStart">0</b> &nbsp;·&nbsp; 🪙 <b id="mapCoins">0</b></div></div>
   <div id="mapHint">👆 Tippe auf einen Planeten!</div>
   <button id="helpBtn" class="mapBtn" aria-label="Hilfe">❓</button>
   <button id="resetBtn" class="mapBtn">↺ Neu starten</button>
   <button id="shopBtn" class="mapBtn">🛒 Shop</button>
   <button id="missionBtn" class="mapBtn">🎯 Missionen</button>
   <button id="onlineBtn" class="mapBtn">🌍 Online</button>
+  <button id="langBtn" class="mapBtn" style="top:calc(262px + env(safe-area-inset-top));left:max(14px,env(safe-area-inset-left));font-size:15px;background:rgba(60,80,140,.85);border-color:#a0c0ff;" aria-label="Language">🌐 EN</button>
+  <div id="syncStatus" style="position:absolute;bottom:calc(14px + env(safe-area-inset-bottom));left:calc(max(14px,env(safe-area-inset-left)) + 110px);font-size:13px;padding:5px 10px;border-radius:10px;background:rgba(125,255,168,.9);color:#1a4a2a;opacity:0;transition:opacity .3s;pointer-events:none;zoom:var(--s);">✓ Saved</div>
   <button id="twoPBtn" class="mapBtn">👫 2 Spieler: AUS</button>
   <button id="ghostBtn" class="mapBtn">👻 Geist: AN</button>
   <button id="achBtn" class="mapBtn">🏆 Erfolge</button>
@@ -5627,6 +5630,203 @@
     killBoss: function () { if (boss) { boss.hp = 1; damageBoss(1, boss.x, boss.y); } },
     dims: function () { return { W: W, H: H, S: S, cw: canvas.width, ch: canvas.height, shipY: ship ? ship.y : null }; }
   };
+
+  // ================= i18n and SpacetimeDB Integration =================
+  var I18N = {
+    en: {
+      title: '🚀 Space Mission',
+      totalScore: 'Total Score',
+      record: 'Record',
+      score: 'Score',
+      mapHint: '👆 Tap on a planet!',
+      levelComplete: 'Level Complete!',
+      gameOver: 'Game Over!',
+      nextLevel: 'Next Level',
+      backToMap: 'Back to Map',
+      restart: 'Restart',
+      play: 'Play',
+      close: 'Close',
+      shop: 'Shop',
+      shopTitle: 'Spaceship Hangar',
+      buy: 'Buy',
+      equip: 'Equip',
+      equipped: 'Equipped',
+      purchased: 'Purchased!',
+      notEnoughCoins: 'Not enough coins!',
+      missions: 'Missions',
+      achievements: 'Achievements',
+      online: '🌍 Online',
+      createRoom: 'Create Room',
+      joinRoom: 'Join Room',
+      connected: 'Connected!',
+      roomFull: 'Room is full',
+      twoPlayer: '2 Player',
+      ghost: 'Ghost',
+      help: 'Help',
+      reset: 'Reset',
+      secretActivated: 'Secret code activated!',
+      testMode: 'Test mode: All levels unlocked! 🔓',
+      saved: '✓ Saved',
+      saving: '⟳ Saving...',
+      offline: '⚠ Offline',
+      sectors: { home: 'Home Galaxy', nebel: 'Nebula Galaxy', frost: 'Frost Galaxy', sonnen: 'Solar Galaxy', asteroid: 'Asteroid Belt', schatten: 'Shadow Galaxy', jenseits: 'Beyond Galaxy' },
+      upgrades: { heart: { name: '❤️ Extra Heart', info: '+1 heart (once)' }, rate: { name: '🔥 Fire Rate', info: 'Fire faster' }, dmg: { name: '💥 Damage', info: '+25% damage per level' }, dur: { name: '⏱️ Power-up Duration', info: 'Power-ups last longer' }, mag: { name: '🧲 Coin Magnet', info: 'Coins fly to you' } }
+    },
+    de: {
+      title: '🚀 Weltraum-Mission',
+      totalScore: 'Gesamtpunkte',
+      record: 'Rekord',
+      score: 'Punkte',
+      mapHint: '👆 Tippe auf einen Planeten!',
+      levelComplete: 'Level geschafft!',
+      gameOver: 'Verloren!',
+      nextLevel: 'Nächstes Level',
+      backToMap: 'Zur Karte',
+      restart: 'Neu starten',
+      play: 'Spielen',
+      close: 'Schließen',
+      shop: 'Shop',
+      shopTitle: 'Raumschiff-Hangar',
+      buy: 'Kaufen',
+      equip: 'Ausrüsten',
+      equipped: 'Ausgerüstet',
+      purchased: 'Gekauft!',
+      notEnoughCoins: 'Nicht genug Münzen!',
+      missions: 'Missionen',
+      achievements: 'Erfolge',
+      online: '🌍 Online',
+      createRoom: 'Raum erstellen',
+      joinRoom: 'Raum beitreten',
+      connected: 'Verbunden!',
+      roomFull: 'Der Raum ist voll',
+      twoPlayer: '2 Spieler',
+      ghost: 'Geister',
+      help: 'Hilfe',
+      reset: 'Neu starten',
+      secretActivated: 'Geheimcode aktiviert!',
+      testMode: 'Testmodus: Alle Level offen! 🔓',
+      saved: '✓ Gespeichert',
+      saving: '⟳ Speichern...',
+      offline: '⚠ Offline',
+      sectors: { home: 'Heimat-Galaxie', nebel: 'Nebel-Galaxie', frost: 'Frost-Galaxie', sonnen: 'Sonnen-Galaxie', asteroid: 'Asteroiden-Gürtel', schatten: 'Schatten-Galaxie', jenseits: 'Jenseits-Galaxie' },
+      upgrades: { heart: { name: '❤️ Extra-Herz', info: '+1 Herz (einmalig)' }, rate: { name: '🔥 Schussgeschwindigkeit', info: 'Du schießt schneller' }, dmg: { name: '💥 Schaden', info: '+25 % Schaden pro Stufe' }, dur: { name: '⏱️ Power-up-Dauer', info: 'Extras halten länger' }, mag: { name: '🧲 Münz-Magnet', info: 'Münzen fliegen zu dir' } }
+    }
+  };
+  
+  var curLang = (function() {
+    try {
+      var stored = localStorage.getItem('spaceMissionLanguage');
+      if (stored === 'en' || stored === 'de') return stored;
+      return navigator.language.toLowerCase().startsWith('de') ? 'de' : 'en';
+    } catch (e) { return 'en'; }
+  })();
+  
+  function t(key) {
+    var keys = key.split('.');
+    var val = I18N[curLang];
+    for (var i = 0; i < keys.length; i++) {
+      if (val && typeof val === 'object' && keys[i] in val) val = val[keys[i]];
+      else return key;
+    }
+    return typeof val === 'string' ? val : key;
+  }
+  
+  function updateLangUI() {
+    document.documentElement.lang = curLang;
+    document.title = curLang === 'de' ? 'Weltraum-Mission' : 'Space Mission';
+    var title = $('gameTitle'); if (title) title.textContent = t('title');
+    var lblTotal = $('lblTotalScore'); if (lblTotal) lblTotal.textContent = t('totalScore');
+    var lblRec = $('lblRecord'); if (lblRec) lblRec.textContent = t('record');
+    var langBtn = $('langBtn'); if (langBtn) langBtn.textContent = curLang === 'en' ? '🌐 DE' : '🌐 EN';
+    // Update map hint
+    var hint = $('mapHint'); if (hint && state === 'map') hint.innerHTML = t('mapHint') + (FEAT[progress.unlocked] && !(progress.stars[progress.unlocked] > 0) ? '<small>Level ' + progress.unlocked + ' – NEU: ' + FEAT[progress.unlocked][0] + '</small>' : '');
+  }
+  
+  function setLanguage(lang) {
+    if (lang !== 'en' && lang !== 'de') return;
+    curLang = lang;
+    try { localStorage.setItem('spaceMissionLanguage', lang); } catch (e) {}
+    updateLangUI();
+  }
+  
+  $('langBtn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    setLanguage(curLang === 'en' ? 'de' : 'en');
+  });
+  
+  setTimeout(updateLangUI, 100);
+  
+  // Sync status indicator
+  var syncEl = $('syncStatus');
+  var syncHideTimer = null;
+  function showSyncStatus(status) {
+    if (!syncEl) return;
+    if (syncHideTimer) { clearTimeout(syncHideTimer); syncHideTimer = null; }
+    if (status === 'saved') {
+      syncEl.textContent = t('saved');
+      syncEl.style.background = 'rgba(125,255,168,.9)';
+      syncEl.style.color = '#1a4a2a';
+      syncEl.style.opacity = '1';
+      syncHideTimer = setTimeout(function() { syncEl.style.opacity = '0'; }, 2000);
+    } else if (status === 'saving') {
+      syncEl.textContent = t('saving');
+      syncEl.style.background = 'rgba(125,200,255,.9)';
+      syncEl.style.color = '#1a2a4a';
+      syncEl.style.opacity = '1';
+    } else if (status === 'offline' || status === 'error') {
+      syncEl.textContent = t('offline');
+      syncEl.style.background = 'rgba(255,180,100,.9)';
+      syncEl.style.color = '#4a2a1a';
+      syncEl.style.opacity = '1';
+    } else {
+      syncEl.style.opacity = '0';
+    }
+  }
+  
+  // SpacetimeDB stub (to be replaced with actual SDK when bundled)
+  var stdbConnected = false;
+  var stdbToken = null;
+  try { stdbToken = localStorage.getItem('spaceMissionIdentityToken'); } catch (e) {}
+  
+  function stdbSync() {
+    if (!stdbConnected) return;
+    showSyncStatus('saving');
+    // In production, this would call SpacetimeDB reducers
+    setTimeout(function() { showSyncStatus('saved'); }, 500);
+  }
+  
+  // Hook into saveProgress to trigger sync
+  var origSaveProgress = saveProgress;
+  saveProgress = function() {
+    origSaveProgress();
+    stdbSync();
+  };
+  
+  // Hook into saveShop to trigger sync
+  var origSaveShop = saveShop;
+  saveShop = function() {
+    origSaveShop();
+    stdbSync();
+  };
+  
+  // Expose i18n API
+  window.__weltraum = {
+    i18n: { t: t, getLanguage: function() { return curLang; }, setLanguage: setLanguage },
+    syncStatus: showSyncStatus,
+    stdbConnect: function() { stdbConnected = true; showSyncStatus('saved'); },
+    stdbDisconnect: function() { stdbConnected = false; showSyncStatus('offline'); }
+  };
+  
+  // Error reporting
+  window.addEventListener('error', function(e) {
+    console.error('[Weltraum Error]', e.message, e.filename, e.lineno);
+    // In production, this would call the reportError reducer
+  });
+  
+  window.addEventListener('unhandledrejection', function(e) {
+    console.error('[Weltraum Rejection]', e.reason);
+  });
+  
 })();
 </script>
 </body>

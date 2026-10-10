@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Space Mission">
+<meta name="theme-color" content="#050816">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; connect-src 'self' ws://localhost:* wss://*.spacetimedb.com https://0.peerjs.com wss://0.peerjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://images.unsplash.com; media-src 'self' data: blob:;">
+<title>Space Mission</title>
+<script type="module" src="/src/main.ts"></script>
+</head>
+<body>
+<script>
+// Redirect to the game - in production this would be bundled
+// For development, we load the game from public/index.html via iframe or direct integration
+(function() {
+  // Load game after i18n and spacetime are initialized
+  window.addEventListener('load', function() {
+    // Wait for weltraum systems to be ready
+    var checkReady = setInterval(function() {
+      if (window.__weltraum) {
+        clearInterval(checkReady);
+        loadGame();
+      }
+    }, 50);
+    
+    setTimeout(function() {
+      clearInterval(checkReady);
+      loadGame(); // Load anyway after 2s
+    }, 2000);
+  });
+  
+  function loadGame() {
+    // For now, redirect to the static game file
+    // In a full implementation, we'd inline the game or use dynamic imports
+    window.location.href = '/public/index.html';
+  }
+})();
+</script>
+<noscript>
+  <p style="color: white; font-family: sans-serif; padding: 20px;">
+    JavaScript is required to play Space Mission.
+  </p>
+</noscript>
+</body>
+</html>

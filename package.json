@@ -1,0 +1,25 @@
+{
+  "name": "weltraum-mission",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:smoke": "node tools/smoke.mjs 9222 dist/index.html 1024 768 && node tools/smoke.mjs 9223 dist/index.html 768 1024",
+    "spacetime:build": "cd server && spacetime build",
+    "spacetime:generate": "spacetime generate --lang typescript --out-dir src/lib/spacetimedb-client server/spacetimedb",
+    "spacetime:start": "spacetime start",
+    "spacetime:publish:local": "cd server && spacetime publish --local weltraum-dev"
+  },
+  "dependencies": {
+    "spacetimedb": "2.11.*"
+  },
+  "devDependencies": {
+    "typescript": "~5.6.2",
+    "vite": "^6.0.0",
+    "vitest": "^2.0.0"
+  }
+}
