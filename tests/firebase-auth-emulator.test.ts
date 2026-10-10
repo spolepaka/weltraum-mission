@@ -15,7 +15,6 @@ import {
   GUEST_TOKEN_KEY,
   clearAuthUser,
   currentIdToken,
-  getFirebaseAuth,
   isAuthConfigured,
   loadAuthUser,
   loadGuestToken,
@@ -25,6 +24,7 @@ import {
   saveGuestToken,
   signOutFirebase,
 } from '../src/lib/firebase-auth';
+import { getFirebaseAuth } from '../src/lib/firebase-auth-impl';
 import { assertTrustedCaller, firebaseIssuer } from '../src/lib/auth-trust';
 import { mergeCoins } from '../src/lib/coin-ledger';
 

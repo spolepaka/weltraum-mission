@@ -21,9 +21,28 @@ import {
   signInWithApple,
   signOutFirebase,
   watchIdToken,
+  ensureFirebase,
+  needsFirebaseNow,
   type ProgressSnapshot,
 } from './lib/firebase-auth';
 import { mergeCoins, shouldAcceptServerCoins } from './lib/coin-ledger';
+import { loadPeerConstructor } from './lib/online-peer';
+import {
+  ensureLevel,
+  prefetchUnlocked,
+  prefetchLog,
+  setLevelFetcher,
+  cachedLevel,
+  isBundledLevel,
+} from './lib/level-runtime';
+import {
+  generateDisplayName,
+  loadDisplayName,
+  saveDisplayName,
+  validateDisplayName,
+  type NameKind,
+} from './lib/display-names';
+import * as tips from './lib/tips';
 
 export interface WeltraumApi {
   i18n: {
@@ -52,11 +71,28 @@ export interface WeltraumApi {
   onPurchaseUpgrade: (upgradeId: string, price: number) => boolean;
   onSecretCode: (code: string) => { success: boolean; message: string };
   canStartLevel: (level: number) => boolean;
+  levels: {
+    ensure: (level: number, unlocked: number) => Promise<unknown>;
+    prefetch: (unlocked: number) => number[];
+    cached: (level: number) => unknown;
+    bundled: (level: number) => boolean;
+    prefetchLog: number[];
+  };
+  loadPeer: () => Promise<unknown>;
+  names: {
+    current: () => { name: string; kind: NameKind } | null;
+    generate: (lang?: 'en' | 'de') => string;
+    validate: (name: string, kind: NameKind) => { ok: true; name: string } | { ok: false; reason: string };
+    save: (name: string, kind: NameKind) => { ok: true; name: string } | { ok: false; reason: string };
+  };
+  tips: typeof tips;
   account: {
     isConfigured: () => boolean;
     isSignedIn: () => boolean;
     appleEnabled: () => boolean;
     shortId: () => string;
+    displayName: () => string;
+    prepareAuth: () => Promise<void>;
     status: () => SyncStatus;
     guestLabel: () => string;
     signInGoogle: () => Promise<void>;
@@ -171,6 +207,7 @@ async function connectFirebaseIdentity(client: SpacetimeClient, firstSignIn: boo
     if (snap) saveAnonSnapshot(snap);
   }
   await client.reconnectWithToken(user.idToken);
+  bindTokenWatch(client);
   if (firstSignIn) {
     importedOnce = false;
     await mergeAfterSignIn(client);
@@ -223,11 +260,34 @@ function installApi(client: SpacetimeClient): WeltraumApi {
     onPurchaseUpgrade: (upgradeId, price) => client.purchaseUpgrade(upgradeId, BigInt(price)),
     onSecretCode: (code) => client.applySecretCode(code),
     canStartLevel: (level) => client.requestLevelData(level),
+    levels: {
+      ensure: (level, unlocked) => ensureLevel(level, unlocked),
+      prefetch: (unlocked) => prefetchUnlocked(unlocked),
+      cached: (level) => cachedLevel(level),
+      bundled: (level) => isBundledLevel(level),
+      prefetchLog,
+    },
+    loadPeer: () => loadPeerConstructor(),
+    names: {
+      current: () => loadDisplayName(),
+      generate: (lang) => generateDisplayName(lang === 'de' ? 'de' : 'en', Date.now()),
+      validate: (name, kind) => validateDisplayName(name, kind),
+      save: (name, kind) => {
+        const checked = validateDisplayName(name, kind);
+        if (!checked.ok) return checked;
+        saveDisplayName({ name: checked.name, kind });
+        client.setDisplayName(checked.name, kind);
+        return checked;
+      },
+    },
+    tips,
     account: {
       isConfigured: () => isAuthConfigured(),
       isSignedIn: () => client.isSignedIn() || !!loadAuthUser(),
       appleEnabled: () => isAppleEnabled(),
       shortId: () => client.shortPlayerId(),
+      displayName: () => loadDisplayName()?.name || '',
+      prepareAuth: async () => { await ensureFirebase(); },
       status: () => client.getStatus(),
       guestLabel: () => {
         const user = loadAuthUser();
@@ -289,6 +349,9 @@ function attachCoopStandIn(): void {
       isKicked: (id: string) => coop.isKicked(id),
       check: (id: string) => coop.checkJoinAllowed(id),
       reset: () => coop.resetCoopSecurity(),
+      setAsk: (on: boolean) => coop.setHostApprovalRequired(on),
+      playerJoined: () => coop.playerJoined(),
+      playerLeft: (id: string) => coop.playerLeft(id),
     };
     return true;
   };
@@ -302,6 +365,7 @@ function attachCoopStandIn(): void {
 
 function bindTokenWatch(client: SpacetimeClient): void {
   if (watchBound) return;
+  if (!loadAuthUser() && !needsFirebaseNow()) return;
   watchBound = true;
   watchIdToken((user) => {
     if (!user || authFlowLock) return;
@@ -319,6 +383,7 @@ async function init(): Promise<void> {
   initLanguage();
 
   const client = getSpacetimeClient();
+  setLevelFetcher((level) => client.fetchLevelData(level));
   const api = installApi(client);
   window.__weltraum = api;
   api.onSyncStatusChange(() => undefined);

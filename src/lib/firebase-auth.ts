@@ -1,28 +1,7 @@
 /**
- * Firebase Auth for parent sign-in (Google + email link).
- * Apple is wired but off unless VITE_FIREBASE_APPLE_ENABLED=1.
- *
- * Official SpacetimeDB SDK authenticates with `.withToken(firebaseIdToken)`.
- * Guest/anonymous play works when Firebase env is unset.
+ * Firebase Auth facade — no Firebase SDK import.
+ * The SDK loads via dynamic import() only when Account opens or a session exists.
  */
-
-import { initializeApp, getApps, deleteApp, type FirebaseApp } from 'firebase/app';
-import {
-  getAuth,
-  connectAuthEmulator,
-  GoogleAuthProvider,
-  OAuthProvider,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
-  sendSignInLinkToEmail,
-  isSignInWithEmailLink,
-  signInWithEmailLink,
-  onIdTokenChanged,
-  signOut as firebaseSignOut,
-  type Auth,
-  type User,
-} from 'firebase/auth';
 
 export const AUTH_STORAGE_KEY = 'spaceMissionFirebaseAuth';
 export const ANON_SNAPSHOT_KEY = 'spaceMissionAnonSnapshot';
@@ -182,40 +161,6 @@ export function clearAnonSnapshot(): void {
   try { localStorage.removeItem(ANON_SNAPSHOT_KEY); } catch { /* ignore */ }
 }
 
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
-let emulatorBound = false;
-
-export function getFirebaseAuth(): Auth | null {
-  const config = getFirebaseConfig();
-  if (!config) return null;
-  if (!app) {
-    app = getApps().length ? getApps()[0] : initializeApp(config);
-    auth = getAuth(app);
-    const emu = viteEnv('VITE_FIREBASE_AUTH_EMULATOR');
-    if (emu && !emulatorBound) {
-      connectAuthEmulator(auth, emu, { disableWarnings: true });
-      emulatorBound = true;
-    }
-  }
-  return auth;
-}
-
-function preferRedirect(): boolean {
-  if (typeof window === 'undefined') return false;
-  const nav = window.navigator as Navigator & { standalone?: boolean };
-  if (nav.standalone) return true;
-  try {
-    if (window.matchMedia('(display-mode: standalone)').matches) return true;
-  } catch {
-    // ignore
-  }
-  const ua = nav.userAgent || '';
-  const iPad = /iPad/.test(ua) || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
-  const iPhone = /iPhone|iPod/.test(ua);
-  return iPad || iPhone;
-}
-
 function errCode(err: unknown): string {
   return String((err as { code?: string })?.code || '');
 }
@@ -240,155 +185,79 @@ export function shouldFallbackToRedirect(err: unknown): boolean {
   );
 }
 
-async function userToAuthUser(user: User, provider?: AuthProviderId | string): Promise<AuthUser> {
-  const idToken = await user.getIdToken();
-  const tokenResult = await user.getIdTokenResult();
-  const exp = tokenResult.expirationTime ? Date.parse(tokenResult.expirationTime) / 1000 : Math.floor(Date.now() / 1000) + 3600;
-  return {
-    idToken,
-    expiresAt: exp,
-    uid: user.uid,
-    email: user.email || undefined,
-    provider: provider || user.providerData[0]?.providerId,
-  };
+type AuthImpl = typeof import('./firebase-auth-impl');
+let implPromise: Promise<AuthImpl> | null = null;
+
+export function needsFirebaseNow(): boolean {
+  if (loadAuthUser()) return true;
+  if (typeof window === 'undefined') return false;
+  const href = window.location.href;
+  return /[?&#](oobCode|apiKey|mode)=/.test(href) || href.includes('firebase');
+}
+
+export function ensureFirebase(): Promise<AuthImpl> {
+  if (!implPromise) implPromise = import('./firebase-auth-impl');
+  return implPromise;
 }
 
 export async function completeRedirectIfNeeded(): Promise<AuthUser | null> {
-  const a = getFirebaseAuth();
-  if (!a) return loadAuthUser();
-  try {
-    const result = await getRedirectResult(a);
-    if (result?.user) {
-      const pid = result.providerId || result.user.providerData[0]?.providerId || 'google';
-      const mapped: AuthProviderId = pid === 'apple.com' ? 'apple' : pid === 'password' ? 'emailLink' : 'google';
-      const user = await userToAuthUser(result.user, mapped);
-      saveAuthUser(user);
-      return user;
-    }
-  } catch (err) {
-    console.warn('[FirebaseAuth] redirect result failed', err);
-  }
-  return loadAuthUser();
+  if (!needsFirebaseNow() && !isAuthConfigured()) return loadAuthUser();
+  if (!needsFirebaseNow() && !loadAuthUser()) return null;
+  const impl = await ensureFirebase();
+  return impl.completeRedirectIfNeeded();
 }
 
 export async function completeEmailLinkIfNeeded(): Promise<AuthUser | null> {
-  const a = getFirebaseAuth();
-  if (!a || typeof window === 'undefined') return loadAuthUser();
-  if (!isSignInWithEmailLink(a, window.location.href)) return loadAuthUser();
-  const email = localStorage.getItem(EMAIL_FOR_LINK_KEY) || window.prompt('Email for sign-in link') || '';
-  if (!email) throw new Error('email_required');
-  const cred = await signInWithEmailLink(a, email, window.location.href);
-  localStorage.removeItem(EMAIL_FOR_LINK_KEY);
-  const user = await userToAuthUser(cred.user, 'emailLink');
-  saveAuthUser(user);
-  const url = new URL(window.location.href);
-  url.search = '';
-  url.hash = '';
-  window.history.replaceState({}, '', url.pathname);
-  return user;
+  if (!needsFirebaseNow()) return loadAuthUser();
+  const impl = await ensureFirebase();
+  return impl.completeEmailLinkIfNeeded();
 }
 
 export async function signInWithGoogle(): Promise<AuthUser> {
-  const a = getFirebaseAuth();
-  if (!a) throw new Error('auth_not_configured');
-  const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: 'select_account' });
-  if (preferRedirect()) {
-    await signInWithRedirect(a, provider);
-    throw new Error('redirecting');
-  }
-  try {
-    const cred = await signInWithPopup(a, provider);
-    const user = await userToAuthUser(cred.user, 'google');
-    saveAuthUser(user);
-    return user;
-  } catch (err) {
-    if (shouldFallbackToRedirect(err) || preferRedirect()) {
-      await signInWithRedirect(a, provider);
-      throw new Error('redirecting');
-    }
-    throw err;
-  }
+  const impl = await ensureFirebase();
+  return impl.signInWithGoogle();
 }
 
 export async function startEmailLink(email: string): Promise<void> {
-  const a = getFirebaseAuth();
-  if (!a) throw new Error('auth_not_configured');
-  const trimmed = email.trim();
-  if (!trimmed || !trimmed.includes('@')) throw new Error('invalid_email');
-  localStorage.setItem(EMAIL_FOR_LINK_KEY, trimmed);
-  await sendSignInLinkToEmail(a, trimmed, {
-    url: `${window.location.origin}/`,
-    handleCodeInApp: true,
-  });
+  const impl = await ensureFirebase();
+  return impl.startEmailLink(email);
 }
 
 export async function signInWithApple(): Promise<AuthUser> {
-  if (!isAppleEnabled()) throw new Error('apple_disabled');
-  const a = getFirebaseAuth();
-  if (!a) throw new Error('auth_not_configured');
-  const provider = new OAuthProvider('apple.com');
-  provider.addScope('email');
-  provider.addScope('name');
-  if (preferRedirect()) {
-    await signInWithRedirect(a, provider);
-    throw new Error('redirecting');
-  }
-  try {
-    const cred = await signInWithPopup(a, provider);
-    const user = await userToAuthUser(cred.user, 'apple');
-    saveAuthUser(user);
-    return user;
-  } catch (err) {
-    if (shouldFallbackToRedirect(err) || preferRedirect()) {
-      await signInWithRedirect(a, provider);
-      throw new Error('redirecting');
-    }
-    throw err;
-  }
+  const impl = await ensureFirebase();
+  return impl.signInWithApple();
 }
 
 export async function signOutFirebase(): Promise<void> {
-  const a = getFirebaseAuth();
-  if (a) {
-    try { await firebaseSignOut(a); } catch { /* ignore */ }
+  if (!implPromise && !loadAuthUser()) {
+    clearAuthUser();
+    return;
   }
-  clearAuthUser();
+  const impl = await ensureFirebase();
+  return impl.signOutFirebase();
 }
 
 export function watchIdToken(onToken: (user: AuthUser | null) => void): () => void {
-  const a = getFirebaseAuth();
-  if (!a) return () => undefined;
-  return onIdTokenChanged(a, async (fbUser) => {
-    if (!fbUser) {
-      onToken(null);
-      return;
-    }
-    const user = await userToAuthUser(fbUser);
-    const prev = loadAuthUser();
-    if (prev?.idToken === user.idToken) return;
-    saveAuthUser(user);
-    onToken(user);
+  if (!loadAuthUser() && !needsFirebaseNow()) {
+    return () => undefined;
+  }
+  let unsub: () => void = () => {};
+  void ensureFirebase().then((impl) => {
+    unsub = impl.watchIdToken(onToken);
   });
+  return () => unsub();
 }
 
 export async function currentIdToken(forceRefresh = false): Promise<string | null> {
-  const a = getFirebaseAuth();
-  const user = a?.currentUser;
-  if (!user) return loadAuthUser()?.idToken ?? null;
-  const token = await user.getIdToken(forceRefresh);
-  const mapped = await userToAuthUser(user);
-  mapped.idToken = token;
-  saveAuthUser(mapped);
-  return token;
+  if (!loadAuthUser() && !implPromise) return null;
+  const impl = await ensureFirebase();
+  return impl.currentIdToken(forceRefresh);
 }
 
-/** Test-only: drop the cached Firebase app so the next call re-reads env. */
 export async function resetFirebaseForTests(): Promise<void> {
-  const apps = getApps();
-  await Promise.all(apps.map((a) => deleteApp(a).catch(() => undefined)));
-  app = null;
-  auth = null;
-  emulatorBound = false;
   testEnvOverride = null;
+  if (!implPromise) return;
+  const impl = await implPromise;
+  await impl.resetFirebaseForTests();
+  implPromise = null;
 }

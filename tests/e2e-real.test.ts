@@ -269,12 +269,17 @@ describe('Real E2E: built game + SpacetimeDB', { timeout: 45000 }, () => {
       };
       if (w.__weltraum?.coop?.resetCoopSecurity) w.__weltraum.coop.resetCoopSecurity();
       const coop = w.__spaceGame!.coop!;
+      const auto = coop.requestJoin('guest-auto');
+      coop.reset();
+      const wel = w.__weltraum!.coop as { setHostApprovalRequired?: (on: boolean) => void };
+      if (wel.setHostApprovalRequired) wel.setHostApprovalRequired(true);
       const first = coop.requestJoin('guest-standin');
       const pending = coop.pending();
       const approved = coop.approve('guest-standin');
       const isApproved = coop.isApproved('guest-standin');
       coop.kick('guest-standin');
       return {
+        autoAdmitted: auto,
         firstImmediate: first,
         pendingCount: pending.length,
         pendingId: pending[0] && pending[0].peerId,
@@ -284,6 +289,7 @@ describe('Real E2E: built game + SpacetimeDB', { timeout: 45000 }, () => {
         rejoin: coop.requestJoin('guest-standin'),
       };
     });
+    expect(result.autoAdmitted).toBe(true);
     expect(result.firstImmediate).toBe(false);
     expect(result.pendingCount).toBe(1);
     expect(result.pendingId).toBe('guest-standin');

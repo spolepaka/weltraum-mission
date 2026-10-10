@@ -46,6 +46,8 @@ Apple Sign-In is wired (`OAuthProvider('apple.com')`) but **off** unless `VITE_F
 
 **The SpacetimeDB module must be republished** after this change (issuer trust lives in `server/spacetimedb/src/auth-trust.ts`). The constant is already `weltraum-mission` to match the live Firebase project.
 
+**This lazy-load / username / level-catalog batch also changes the module** (`levelData` is private and seeded with real payloads; `playerProfile` / `claimedName` / `setDisplayName`; ALLELEVEL still unlocks that identity only). Republish `weltraum-mission` before relying on gated `getLevelData` or server name checks in production. Do not publish from this agent.
+
 ### Firebase project (already created)
 
 - Project id: `weltraum-mission`
@@ -217,7 +219,9 @@ npm run test:e2e:local
 | `usedSecretCode` | No | Used secret codes |
 | `playerSettings` | No | Game settings |
 | `playerAchievements` | No | Unlocked achievements |
-| `levelData` | Yes | Level definitions (progressive delivery) |
+| `levelData` | No | Gated level payloads for levels 4–100 (`getLevelData`) |
+| `playerProfile` | No | Kid-safe display name |
+| `claimedName` | No | Unique-ish name claims |
 | `errorReport` | No | Client error reports |
 | `serverConfig` | Yes | Server configuration values |
 
@@ -238,8 +242,22 @@ The server validates all submitted results:
 - **Anonymous identity**: Connect without account, server issues persistent identity
 - **Progressive content**: Level data only delivered after unlock validation
 - **Rate limiting**: Join attempts limited to 3 per minute
-- **Host approval**: Room host must approve each guest
+- **Host approval**: Off by default (the room code is the secret). Host can toggle “Ask before letting people in”, kick, or block anytime. Join attempts stay rate-limited (3 / minute).
 - **Kick system**: Kicked players cannot rejoin
+- **Display names**: Generated space names for guests. Custom 3–16 names only for signed-in parents; server rejects PII / profanity.
+- **ALLELEVEL / ALLELEVELS**: Test unlock. Raises **that identity’s** `unlockedLevel` to 100 so `getLevelData` may return every payload for them. Other players stay gated. Same anti-cheat as normal play — do not treat it as a global unlock.
+
+## Lazy loading
+
+Levels **1–3** stay in the game HTML for instant / offline start. Levels **4–100** are fetched with the `getLevelData` procedure (unlocked only), then cached in `localStorage` (`spaceMissionLevelCacheV1`) for offline replay. The next unlocked remote level is prefetched on the map and after a win. Uncached locked / offline levels show a friendly message.
+
+Firebase Auth and PeerJS load with `import()` only when Account opens (or a stored session exists) and when the Online menu opens.
+
+## Online multiplayer / NAT
+
+PeerJS uses the public broker (`0.peerjs.com` / `*.peerjs.com`) and Google STUN. There is **no TURN server** in this project. Strict school / hotel NATs can still fail after the handshake; a hosted TURN (e.g. coturn or a Twilio Network Traversal key) is the fallback if kids cannot connect across two networks.
+
+**Handshake fix:** the guest used to send `hello` on channel `open` while the host still held the connection in `pendingConns` with no data handler. After Approve, `attachGuest` missed that hello, sent no `welcome`, and the guest hit the 6s `connection lost` watchdog. The host now sends `{ t: "ready" }` when the guest is attached; the guest re-sends `hello`. Auto-admit is the default so Approve is no longer on the happy path.
 
 ## Content Security Policy
 
@@ -250,7 +268,7 @@ Production (`vercel.json` + built `index.html`) does **not** allow localhost. Vi
 ```
 default-src 'self';
 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net https://apis.google.com https://www.gstatic.com;
-connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com https://0.peerjs.com wss://0.peerjs.com;
+connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com https://0.peerjs.com wss://0.peerjs.com https://*.peerjs.com wss://*.peerjs.com;
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:;
 media-src 'self' data: blob:;

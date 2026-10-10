@@ -5,6 +5,8 @@
 
 import { schema, table, t } from 'spacetimedb/server';
 import { assertTrustedCaller, authSnapshotFromCtx } from './auth-trust';
+import { buildLevelPayload } from './level-catalog';
+import { nameKey, validateDisplayName, type NameKind } from './display-names';
 
 /** Account-linked only. Do not call from guest gameplay — local hosts trap on JWT lookup. */
 function assertTrusted(ctx: { senderAuth?: { hasJWT: boolean; isInternal?: boolean; jwt?: { issuer?: string } | null } }): void {
@@ -127,11 +129,28 @@ const spacetimedb = schema({
   ),
   
   levelData: table(
-    { public: true },
+    { public: false },
     {
       level: t.u32().primaryKey(),
       minUnlockedLevel: t.u32(),
       dataJson: t.string(),
+    }
+  ),
+
+  playerProfile: table(
+    { public: false },
+    {
+      identity: t.identity().primaryKey(),
+      displayName: t.string(),
+      nameKind: t.string(),
+    }
+  ),
+
+  claimedName: table(
+    { public: false },
+    {
+      nameKey: t.string().primaryKey(),
+      identity: t.identity(),
     }
   ),
   
@@ -175,14 +194,32 @@ function validateAchievement(achId: string): boolean {
   return VALID_ACHIEVEMENTS.has(achId);
 }
 
-function seedLevelCatalog(ctx: { db: { levelData: { level: { find: (n: number) => unknown }; insert: (row: { level: number; minUnlockedLevel: number; dataJson: string }) => void } } }): void {
+function isStubLevelJson(dataJson: string): boolean {
+  return !dataJson || dataJson.length < 80 || dataJson.indexOf('"feats"') < 0;
+}
+
+function seedLevelCatalog(ctx: {
+  db: {
+    levelData: {
+      level: {
+        find: (n: number) => { level: number; minUnlockedLevel: number; dataJson: string } | undefined;
+        update: (row: { level: number; minUnlockedLevel: number; dataJson: string }) => void;
+      };
+      insert: (row: { level: number; minUnlockedLevel: number; dataJson: string }) => void;
+    };
+  };
+}): void {
   for (let i = 1; i <= MAX_LEVEL; i++) {
-    if (!ctx.db.levelData.level.find(i)) {
+    const dataJson = JSON.stringify(buildLevelPayload(i));
+    const existing = ctx.db.levelData.level.find(i);
+    if (!existing) {
       ctx.db.levelData.insert({
         level: i,
         minUnlockedLevel: i,
-        dataJson: JSON.stringify({ level: i, name: 'Level ' + i }),
+        dataJson,
       });
+    } else if (isStubLevelJson(existing.dataJson)) {
+      ctx.db.levelData.level.update({ ...existing, dataJson });
     }
   }
 }
@@ -663,6 +700,9 @@ export const applySecretCode = spacetimedb.reducer(
     const identity = ctx.sender;
     const upperCode = code.toUpperCase().replace(/\s+/g, '');
     
+    // Test unlock: ALLELEVEL raises this identity's unlockedLevel to 100.
+    // getLevelData then allows every level for that identity only (same anti-cheat
+    // gate as normal play — other players stay locked). Use only in tests / owner QA.
     if (upperCode === 'ALLELEVEL' || upperCode === 'ALLELEVELS') {
       const progress = ctx.db.playerProgress.identity.find(identity);
       if (progress) {
@@ -934,6 +974,63 @@ export const importProgress = spacetimedb.reducer(
     if (data.language === 'en' || data.language === 'de') {
       const player = ctx.db.player.identity.find(identity);
       if (player) ctx.db.player.identity.update({ ...player, language: data.language });
+    }
+  }
+);
+
+export const setDisplayName = spacetimedb.reducer(
+  { name: t.string(), kind: t.string() },
+  (ctx, { name, kind }) => {
+    const identity = ctx.sender;
+    const nameKind = (kind === 'custom' ? 'custom' : 'generated') as NameKind;
+    const auth = authSnapshotFromCtx(ctx);
+    if (nameKind === 'custom' && !auth.hasJWT) {
+      throw new Error('Custom names require a signed-in parent account');
+    }
+    const checked = validateDisplayName(name, nameKind);
+    if (!checked.ok) {
+      throw new Error(`Invalid display name: ${checked.reason}`);
+    }
+
+    let finalName = checked.name;
+    const key = nameKey(finalName);
+    const existingClaim = ctx.db.claimedName.nameKey.find(key);
+    if (existingClaim && String(existingClaim.identity) !== String(identity)) {
+      let found = false;
+      for (let i = 10; i <= 99; i++) {
+        const candidate = `${checked.name.replace(/\s+\d{1,3}$/, '').slice(0, 12)} ${i}`.slice(0, 16);
+        const ckey = nameKey(candidate);
+        const taken = ctx.db.claimedName.nameKey.find(ckey);
+        if (!taken || String(taken.identity) === String(identity)) {
+          finalName = candidate;
+          found = true;
+          break;
+        }
+      }
+      if (!found) throw new Error('Invalid display name: taken');
+    }
+
+    const profile = ctx.db.playerProfile.identity.find(identity);
+    if (profile) {
+      const oldKey = nameKey(profile.displayName);
+      if (oldKey !== nameKey(finalName)) {
+        const oldClaim = ctx.db.claimedName.nameKey.find(oldKey);
+        if (oldClaim && String(oldClaim.identity) === String(identity)) {
+          ctx.db.claimedName.delete(oldClaim);
+        }
+      }
+      ctx.db.playerProfile.identity.update({
+        ...profile,
+        displayName: finalName,
+        nameKind,
+      });
+    } else {
+      ctx.db.playerProfile.insert({ identity, displayName: finalName, nameKind });
+    }
+
+    const finalKey = nameKey(finalName);
+    if (!ctx.db.claimedName.nameKey.find(finalKey)) {
+      ctx.db.claimedName.insert({ nameKey: finalKey, identity });
     }
   }
 );

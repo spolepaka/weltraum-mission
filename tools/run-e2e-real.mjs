@@ -118,8 +118,8 @@ async function main() {
   if (!html.includes('https://maincloud.spacetimedb.com') || !html.includes('wss://maincloud.spacetimedb.com')) {
     throw new Error('Production HTML missing Maincloud connect-src hosts');
   }
-  if (!html.includes('identitytoolkit.googleapis.com') || !html.includes('securetoken.googleapis.com') || !html.includes('apis.google.com') || !html.includes('accounts.google.com') || !html.includes('www.gstatic.com') || !html.includes('www.googleapis.com')) {
-    throw new Error('Production HTML missing Firebase / Google CSP hosts');
+  if (!html.includes('identitytoolkit.googleapis.com') || !html.includes('securetoken.googleapis.com') || !html.includes('apis.google.com') || !html.includes('accounts.google.com') || !html.includes('www.gstatic.com') || !html.includes('www.googleapis.com') || !html.includes('*.peerjs.com')) {
+    throw new Error('Production HTML missing Firebase / Google / PeerJS CSP hosts');
   }
   if (!/script-src[^;]*https:\/\/apis\.google\.com/.test(html) || !/script-src[^;]*https:\/\/www\.gstatic\.com/.test(html)) {
     throw new Error('Production HTML script-src missing Firebase gapi / gstatic hosts');
@@ -144,7 +144,7 @@ async function main() {
   }
 
   console.log('[e2e] running Playwright suite');
-  await run('npx', ['vitest', 'run', 'tests/e2e-real.test.ts', 'tests/play-ipad.test.ts'], { env });
+  await run('npx', ['vitest', 'run', 'tests/e2e-real.test.ts', 'tests/play-ipad.test.ts', 'tests/lazy-load.test.ts', 'tests/online-multiplayer.test.ts'], { env });
 
   if (previewProc) previewProc.kill('SIGTERM');
   console.log('[e2e] real suite passed');

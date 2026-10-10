@@ -206,6 +206,10 @@ export interface Translations {
     linked: string;
     linkFailed: string;
     anonymousPlay: string;
+    displayName: string;
+    changeName: string;
+    nameHint: string;
+    reroll: string;
   };
   game: {
     neuBanner: string;

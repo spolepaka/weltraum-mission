@@ -16,7 +16,7 @@ const PORTRAIT = { width: 768, height: 1024 };
 const HUD_SCREENS = [
   'shopScreen', 'missionScreen', 'achScreen', 'statsScreen',
   'onlineScreen', 'accountScreen', 'helpScreen', 'pauseScreen',
-  'confirmScreen',
+  'confirmScreen', 'onboardScreen', 'namePickScreen',
 ];
 
 type GameWin = Window & {
@@ -34,6 +34,11 @@ type GameWin = Window & {
     setTime?: (t: number) => void;
     unlockTo?: (n: number) => void;
     simInfo?: () => { state: string; level: number };
+    showCoach?: (id: string, text: string) => void;
+    hideCoach?: () => void;
+    coachVisible?: () => boolean;
+    shopBadgeOn?: () => boolean;
+    finishOnboard?: () => void;
   };
   __fillTextLog?: string[];
   __clearFillTextLog?: () => void;
@@ -275,6 +280,24 @@ describe.each([
     await page.waitForTimeout(200);
     const mapCoins = await page.evaluate(() => (window as GameWin).__spaceGame!.shop().coins);
     expect(mapCoins).toBe(after);
+    await context.close();
+  });
+
+  it(`shows a shop coach tip once and not again after Got it (${label})`, async () => {
+    const { context, page } = await openPage(size);
+    await page.evaluate(() => {
+      const w = window as GameWin;
+      w.__spaceGame?.finishOnboard?.();
+      w.__spaceGame?.addCoins?.(400);
+      w.__spaceGame?.showCoach?.('shopCoins', 'You have 400 coins! Visit the Shop to get a new ship.');
+    });
+    await page.waitForFunction(() => (window as GameWin).__spaceGame?.coachVisible?.() === true, { timeout: 4000 });
+    const text = await page.locator('#coachText').innerText();
+    expect(text).toMatch(/Shop|Münzen|coins/i);
+    await page.click('#coachGotIt');
+    await page.waitForTimeout(80);
+    const after = await page.evaluate(() => (window as GameWin).__spaceGame?.coachVisible?.());
+    expect(after).toBe(false);
     await context.close();
   });
 });

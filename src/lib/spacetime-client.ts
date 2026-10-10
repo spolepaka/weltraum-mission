@@ -669,6 +669,14 @@ class SpacetimeClient {
     return true;
   }
 
+  setDisplayName(name: string, kind: 'generated' | 'custom'): boolean {
+    this.queueOrCallReducer(() => {
+      const reducers = this.connection?.reducers as { setDisplayName?: (args: { name: string; kind: string }) => void } | undefined;
+      reducers?.setDisplayName?.({ name, kind });
+    });
+    return true;
+  }
+
   applySecretCode(code: string): { success: boolean; message: string } {
     console.log('[SpacetimeDB] applySecretCode:', code);
     this.queueOrCallReducer(() => {
