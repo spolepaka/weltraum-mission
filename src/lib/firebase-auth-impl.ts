@@ -12,6 +12,7 @@ import {
   OAuthProvider,
   signInWithPopup,
   signInWithRedirect,
+  signInWithCredential,
   getRedirectResult,
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
@@ -154,6 +155,21 @@ export function signInWithGoogle(opts?: SignInOpts): Promise<AuthUser> {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   return popupThenRedirect(a, provider, 'google', opts);
+}
+
+/** Auth emulator only: finish Google sign-in without the IdP iframe relay. */
+export async function signInWithEmulatorGoogle(email: string): Promise<AuthUser> {
+  const a = getFirebaseAuth();
+  if (!a) throw new Error('auth_not_configured');
+  const trimmed = email.trim();
+  if (!trimmed.includes('@')) throw new Error('invalid_email');
+  const cred = GoogleAuthProvider.credential(
+    JSON.stringify({ sub: `emu-${trimmed}`, email: trimmed, email_verified: true, name: 'Emu Parent' }),
+  );
+  const result = await signInWithCredential(a, cred);
+  const user = await userToAuthUser(result.user, 'google');
+  saveAuthUser(user);
+  return user;
 }
 
 export async function startEmailLink(email: string): Promise<void> {

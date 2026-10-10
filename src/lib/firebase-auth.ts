@@ -265,6 +265,11 @@ export async function startEmailLink(email: string): Promise<void> {
   return impl.startEmailLink(email);
 }
 
+export async function signInWithEmulatorGoogle(email: string): Promise<AuthUser> {
+  const impl = await ensureFirebase();
+  return impl.signInWithEmulatorGoogle(email);
+}
+
 export function signInWithApple(opts?: SignInOpts): Promise<AuthUser> {
   const impl = peekFirebase();
   if (impl) return impl.signInWithApple(opts);

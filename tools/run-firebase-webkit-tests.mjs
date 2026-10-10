@@ -111,7 +111,7 @@ async function main() {
 
   const firebaseEnv = {
     VITE_FIREBASE_API_KEY: 'fake-api-key',
-    VITE_FIREBASE_AUTH_DOMAIN: '127.0.0.1',
+    VITE_FIREBASE_AUTH_DOMAIN: `127.0.0.1:${PREVIEW_PORT}`,
     VITE_FIREBASE_PROJECT_ID: 'demo-weltraum',
     VITE_FIREBASE_APP_ID: '1:1:web:demo',
     VITE_FIREBASE_AUTH_EMULATOR: 'http://127.0.0.1:9099',
@@ -121,6 +121,12 @@ async function main() {
   console.log('[firebase-webkit] emulator build for WebKit popup/redirect');
   await run('npm', ['run', 'build'], { env: { ...process.env, ...firebaseEnv } });
   preview = await startPreview(PREVIEW_PORT, { ...process.env });
+
+  const iframe = await fetch(`http://127.0.0.1:${PREVIEW_PORT}/__/auth/iframe`);
+  console.log(`[firebase-webkit] GET /__/auth/iframe → ${iframe.status}`);
+  if (iframe.status >= 400) {
+    throw new Error(`first-party auth iframe proxy failed: ${iframe.status}`);
+  }
 
   await run('npx', ['vitest', 'run', 'tests/firebase-auth-webkit.test.ts'], {
     env: {

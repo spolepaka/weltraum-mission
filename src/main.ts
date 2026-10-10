@@ -17,6 +17,7 @@ import {
   completeRedirectIfNeeded,
   completeEmailLinkIfNeeded,
   signInWithGoogle,
+  signInWithEmulatorGoogle,
   startEmailLink,
   signInWithApple,
   signOutFirebase,
@@ -143,6 +144,7 @@ export interface WeltraumApi {
     };
     onChange: (cb: () => void) => () => void;
     signInGoogle: (opts?: SignInOpts) => Promise<void>;
+    signInEmulatorGoogle: (email: string) => Promise<void>;
     startEmailLink: (email: string) => Promise<void>;
     signInApple: (opts?: SignInOpts) => Promise<void>;
     signOut: () => Promise<void>;
@@ -482,6 +484,19 @@ function installApi(client: SpacetimeClient): WeltraumApi {
         }).finally(() => {
           authFlowLock = false;
         });
+      },
+      signInEmulatorGoogle: async (email: string) => {
+        if (!isAuthConfigured()) throw new Error('auth_not_configured');
+        authFlowLock = true;
+        try {
+          const snap = snapshotFromGame();
+          if (snap) saveAnonSnapshot(snap);
+          await signInWithEmulatorGoogle(email);
+          await connectFirebaseIdentity(client, true);
+          await afterProgressReady(client);
+        } finally {
+          authFlowLock = false;
+        }
       },
       startEmailLink: async (email: string) => {
         if (!isAuthConfigured()) throw new Error('auth_not_configured');

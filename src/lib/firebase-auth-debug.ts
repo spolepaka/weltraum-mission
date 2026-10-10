@@ -5,8 +5,29 @@
 
 export type AuthPathUsed = 'popup' | 'redirect' | 'none';
 
+export const AUTH_PATH_KEY = 'spaceMissionAuthPath';
+export const AUTH_ERR_KEY = 'spaceMissionAuthError';
+
 let authPathUsed: AuthPathUsed = 'none';
 let lastAuthErrorCode: string | null = null;
+
+function readStoredPath(): AuthPathUsed {
+  try {
+    const raw = sessionStorage.getItem(AUTH_PATH_KEY);
+    if (raw === 'popup' || raw === 'redirect' || raw === 'none') return raw;
+  } catch {
+    // ignore
+  }
+  return 'none';
+}
+
+function readStoredError(): string | null {
+  try {
+    return sessionStorage.getItem(AUTH_ERR_KEY);
+  } catch {
+    return null;
+  }
+}
 
 export function authErrorCode(err: unknown): string {
   const code = String((err as { code?: string })?.code || '');
@@ -22,23 +43,30 @@ export function authErrorMessage(err: unknown): string {
 
 export function setAuthPathUsed(path: AuthPathUsed): void {
   authPathUsed = path;
+  try { sessionStorage.setItem(AUTH_PATH_KEY, path); } catch { /* ignore */ }
 }
 
 export function setLastAuthError(err: unknown): void {
   const code = authErrorCode(err);
   lastAuthErrorCode = code || authErrorMessage(err) || 'unknown';
+  try {
+    if (lastAuthErrorCode) sessionStorage.setItem(AUTH_ERR_KEY, lastAuthErrorCode);
+    else sessionStorage.removeItem(AUTH_ERR_KEY);
+  } catch { /* ignore */ }
 }
 
 export function clearLastAuthError(): void {
   lastAuthErrorCode = null;
+  try { sessionStorage.removeItem(AUTH_ERR_KEY); } catch { /* ignore */ }
 }
 
 export function getAuthPathUsed(): AuthPathUsed {
-  return authPathUsed;
+  if (authPathUsed !== 'none') return authPathUsed;
+  return readStoredPath();
 }
 
 export function getLastAuthErrorCode(): string | null {
-  return lastAuthErrorCode;
+  return lastAuthErrorCode || readStoredError();
 }
 
 /** Popup failed in a way that redirect can recover — only actual blocks. */
