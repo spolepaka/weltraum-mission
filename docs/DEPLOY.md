@@ -158,7 +158,7 @@ The server validates all submitted results:
 The CSP header restricts script execution:
 ```
 default-src 'self';
-script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net;
+script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net;
 connect-src 'self' ws://localhost:* wss://*.spacetimedb.com https://0.peerjs.com wss://0.peerjs.com;
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:;

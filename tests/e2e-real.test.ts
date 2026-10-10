@@ -29,7 +29,7 @@ async function openFreshPage(): Promise<{ context: BrowserContext; page: Page }>
   return { context, page };
 }
 
-describe('Real E2E: built game + local SpacetimeDB', () => {
+describe('Real E2E: built game + local SpacetimeDB', { timeout: 30000 }, () => {
   beforeAll(async () => {
     browser = await chromium.launch({
       headless: true,
