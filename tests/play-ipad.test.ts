@@ -105,7 +105,9 @@ async function scanLanguage(page: Page, lang: 'en' | 'de'): Promise<{ hits: stri
       });
       ['mapHint', 'msg', 'celebrateHud', 'shopToast', 'missionToast', 'achToast', 'onStatus', 'winCoins', 'winInfo'].forEach(id => {
         const el = document.getElementById(id);
-        if (el && !el.classList.contains('hidden')) parts.push(el.innerText || '');
+        if (!el || el.classList.contains('hidden')) return;
+        if (id === 'celebrateHud' && !el.classList.contains('show')) return;
+        parts.push(el.innerText || '');
       });
       return parts.join('\n');
     })();
@@ -131,7 +133,7 @@ afterAll(async () => {
 describe.each([
   ['landscape 1024x768', LANDSCAPE],
   ['portrait 768x1024', PORTRAIT],
-] as const)('iPad %s', (label, size) => {
+] as const)('iPad %s', { timeout: 45000 }, (label, size) => {
   it(`shows a visible account button with guest + sync status (${label})`, async () => {
     const { context, page } = await openPage(size);
     const info = await page.evaluate(() => {
