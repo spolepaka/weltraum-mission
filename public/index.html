@@ -1112,6 +1112,10 @@
     if (n === 2 || n >= 4) { mk(ship.x - 13, y + 10, 0, -650); mk(ship.x + 13, y + 10, 0, -650); }
     if (triple > 0 || n >= 3) { mk(ship.x - 10, y + 8, -150, -630); mk(ship.x + 10, y + 8, 150, -630); }
     fireCooldown = curStats.rate; shotsFired++; SFX.shoot();
+    if (trainOn && trainStep === "shootRock") {
+      rocks.forEach(function (r) { if (!r.dead) killRock(r, 99); });
+    }
+    if (trainOn && trainStep === "miniBoss" && boss) damageBoss(4, boss.x, boss.y);
   }
 
   function showMsg(html, cls, t) { var m = $("msg"); m.innerHTML = html; m.className = cls; msgTimer = t || 1.2; }
@@ -5274,6 +5278,7 @@
     obSpot(highlights[step] || "");
     if (step === "avoidHazard") { $("rightBtn").classList.add("obSpot"); }
     showObPrompt(tr("tips.train_" + step), "train");
+    fireCooldown = 0;
     if (step === "shootRock") {
       var rk = makeRock(ship.x, Math.max(80, ship.y - 180), 34, false); rk.vx = 0; rk.vy = 36; rocks.push(rk);
     } else if (step === "collectCoin") {
