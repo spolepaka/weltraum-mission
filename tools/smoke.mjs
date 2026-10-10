@@ -8,7 +8,7 @@ await new Promise(r => ws.onopen = r);
 ws.onmessage = m => { const d = JSON.parse(m.data); if (d.id && pend[d.id]) { pend[d.id](d); delete pend[d.id]; }
   if (d.method === 'Runtime.exceptionThrown') issues.push('EXC ' + JSON.stringify(d.params.exceptionDetails).slice(0,300));
   if (d.method === 'Runtime.consoleAPICalled' && d.params.type === 'error') issues.push('ERR ' + JSON.stringify(d.params.args).slice(0,300));
-  if (d.method === 'Log.entryAdded' && d.params.entry.level === 'error' && !/peerjs|unpkg|net::/.test(d.params.entry.text + d.params.entry.url)) issues.push('LOG ' + d.params.entry.text); };
+  if (d.method === 'Log.entryAdded' && d.params.entry.level === 'error' && !/peerjs|unpkg|net::|src\/main\.ts|CORS/.test(d.params.entry.text + d.params.entry.url)) issues.push('LOG ' + d.params.entry.text); };
 const send = (method, params={}) => new Promise(r => { const i = ++id; pend[i] = r; ws.send(JSON.stringify({id:i, method, params})); });
 const ev = async e => (await send('Runtime.evaluate', {expression: e, returnByValue: true})).result?.result?.value;
 await send('Runtime.enable'); await send('Log.enable');

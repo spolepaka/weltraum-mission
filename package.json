@@ -1,0 +1,30 @@
+{
+  "name": "weltraum-mission",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run --exclude tests/e2e-real.test.ts",
+    "test:watch": "vitest",
+    "test:e2e:real": "node tools/run-e2e-real.mjs",
+    "test:e2e:local": "node tools/run-e2e-real.mjs --local",
+    "test:smoke": "node tools/smoke.mjs 9222 \"$PWD/public/index.html\" 1024 768 && node tools/smoke.mjs 9223 \"$PWD/public/index.html\" 768 1024",
+    "spacetime:build": "cd server/spacetimedb && spacetime build",
+    "spacetime:generate": "spacetime generate --lang typescript --module-path server/spacetimedb --out-dir src/lib/module_bindings",
+    "spacetime:start": "spacetime start --in-memory",
+    "spacetime:publish:local": "cd server/spacetimedb && spacetime publish --server http://localhost:3000 weltraum-dev"
+  },
+  "dependencies": {
+    "spacetimedb": "2.11.*"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^26.6.5",
+    "playwright": "^1.64.0",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.0",
+    "vitest": "^2.0.0"
+  }
+}
