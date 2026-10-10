@@ -4,6 +4,7 @@
  */
 export {
   FIREBASE_PROJECT_ID,
+  FIREBASE_AUDIENCE,
   firebaseIssuer,
   isFirebaseIssuer,
   isAnonymousOrFirebase,

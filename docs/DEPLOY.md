@@ -44,18 +44,25 @@ This is **off** until the Firebase env vars below are set. Until then the button
 
 Apple Sign-In is wired (`OAuthProvider('apple.com')`) but **off** unless `VITE_FIREBASE_APPLE_ENABLED=1`. Enable it later with config only (Firebase console + Apple developer + that flag).
 
-**The SpacetimeDB module must be republished** after this change (issuer trust lives in `server/spacetimedb/src/auth-trust.ts`). Change `FIREBASE_PROJECT_ID` there if the Firebase project id is not `weltraum-mission`, then republish again.
+**The SpacetimeDB module must be republished** after this change (issuer trust lives in `server/spacetimedb/src/auth-trust.ts`). The constant is already `weltraum-mission` to match the live Firebase project.
 
-### What to create in the Firebase console
+### Firebase project (already created)
 
-1. Open [https://console.firebase.google.com](https://console.firebase.google.com) and create a project. Preferred project id: `weltraum-mission` (must match `FIREBASE_PROJECT_ID` in `server/spacetimedb/src/auth-trust.ts`).
-2. Add a **Web** app. Copy the config values (`apiKey`, `authDomain`, `projectId`, `appId`; optional `messagingSenderId`, `storageBucket`).
-3. **Authentication → Sign-in method**:
-   - Enable **Google**. Set a support email. Add the production authorized domain (Vercel host) and `localhost`.
-   - Enable **Email/Password** and turn on **Email link (passwordless sign-in)**.
-   - Apple: leave disabled until you are ready. Then enable Apple, add Services ID / key, and set `VITE_FIREBASE_APPLE_ENABLED=1`.
-4. **Authentication → Settings → Authorized domains**: your Vercel origin (no scheme), plus `localhost`.
-5. Authorized auth domain (`authDomain`) is typically `<projectId>.firebaseapp.com`. That host must stay in CSP `frame-src` (this repo already allows `https://*.firebaseapp.com` and `https://*.web.app`).
+- Project id: `weltraum-mission`
+- Auth domain: `weltraum-mission.firebaseapp.com`
+- Trusted issuer: `https://securetoken.google.com/weltraum-mission`
+- Audience: `weltraum-mission`
+
+`VITE_FIREBASE_*` is already set on Vercel (Production + Preview). Do not commit the web apiKey into the repo or tests.
+
+### What to finish in the Firebase console
+
+1. Confirm **Authentication → Sign-in method**:
+   - **Google** enabled (support email + authorized domains: Vercel host and `localhost`)
+   - **Email/Password** with **Email link (passwordless sign-in)** enabled
+   - Apple: leave disabled until you are ready. Then enable Apple, add Services ID / key, and set `VITE_FIREBASE_APPLE_ENABLED=1`
+2. **Authentication → Settings → Authorized domains**: production host (no scheme) plus `localhost`
+3. `authDomain` `weltraum-mission.firebaseapp.com` is already allowed by CSP `frame-src` (`https://*.firebaseapp.com` / `https://*.web.app`)
 
 ### What to create in the SpacetimeDB dashboard
 
@@ -64,7 +71,7 @@ Firebase ID tokens are OIDC JWTs:
 - Issuer: `https://securetoken.google.com/<projectId>`
 - Audience: `<projectId>`
 
-On the Maincloud database `weltraum-mission`, add that issuer as a trusted JWT / OpenID Connect identity provider (audience = the Firebase project id). Without this, `.withToken(firebaseIdToken)` is rejected at connect time.
+On the Maincloud database `weltraum-mission`, add that issuer as a trusted JWT / OpenID Connect identity provider (audience = `weltraum-mission`). Without this, `.withToken(firebaseIdToken)` is rejected at connect time.
 
 Then **republish the module** so `assertTrustedCaller` (anonymous or our Firebase issuer only) is live.
 

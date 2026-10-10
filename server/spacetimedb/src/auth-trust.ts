@@ -1,11 +1,16 @@
 /**
- * Issuer trust for account-linked operations.
+ * Issuer trust for account-linked operations (importProgress).
  *
- * Change FIREBASE_PROJECT_ID to match the Firebase project
- * (same value as VITE_FIREBASE_PROJECT_ID). Republish the module after changing it.
+ * Live Firebase project: weltraum-mission
+ * Issuer: https://securetoken.google.com/weltraum-mission
+ * Audience: weltraum-mission
+ *
+ * Change FIREBASE_PROJECT_ID if the Firebase project id changes.
+ * Republish the module after changing it.
  */
 
 export const FIREBASE_PROJECT_ID = 'weltraum-mission';
+export const FIREBASE_AUDIENCE = FIREBASE_PROJECT_ID;
 
 export function firebaseIssuer(projectId: string = FIREBASE_PROJECT_ID): string {
   return `https://securetoken.google.com/${projectId}`;

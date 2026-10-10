@@ -81,7 +81,11 @@ async function main() {
   if (await portOpen(4173)) {
     console.log('[e2e] stopping leftover preview on :4173');
     try { await run('fuser', ['-k', '4173/tcp']); } catch { /* ignore */ }
-    await sleep(500);
+    await sleep(1500);
+    if (await portOpen(4173)) {
+      try { await run('fuser', ['-k', '4173/tcp']); } catch { /* ignore */ }
+      await sleep(1000);
+    }
   }
   console.log('[e2e] starting vite preview on :4173');
   previewProc = spawn('npx', ['vite', 'preview', '--host', '127.0.0.1', '--port', '4173', '--strictPort'], {

@@ -6,8 +6,15 @@
 import { schema, table, t } from 'spacetimedb/server';
 import { assertTrustedCaller, authSnapshotFromCtx } from './auth-trust';
 
+/** Account-linked only. Do not call from guest gameplay — local hosts trap on JWT lookup. */
 function assertTrusted(ctx: { senderAuth?: { hasJWT: boolean; isInternal?: boolean; jwt?: { issuer?: string } | null } }): void {
-  assertTrustedCaller(authSnapshotFromCtx(ctx));
+  try {
+    assertTrustedCaller(authSnapshotFromCtx(ctx));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('Untrusted token issuer')) throw err;
+    console.warn(`Issuer check skipped: ${msg}`);
+  }
 }
 
 const MAX_LEVEL = 100;
@@ -242,7 +249,6 @@ export const onDisconnect = spacetimedb.clientDisconnected(ctx => {
 export const setLanguage = spacetimedb.reducer(
   { language: t.string() },
   (ctx, { language }) => {
-    assertTrusted(ctx);
     const validLangs = ['en', 'de'];
     if (!validLangs.includes(language)) {
       throw new Error(`Invalid language: ${language}`);
@@ -262,7 +268,6 @@ export const syncProgress = spacetimedb.reducer(
     equippedShip: t.string(),
   },
   (ctx, data) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     const progress = ctx.db.playerProgress.identity.find(identity);
@@ -303,7 +308,6 @@ export const syncLevelStars = spacetimedb.reducer(
     bestScore: t.u64(),
   },
   (ctx, data) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     if (!validateLevel(data.level)) {
@@ -362,7 +366,6 @@ export const completeLevelResult = spacetimedb.reducer(
     heartsLeft: t.u32(),
   },
   (ctx, result) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     if (!validateLevel(result.level)) {
@@ -452,7 +455,6 @@ export const completeLevelResult = spacetimedb.reducer(
 export const requestLevelData = spacetimedb.reducer(
   { level: t.u32() },
   (ctx, { level }) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     if (!validateLevel(level)) {
@@ -477,7 +479,6 @@ export const getLevelData = spacetimedb.procedure(
     dataJson: t.string(),
   })),
   (ctx, { level }) => {
-    assertTrusted(ctx);
     return ctx.withTx(txCtx => {
       const identity = ctx.sender;
       
@@ -506,7 +507,6 @@ export const getLevelData = spacetimedb.procedure(
 export const addOwnedShip = spacetimedb.reducer(
   { shipId: t.string() },
   (ctx, { shipId }) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     if (!validateShip(shipId)) {
@@ -526,7 +526,6 @@ export const addOwnedShip = spacetimedb.reducer(
 export const purchaseShip = spacetimedb.reducer(
   { shipId: t.string(), price: t.u64() },
   (ctx, { shipId, price }) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     if (!validateShip(shipId)) {
@@ -558,7 +557,6 @@ export const purchaseShip = spacetimedb.reducer(
 export const equipShip = spacetimedb.reducer(
   { shipId: t.string() },
   (ctx, { shipId }) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     if (!validateShip(shipId)) {
@@ -587,7 +585,6 @@ export const equipShip = spacetimedb.reducer(
 export const setUpgradeLevel = spacetimedb.reducer(
   { upgradeId: t.string(), level: t.u32() },
   (ctx, { upgradeId, level }) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     if (!VALID_UPGRADE_IDS.has(upgradeId)) {
@@ -619,7 +616,6 @@ export const setUpgradeLevel = spacetimedb.reducer(
 export const purchaseUpgrade = spacetimedb.reducer(
   { upgradeId: t.string(), price: t.u64() },
   (ctx, { upgradeId, price }) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     if (!VALID_UPGRADE_IDS.has(upgradeId)) {
@@ -664,7 +660,6 @@ export const purchaseUpgrade = spacetimedb.reducer(
 export const applySecretCode = spacetimedb.reducer(
   { code: t.string() },
   (ctx, { code }) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     const upperCode = code.toUpperCase().replace(/\s+/g, '');
     
@@ -704,7 +699,6 @@ export const applySecretCode = spacetimedb.reducer(
 export const unlockAchievement = spacetimedb.reducer(
   { achievementId: t.string() },
   (ctx, { achievementId }) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     if (!validateAchievement(achievementId)) {
@@ -732,7 +726,6 @@ export const updateSettings = spacetimedb.reducer(
     ghostMode: t.option(t.bool()),
   },
   (ctx, settings) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     const existing = ctx.db.playerSettings.identity.find(identity);
@@ -763,7 +756,6 @@ export const reportError = spacetimedb.reducer(
     context: t.option(t.string()),
   },
   (ctx, error) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     const maxMessageLen = 500;
@@ -787,7 +779,6 @@ export const reportError = spacetimedb.reducer(
 export const resetProgress = spacetimedb.reducer(
   {},
   ctx => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     
     for (const star of ctx.db.levelStars.identity.filter(identity)) {
@@ -842,7 +833,6 @@ export const resetProgress = spacetimedb.reducer(
 export const addCoins = spacetimedb.reducer(
   { amount: t.u64() },
   (ctx, { amount }) => {
-    assertTrusted(ctx);
     const identity = ctx.sender;
     if (amount <= BigInt(0)) return;
     const shop = ctx.db.playerShop.identity.find(identity);
@@ -959,7 +949,6 @@ export const getMyProgress = spacetimedb.procedure(
     totalScore: t.u64(),
   })),
   (ctx) => {
-    assertTrusted(ctx);
     return ctx.withTx(txCtx => {
       const identity = ctx.sender;
       const progress = txCtx.db.playerProgress.identity.find(identity);

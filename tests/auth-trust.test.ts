@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  FIREBASE_AUDIENCE,
   FIREBASE_PROJECT_ID,
   assertTrustedCaller,
   authSnapshotFromCtx,
@@ -11,6 +12,7 @@ import {
 describe('Firebase issuer trust', () => {
   it('uses a single easy-to-change project id constant', () => {
     expect(FIREBASE_PROJECT_ID).toBe('weltraum-mission');
+    expect(FIREBASE_AUDIENCE).toBe('weltraum-mission');
     expect(firebaseIssuer()).toBe('https://securetoken.google.com/weltraum-mission');
   });
 
