@@ -75,9 +75,26 @@ function requiredFirebaseEnv() {
   };
 }
 
+async function killPort(port) {
+  try {
+    await run('fuser', ['-k', `${port}/tcp`]);
+    return;
+  } catch {
+    // fuser is optional
+  }
+  await new Promise((resolve) => {
+    const child = spawn('bash', ['-lc', `ss -lptn "sport = :${port}" | sed -n 's/.*pid=\\([0-9]*\\).*/\\1/p' | sort -u | xargs -r kill`], {
+      stdio: 'ignore',
+      cwd: ROOT,
+    });
+    child.on('exit', () => resolve());
+    child.on('error', () => resolve());
+  });
+}
+
 async function startPreview(port, env) {
   if (await portOpen(port)) {
-    try { await run('fuser', ['-k', `${port}/tcp`]); } catch { /* ignore */ }
+    await killPort(port);
     await waitForPortClosed(port);
   }
   const preview = spawn(

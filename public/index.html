@@ -5491,9 +5491,15 @@
   function finishOnboard() {
     $("onboardScreen").classList.add("hidden");
     $("welcomeScreen").classList.add("hidden");
+    $("namePickScreen").classList.add("hidden");
     hideObPrompt();
     trainOn = false;
     mapTourOn = false;
+    var names = window.__weltraum && window.__weltraum.names;
+    if (names && !names.current()) {
+      var lang = curLang === "de" ? "de" : "en";
+      names.save(names.generate(lang), "generated");
+    }
     var api = tipsApi();
     if (api) {
       var st = api.loadTips();

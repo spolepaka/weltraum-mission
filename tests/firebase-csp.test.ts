@@ -21,6 +21,7 @@ async function openInstrumented(): Promise<{ context: BrowserContext; page: Page
       localStorage.setItem('spaceMissionOnboardV1', JSON.stringify({
         welcomeDone: true, trainingDone: true, mapTourDone: true, skipped: true, jitShown: {},
       }));
+      localStorage.setItem('spaceMissionDisplayName', JSON.stringify({ name: 'Cosmic Fox 42', kind: 'generated' }));
     } catch {
       // ignore
     }
@@ -48,9 +49,13 @@ async function openInstrumented(): Promise<{ context: BrowserContext; page: Page
     return !!w.__spaceGame;
   }, { timeout: 20000 });
   await page.evaluate(() => {
-    const w = window as Window & { __spaceGame?: { finishOnboard?: () => void } };
+    const w = window as Window & {
+      __spaceGame?: { finishOnboard?: () => void; acceptName?: () => void; namePickVisible?: () => boolean };
+    };
+    if (w.__spaceGame?.namePickVisible?.()) w.__spaceGame.acceptName?.();
     w.__spaceGame?.finishOnboard?.();
     document.getElementById('welcomeScreen')?.classList.add('hidden');
+    document.getElementById('namePickScreen')?.classList.add('hidden');
   });
   await page.waitForTimeout(200);
   return { context, page };

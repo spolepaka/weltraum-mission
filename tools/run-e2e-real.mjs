@@ -98,7 +98,13 @@ async function main() {
 
   if (await portOpen(4173)) {
     console.log('[e2e] stopping leftover preview on :4173');
-    try { await run('fuser', ['-k', '4173/tcp']); } catch { /* ignore */ }
+    try { await run('fuser', ['-k', '4173/tcp']); } catch {
+      await new Promise((resolve) => {
+        const child = spawn('bash', ['-lc', `ss -lptn 'sport = :4173' | sed -n 's/.*pid=\\([0-9]*\\).*/\\1/p' | sort -u | xargs -r kill`], { stdio: 'ignore', cwd: ROOT });
+        child.on('exit', () => resolve());
+        child.on('error', () => resolve());
+      });
+    }
     await waitForPortClosed(4173);
   }
   console.log('[e2e] starting vite preview on :4173');
