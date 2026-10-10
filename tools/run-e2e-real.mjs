@@ -76,7 +76,7 @@ async function main() {
   }
 
   console.log('[e2e] building production game');
-  await run('npm', ['run', 'build']);
+  await run('npm', ['run', 'build'], LOCAL ? { env: { ...process.env, E2E_LOCAL: '1' } } : undefined);
 
   if (await portOpen(4173)) {
     console.log('[e2e] stopping leftover preview on :4173');

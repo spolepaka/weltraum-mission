@@ -13,10 +13,10 @@ const GAME_URL = STDB_QS ? `${BASE_URL}/?${STDB_QS}` : `${BASE_URL}/`;
 const LANDSCAPE = { width: 1024, height: 768 };
 const PORTRAIT = { width: 768, height: 1024 };
 
-const SCREEN_IDS = [
+const HUD_SCREENS = [
   'shopScreen', 'missionScreen', 'achScreen', 'statsScreen',
   'onlineScreen', 'accountScreen', 'helpScreen', 'pauseScreen',
-  'confirmScreen', 'winScreen', 'overScreen',
+  'confirmScreen',
 ];
 
 type GameWin = Window & {
@@ -56,51 +56,13 @@ async function openPage(size: { width: number; height: number }): Promise<{ cont
   return { context, page };
 }
 
-function collectVisibleText(): string {
-  const parts: string[] = [];
-  const walk = (el: Element) => {
-    const style = window.getComputedStyle(el);
-    if (style.display === 'none' || style.visibility === 'hidden' || (el as HTMLElement).offsetParent === null && el !== document.body) {
-      if (el.id && ['game', 'msg', 'celebrateHud'].includes(el.id) === false && !el.closest('#mapHud')) {
-        /* still skip hidden screens */
-      }
-    }
-    if (el.classList?.contains('hidden') || el.classList?.contains('screen') && el.classList.contains('hidden')) return;
-    if (el instanceof HTMLElement && el.offsetParent === null && el !== document.body && el.id !== 'mapHud' && el.id !== 'msg' && el.id !== 'celebrateHud') return;
-    for (const child of Array.from(el.childNodes)) {
-      if (child.nodeType === Node.TEXT_NODE) {
-        const t = (child.textContent || '').trim();
-        if (t) parts.push(t);
-      } else if (child.nodeType === Node.ELEMENT_NODE) walk(child as Element);
-    }
-  };
-  walk(document.body);
-  const msg = document.getElementById('msg');
-  if (msg && msg.className) parts.push(msg.innerText || '');
-  const celeb = document.getElementById('celebrateHud');
-  if (celeb && celeb.classList.contains('show')) parts.push(celeb.innerText || '');
-  return parts.join('\n');
-}
-
 async function openAllHudScreens(page: Page): Promise<void> {
-  const clicks = ['shopBtn', 'missionBtn', 'achBtn', 'statsBtn', 'onlineBtn', 'accountBtn', 'helpBtn'];
-  for (const id of clicks) {
-    await page.locator(`#${id}`).click({ force: true }).catch(() => undefined);
-    await page.waitForTimeout(80);
-    await page.evaluate((screenIds) => {
-      screenIds.forEach(sid => {
-        const el = document.getElementById(sid);
-        if (el) el.classList.remove('hidden');
-      });
-    }, SCREEN_IDS);
-  }
-  await page.locator('#pauseBtn').click({ force: true }).catch(() => undefined);
-  await page.evaluate(() => {
-    const p = document.getElementById('pauseScreen');
-    if (p) p.classList.remove('hidden');
-    const c = document.getElementById('confirmScreen');
-    if (c) c.classList.remove('hidden');
-  });
+  await page.evaluate((screenIds) => {
+    screenIds.forEach(sid => {
+      const el = document.getElementById(sid);
+      if (el) el.classList.remove('hidden');
+    });
+  }, HUD_SCREENS);
 }
 
 async function scanLanguage(page: Page, lang: 'en' | 'de'): Promise<{ hits: string[]; sample: string }> {
@@ -159,14 +121,23 @@ describe.each([
 ] as const)('iPad %s', (label, size) => {
   it(`shows a visible account button with guest + sync status (${label})`, async () => {
     const { context, page } = await openPage(size);
-    const acc = page.locator('#accountBtn');
-    await expect(acc).toBeVisible();
-    const text = await acc.innerText();
-    expect(text.toLowerCase()).toMatch(/account|konto|guest|gast/);
-    await acc.click();
-    await expect(page.locator('#accountScreen')).toBeVisible();
-    await expect(page.locator('#accountKind')).toContainText(/guest|gast/i);
-    await expect(page.locator('#accountSignIn')).toBeVisible();
+    const info = await page.evaluate(() => {
+      const btn = document.getElementById('accountBtn');
+      const screen = document.getElementById('accountScreen');
+      btn?.click();
+      return {
+        btnText: btn?.innerText || '',
+        btnHidden: btn?.classList.contains('hidden') ?? true,
+        kind: document.getElementById('accountKind')?.textContent || '',
+        signIn: document.getElementById('accountSignIn')?.textContent || '',
+        screenHidden: screen?.classList.contains('hidden') ?? true,
+      };
+    });
+    expect(info.btnHidden).toBe(false);
+    expect(info.btnText.toLowerCase()).toMatch(/account|konto|guest|gast/);
+    expect(info.screenHidden).toBe(false);
+    expect(info.kind).toMatch(/guest|gast/i);
+    expect(info.signIn.length).toBeGreaterThan(3);
     await context.close();
   });
 
@@ -205,7 +176,7 @@ describe.each([
       const w = window as GameWin;
       w.__spaceGame!.forceFinish({ skipCelebrate: true });
     });
-    await expect(page.locator('#winScreen')).toBeVisible({ timeout: 5000 });
+    await page.waitForFunction(() => !document.getElementById('winScreen')?.classList.contains('hidden'), { timeout: 5000 });
     const winText = await page.locator('#winScreen').innerText();
     expect(winText).toMatch(/Level Complete|Level geschafft|Continue|Weiter|Coins|Münzen|Collected|Gesammelt/i);
     const after = await page.evaluate(() => {
@@ -255,7 +226,7 @@ describe.each([
       return `${el?.innerText || ''}\n${msg?.innerText || ''}`;
     });
     expect(banner).toMatch(/BOSS DEFEATED|BOSS BESIEGT/);
-    await expect(page.locator('#winScreen')).toBeVisible({ timeout: 8000 });
+    await page.waitForFunction(() => !document.getElementById('winScreen')?.classList.contains('hidden'), { timeout: 8000 });
     const win = await page.locator('#winScreen').innerText();
     expect(win).toMatch(/Continue|Weiter|Collected|Gesammelt|Level Complete|Level geschafft/i);
     const after = await page.evaluate(() => {

@@ -20,8 +20,9 @@ function gameHtmlPlugin() {
       order: 'pre' as const,
       handler(_html: string, ctx: { server?: unknown }) {
         let html = fs.readFileSync(gamePath, 'utf8');
-        // Localhost is only for the Vite dev server, never the production build.
-        if (ctx.server) {
+        // Localhost is only for the Vite dev server and local E2E (`E2E_LOCAL=1`).
+        // Production / Vercel builds never include it.
+        if (ctx.server || process.env.E2E_LOCAL === '1') {
           html = html.replace(PROD_CONNECT, DEV_CONNECT);
         }
         const bundle = JSON.stringify({ en, de });
