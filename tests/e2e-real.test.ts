@@ -36,17 +36,18 @@ async function openFreshPage(): Promise<{ context: BrowserContext; page: Page }>
   return { context, page };
 }
 
-describe('Real E2E: built game + SpacetimeDB', { timeout: 45000 }, () => {
-  beforeAll(async () => {
-    browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-  }, 30000);
-
-  afterAll(async () => {
-    if (browser) await browser.close();
+beforeAll(async () => {
+  browser = await chromium.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
+}, 30000);
+
+afterAll(async () => {
+  if (browser) await browser.close();
+});
+
+describe('Real E2E: built game + SpacetimeDB', { timeout: 45000 }, () => {
 
   it('new anonymous player connects and stores an identity token', async () => {
     const { context, page } = await openFreshPage();

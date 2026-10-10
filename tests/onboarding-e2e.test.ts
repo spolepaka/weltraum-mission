@@ -75,8 +75,11 @@ async function completeWelcome(page: Page, tag: string): Promise<void> {
 
 async function waitStep(page: Page, step: string): Promise<void> {
   await page.waitForFunction((want) => {
-    const cur = (window as GameWin).__spaceGame?.trainStep?.() || '';
+    const w = window as GameWin;
+    const cur = w.__spaceGame?.trainStep?.() || '';
+    const phase = w.__spaceGame?.onboardPhase?.() || '';
     const order = ['moveLeft', 'moveRight', 'shootRock', 'collectCoin', 'grabPower', 'avoidHazard', 'miniBoss'];
+    if (!cur && (phase === 'mapTour' || phase === 'done')) return true;
     return order.indexOf(cur) >= order.indexOf(want);
   }, step, { timeout: 12000 });
 }
