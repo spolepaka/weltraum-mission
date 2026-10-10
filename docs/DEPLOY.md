@@ -155,7 +155,8 @@ The server validates all submitted results:
 
 ## Content Security Policy
 
-The CSP header restricts script execution:
+The CSP header restricts script execution. `'unsafe-eval'` is required because the official SpacetimeDB TypeScript SDK builds deserializers with `new Function()`:
+
 ```
 default-src 'self';
 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net;
