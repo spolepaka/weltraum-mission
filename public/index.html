@@ -13,7 +13,7 @@
 <script type="module" src="/src/main.ts"></script>
 <style>
   * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; width: 100%; height: 100%; position: fixed; inset: 0; overscroll-behavior: none; -webkit-text-size-adjust: 100%; -webkit-touch-callout: none; overflow: hidden; background: #050816; font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif; color: #fff; touch-action: none; }
+  html, body { margin: 0; width: 100%; height: 100%; position: fixed; inset: 0; overscroll-behavior: none; -webkit-text-size-adjust: 100%; -webkit-touch-callout: none; overflow: hidden; background: #050816; font-family: "Trebuchet MS", "Segoe UI", Arial, "Noto Sans", "DejaVu Sans", sans-serif; color: #fff; touch-action: none; }
   #game { position: absolute; left: 0; top: 0; display: block; touch-action: none; }
   :root { --s: 1; }
   #hud, #power, #wordBox, #msg, #controls, #muteBtn, #fsBtn, .panel { zoom: var(--s); }
@@ -1932,7 +1932,7 @@
     ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(ion.x, ion.y, ion.w / 2, ion.h / 2, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = "rgba(150,200,255,.55)"; ctx.lineWidth = 2; ctx.setLineDash([10, 8]); ctx.lineDashOffset = -ion.t * 30; ctx.beginPath(); ctx.ellipse(ion.x, ion.y, ion.w / 2, ion.h / 2, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]);
     if (Math.floor(ion.t * 7) % 3 === 0) { ctx.strokeStyle = "rgba(200,230,255,.9)"; ctx.lineWidth = 2; ctx.beginPath(); var bx = ion.x + Math.sin(ion.t * 13) * ion.w * 0.3, by = ion.y - ion.h * 0.3; ctx.moveTo(bx, by); for (var i = 1; i <= 4; i++) ctx.lineTo(bx + Math.sin(ion.t * 29 + i * 2) * 18, by + i * ion.h * 0.14); ctx.stroke(); }
-    ctx.fillStyle = "rgba(220,235,255,.9)"; ctx.font = "bold 16px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("⚡ " + tr("canvas.slowFire"), ion.x, ion.y);
+    ctx.fillStyle = "rgba(220,235,255,.9)"; ctx.font = "bold 16px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("⚡ " + tr("canvas.slowFire"), ion.x, ion.y);
     if (inIon(ship)) { ctx.strokeStyle = "rgba(150,200,255,.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ship.x, ship.y, 36 + Math.sin(ion.t * 20) * 3, 0, 7); ctx.stroke(); }
     ctx.restore();
   }
@@ -2467,7 +2467,7 @@
   function drawPlayerShip() {
     if (ship.down) {
       if (twoP && state === "play" && ship.down < 900) {
-        ctx.save(); ctx.font = "bold 18px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = PCOL[curPid].c;
+        ctx.save(); ctx.font = "bold 18px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = PCOL[curPid].c;
         ctx.globalAlpha = 0.6 + 0.4 * Math.sin(flameT * 5); ctx.fillText("P" + curPid + " 🔄 " + Math.ceil(ship.down) + " s", slotX(curPid), H - shipBottom()); ctx.restore();
       }
       return;
@@ -2495,7 +2495,7 @@
       }
     }
     if (twoP && (state === "play" || state === "dying")) {
-      ctx.save(); ctx.font = "bold 15px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.save(); ctx.font = "bold 15px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       var me = net.role ? (net.role === "host" ? 1 : net.myPid || 2) : 0;
       var nm = (net.role === "host" ? (curPid === 1 ? myPilotName() : (guestByPid(curPid) && guestByPid(curPid).name)) : (net.roster || []).reduce(function (a, p) { return p.pid === curPid ? p.name : a; }, "")) || ("P" + curPid);
       var tg = nm + (me === curPid ? " · " + tr("tips.you") : ""), tw = Math.max(36, Math.min(150, tg.length * 8)); ctx.fillStyle = PCOL[curPid].bg;
@@ -2575,7 +2575,7 @@
       ctx.globalAlpha = Math.max(0, p.life / p.max);
       if (p.ring) { ctx.strokeStyle = p.c; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.stroke(); }
       else if (p.bolt) { ctx.save(); ctx.strokeStyle = p.c; ctx.shadowColor = p.c; ctx.shadowBlur = 10; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(p.x, p.y); for (var bq = 1; bq < 5; bq++) { var bt2 = bq / 5; ctx.lineTo(p.x + (p.x2 - p.x) * bt2 + rnd(-9, 9), p.y + (p.y2 - p.y) * bt2 + rnd(-9, 9)); } ctx.lineTo(p.x2, p.y2); ctx.stroke(); ctx.restore(); }
-      else if (p.txt) { ctx.save(); ctx.font = "bold 20px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.lineWidth = 4; ctx.strokeStyle = "rgba(60,30,0,.85)"; ctx.strokeText("🪙 " + p.txt, p.x, p.y); ctx.fillStyle = p.c; ctx.fillText("🪙 " + p.txt, p.x, p.y); ctx.restore(); }
+      else if (p.txt) { ctx.save(); ctx.font = "bold 20px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.lineWidth = 4; ctx.strokeStyle = "rgba(60,30,0,.85)"; ctx.strokeText("🪙 " + p.txt, p.x, p.y); ctx.fillStyle = p.c; ctx.fillText("🪙 " + p.txt, p.x, p.y); ctx.restore(); }
       else if (p.conf) { ctx.globalAlpha = 1; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.c; ctx.fillRect(-p.r, -p.r * 0.5, p.r * 2, p.r); ctx.restore(); }
       else { ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); }
     });
@@ -2608,10 +2608,10 @@
     ctx.globalAlpha = a; ctx.translate(W / 2 + slide, y);
     ctx.fillStyle = "rgba(40,0,60,.8)"; ctx.fillRect(-W * 0.45, -38, W * 0.9, 76);
     ctx.fillStyle = "#ff5a7a"; ctx.fillRect(-W * 0.45, -38, W * 0.9, 4); ctx.fillRect(-W * 0.45, 34, W * 0.9, 4);
-    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#ffd54a"; ctx.font = "bold 16px Trebuchet MS, Arial, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#ffd54a"; ctx.font = "bold 16px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif";
     ctx.fillText((Math.floor(t * 4) % 2 ? "⚠️" : "  ") + " " + tr("canvas.bossAlarm") + " " + (Math.floor(t * 4) % 2 ? "⚠️" : "  "), 0, -20);
     var fs = Math.min(34, W * 0.9 / Math.max(6, boss.name.length) * 1.5);
-    ctx.font = "bold " + fs + "px Trebuchet MS, Arial, sans-serif"; ctx.lineWidth = 5; ctx.strokeStyle = "#2a0030"; ctx.strokeText(boss.name, 0, 10);
+    ctx.font = "bold " + fs + "px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.lineWidth = 5; ctx.strokeStyle = "#2a0030"; ctx.strokeText(boss.name, 0, 10);
     ctx.fillStyle = "#ffffff"; ctx.shadowColor = "#ff5a7a"; ctx.shadowBlur = 16; ctx.fillText(boss.name, 0, 10);
     ctx.restore();
   }
@@ -2785,7 +2785,7 @@
     ctx.fillStyle = "#5a1a2a"; ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = b.hp / b.maxHp > 0.35 ? (big ? "#ffb02a" : "#ff4a7a") : "#ff5a3a"; ctx.fillRect(bx, by, bw * Math.max(0, b.hp / b.maxHp), bh);
     if (big) { ctx.fillStyle = "#fff"; (b.final ? [0.15, 0.3, 0.44, 0.58, 0.72, 0.86] : [0.15, 0.4, 0.6, 0.8]).forEach(function (f) { ctx.fillRect(bx + bw * f - 1, by, 2, bh); }); if (b.shield && b.shield.phase === "on") { ctx.strokeStyle = "#7dffea"; ctx.lineWidth = 3; ctx.strokeRect(bx - 4, by - 4, bw + 8, bh + 8); } }
-    ctx.fillStyle = "#fff"; ctx.font = "bold " + (big ? 15 : 13) + "px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#fff"; ctx.font = "bold " + (big ? 15 : 13) + "px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText((big ? "👑 " : "") + (b.name || tr("canvas.boss")) + (big ? "  ·  " + tr("game.phase") + " " + b.phase + "/" + (b.final ? 7 : 5) + (b.shield && b.shield.phase === "on" ? " 🛡️" : "") : ""), W / 2, by + bh / 2);
   }
   function drawTwinMark(x, y) {
@@ -2921,12 +2921,12 @@
         if (on) { ctx.globalAlpha = 0.3; ctx.lineWidth = 1.5; for (var hx = -3; hx <= 3; hx++) { ctx.beginPath(); ctx.ellipse(0, 0, Math.abs(hx) * 60 * k + 1, 150 * k, 0, 0, 7); ctx.stroke(); } }
         ctx.restore();
       }
-      if (!on) { ctx.font = "bold 18px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#7dffea"; ctx.fillText("🛡️ " + tr("canvas.shieldIncoming"), b.x, b.y + 165 * k); }
+      if (!on) { ctx.font = "bold 18px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#7dffea"; ctx.fillText("🛡️ " + tr("canvas.shieldIncoming"), b.x, b.y + 165 * k); }
     }
     // IMMUN-Anzeige bei Schwarzen Löchern
     if (b.immuneT > 0) {
       ctx.save(); ctx.globalAlpha = Math.min(1, b.immuneT * 2) * (0.6 + 0.4 * Math.sin(t * 20));
-      ctx.font = "bold 22px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#d08cff"; ctx.strokeStyle = "#1a0a2a"; ctx.lineWidth = 4;
+      ctx.font = "bold 22px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#d08cff"; ctx.strokeStyle = "#1a0a2a"; ctx.lineWidth = 4;
       ctx.strokeText("⚫ " + tr("canvas.immune"), b.x, b.y + 140 * k); ctx.fillText("⚫ " + tr("canvas.immune"), b.x, b.y + 140 * k);
       ctx.restore();
     }
@@ -3100,7 +3100,7 @@
         ctx.beginPath(); ctx.ellipse(0, 0, 30 - i * 6, 75 - i * 15, 0, worm.t * (3 + i) * (k ? -1 : 1), worm.t * (3 + i) * (k ? -1 : 1) + 4); ctx.stroke();
       }
       ctx.fillStyle = "rgba(0,40,40,.6)"; ctx.beginPath(); ctx.ellipse(0, 0, 9, 22, 0, 0, 7); ctx.fill();
-      ctx.font = "bold 14px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#c8fff0";
+      ctx.font = "bold 14px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#c8fff0";
       ctx.fillText("🌀", 0, -86);
       ctx.restore();
     });
@@ -3132,7 +3132,7 @@
     var gx = f.gapX - f.gapW / 2;
     ctx.fillStyle = "rgba(90,255,140," + (0.12 + pulse * 0.12) + ")"; ctx.fillRect(gx, ship.y - 110, f.gapW, 170);
     ctx.strokeStyle = "rgba(125,255,168,.9)"; ctx.lineWidth = 3; ctx.setLineDash([10, 8]); ctx.strokeRect(gx, ship.y - 110, f.gapW, 170); ctx.setLineDash([]);
-    ctx.font = "bold 18px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#c8ffd8"; ctx.fillText(tr("canvas.safe") + " ⬇", f.gapX, ship.y - 120);
+    ctx.font = "bold 18px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#c8ffd8"; ctx.fillText(tr("canvas.safe") + " ⬇", f.gapX, ship.y - 120);
     if (f.phase === "sweep") {
       var bh = 70, y0 = f.y - bh / 2;
       var g2 = ctx.createLinearGradient(0, y0, 0, y0 + bh); g2.addColorStop(0, "rgba(255,200,60,0)"); g2.addColorStop(0.5, "rgba(255,120,20,.92)"); g2.addColorStop(1, "rgba(255,200,60,0)");
@@ -3514,9 +3514,9 @@
     drawShipModel(g.ship, x, y + Math.sin(flameT * 3) * 2, flameT, false);
     ctx.globalAlpha = 0.55 * fade; ctx.shadowBlur = 0; ctx.strokeStyle = "#7dffea"; ctx.lineWidth = 2; ctx.setLineDash([5, 6]); ctx.lineDashOffset = -flameT * 20;
     ctx.beginPath(); ctx.ellipse(x, y, 30, 42, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]);
-    ctx.globalAlpha = 0.85 * fade; ctx.font = "bold 13px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.globalAlpha = 0.85 * fade; ctx.font = "bold 13px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillStyle = "#c8fff4"; ctx.fillText("👻 " + tr("canvas.yourGhost"), x, y - 66);
-    ctx.font = "12px Trebuchet MS, Arial, sans-serif"; ctx.fillStyle = "#9fe9dd"; ctx.fillText(r.score + " " + tr("canvas.ghostPoints"), x, y - 51);
+    ctx.font = "12px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.fillStyle = "#9fe9dd"; ctx.fillText(r.score + " " + tr("canvas.ghostPoints"), x, y - 51);
     ctx.restore();
   }
 
@@ -4296,7 +4296,7 @@
     ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, w, c.r, 0, 0, 7); ctx.fill();
     ctx.shadowBlur = 0; ctx.strokeStyle = "#8a6200"; ctx.lineWidth = 1.5; ctx.stroke();
     if (w > c.r * 0.45) { ctx.strokeStyle = "rgba(138,98,0,.8)"; ctx.beginPath(); ctx.ellipse(0, 0, w * 0.62, c.r * 0.62, 0, 0, 7); ctx.stroke();
-      ctx.fillStyle = "#fff8d0"; ctx.font = "bold " + Math.round(c.r) + "px Trebuchet MS, Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = "#fff8d0"; ctx.font = "bold " + Math.round(c.r) + "px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.save(); ctx.scale(w / c.r, 1); ctx.fillText("★", 0, 1); ctx.restore(); }
     ctx.restore();
   }
@@ -5113,7 +5113,7 @@
       ctx.fillStyle = "#fff"; for (var k = 0; k < 14; k++) { ctx.globalAlpha = 0.3 + 0.3 * Math.sin(shopT * 2 + k); ctx.fillRect((k * 53) % 280, (k * 37) % 120, 1.5, 1.5); } ctx.globalAlpha = 1;
       ctx.save(); ctx.translate(140, 108 + Math.sin(shopT * 2) * 5); ctx.scale(1.7, 1.7);
       drawShipModel(shopSel, 0, 0, shopT, true); ctx.restore();
-      if (shop.owned.indexOf(shopSel) < 0) { ctx.font = "bold 18px Trebuchet MS, Arial"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd54a"; ctx.fillText(shipCardLabel(SHIP_BY[shopSel]), 140, 222); }
+      if (shop.owned.indexOf(shopSel) < 0) { ctx.font = "bold 18px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd54a"; ctx.fillText(shipCardLabel(SHIP_BY[shopSel]), 140, 222); }
       shopParts = shopParts.filter(function (p) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 60 * dt; return p.life > 0; });
       shopParts.forEach(function (p) { ctx.globalAlpha = Math.min(1, p.life / p.max * 1.5); sparkle(p.x, p.y, p.s, p.c); }); ctx.globalAlpha = 1;
       // kleine Vorschauen
@@ -5778,7 +5778,7 @@
       ctx.save(); ctx.globalAlpha = reached ? 0.9 : 0.55; ctx.strokeStyle = sc2; ctx.lineWidth = 2; ctx.setLineDash([10, 8]); ctx.lineDashOffset = -mapT * 20;
       ctx.beginPath(); ctx.moveTo(0, sy0); ctx.lineTo(W, sy0); ctx.stroke(); ctx.setLineDash([]);
       var label = SECTORS[sj].icon + " " + tr("tips.galaxyN", { n: sj + 1 }) + ": " + sectorName(SECTORS[sj], SECTORS[sj].from) + (reached ? "" : " 🔒");
-      ctx.font = "bold 17px Trebuchet MS, Arial, sans-serif"; var tw2 = ctx.measureText(label).width + 28, lx2 = W / 2 + (bpx < W / 2 ? 1 : -1) * Math.min(W * 0.22, 170);
+      ctx.font = "bold 17px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; var tw2 = ctx.measureText(label).width + 28, lx2 = W / 2 + (bpx < W / 2 ? 1 : -1) * Math.min(W * 0.22, 170);
       lx2 = Math.max(tw2 / 2 + 8, Math.min(W - tw2 / 2 - 8, lx2));
       ctx.fillStyle = "rgba(5,8,25,.85)"; roundRectPath(lx2 - tw2 / 2, sy0 - 16, tw2, 32, 16); ctx.fill(); ctx.strokeStyle = sc2; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = sc2; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(label, lx2, sy0 + 1); ctx.restore();
@@ -5908,7 +5908,7 @@
     }
     // Nummer (wie die Kreise in der Zeichnung)
     var nr = Math.max(14, r * 0.42), bl = isBossLevel(L) && !locked; if (bl) nr = Math.max(13, r * 0.32);
-    ctx.font = "bold " + Math.round(nr * 1.15) + "px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = "bold " + Math.round(nr * 1.15) + "px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     var ny = locked ? y + r + nr * 0.9 : bl ? y + r * 0.82 : y + r * 0.02;
     ctx.fillStyle = "rgba(10,10,40,.75)"; ctx.beginPath(); ctx.arc(locked ? x : x, ny, nr * 0.95, 0, 7); ctx.fill();
     ctx.lineWidth = 2.5; ctx.strokeStyle = locked ? "#8890b0" : "#ffd54a"; ctx.stroke();
@@ -5926,7 +5926,7 @@
     }
     // "Nochmal?" am zuletzt verlorenen Level
     if (!locked && progress.failed === L && !done) {
-      ctx.font = "bold 15px Trebuchet MS, Arial, sans-serif";
+      ctx.font = "bold 15px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif";
       var againTxt = tr("canvas.again") + " 🔄";
       var tw2 = ctx.measureText(againTxt).width + 16, tx = x - r - tw2 / 2 - 14;
       if (tx - tw2 / 2 < 6) tx = x + r + tw2 / 2 + 14;
@@ -5975,7 +5975,7 @@
     var ic = bossIcon(L);
     if (ic) { var iw = r * (L === 100 ? 3.7 : 3.4), ih = iw * ic.height / ic.width; ctx.drawImage(ic, x - iw / 2, y - r * 0.2 - ih / 2 + Math.sin(mapT * 2 + L) * 2, iw, ih); }
     // BOSS-Schild
-    ctx.font = "bold 13px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = "bold 13px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     var btxt = L === 100 ? "🤖👑 " + tr("canvas.finale") : isSectorBoss(L) ? "👑 " + tr("canvas.sectorBoss") : "👾 " + tr("canvas.boss"), bw2 = ctx.measureText(btxt).width + 16;
     ctx.fillStyle = L === 100 ? "rgba(180,120,0,.95)" : "rgba(160,20,60,.9)"; roundRectPath(x - bw2 / 2, y - r - 22, bw2, 20, 8); ctx.fill();
     ctx.fillStyle = "#fff"; ctx.fillText(btxt, x, y - r - 11);
@@ -6209,7 +6209,7 @@
     if (combo < 2) return;
     var m = comboMult(), col = ["#ffffff", "#ffffff", "#7dffa8", "#4ec3ff", "#d08cff", "#ffd54a"][m], k = 1 + Math.max(0, comboPop) * 1.6;
     ctx.save(); ctx.translate(W - 18, 152); ctx.scale(k, k); ctx.textAlign = "right"; ctx.textBaseline = "middle";
-    ctx.font = "bold 22px Trebuchet MS, Arial, sans-serif"; ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,.6)";
+    ctx.font = "bold 22px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,.6)";
     var txt = "⚡ " + tr("tips.comboLabel", { n: combo }) + (m > 1 ? "  x" + m : "");
     ctx.strokeText(txt, 0, 0); ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = m > 1 ? 12 : 0; ctx.fillText(txt, 0, 0);
     ctx.shadowBlur = 0; ctx.fillStyle = "rgba(255,255,255,.25)"; ctx.fillRect(-150, 16, 150, 4); ctx.fillStyle = col; ctx.fillRect(-150 * Math.max(0, comboT / 2.2), 16, 150 * Math.max(0, comboT / 2.2), 4);

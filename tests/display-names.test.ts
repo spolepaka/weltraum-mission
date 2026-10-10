@@ -10,7 +10,21 @@ import {
   validateDisplayName,
 } from '../src/lib/display-names';
 import { validateDisplayName as serverValidate } from '../server/spacetimedb/src/display-names';
-import { ADJ_DE, ADJ_EN, NOUN_DE, NOUN_EN, PUNS_DE, fugenForm, type DeGender } from '../src/lib/name-words';
+import {
+  ADJ_DE,
+  ADJ_EN,
+  DOOM_TAILS_DE,
+  NOUN_DE,
+  NOUN_EN,
+  PUNS_DE,
+  RHYMES_DE,
+  TITLE_NOUNS_DE,
+  fugenForm,
+  type DeGender,
+} from '../src/lib/name-words';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 describe('kid-safe display names', () => {
   beforeEach(() => {
@@ -61,7 +75,7 @@ describe('kid-safe display names', () => {
     expect(fugenForm({ word: 'Fuchs', gender: 'm' })).toBe('Fuchs');
     expect(fugenForm(NOUN_DE.find((n) => n.word === 'Stern')!)).toBe('Sternen');
     expect(fugenForm(NOUN_DE.find((n) => n.word === 'Flocke')!)).toBe('Flocken');
-    expect(fugenForm(NOUN_DE.find((n) => n.word === 'Maus')!)).toBe('Maeuse');
+    expect(fugenForm(NOUN_DE.find((n) => n.word === 'Maus')!)).toBe('Mäuse');
   });
 
   it('uses Fugen noun-noun hyphens and inflected adjective-noun pairs', () => {
@@ -160,5 +174,69 @@ describe('kid-safe display names', () => {
     expect(serverValidate('PilotKid', 'generated').ok).toBe(true);
     expect(serverValidate('Raketen-Pinguin', 'generated').ok).toBe(true);
     expect(serverValidate('Flocken-Frosch', 'generated').ok).toBe(true);
+    expect(serverValidate('Kühnes Kätzchen', 'generated').ok).toBe(true);
+  });
+
+  it('uses real German umlauts and ß instead of ae/oe/ue/ss transliterations', () => {
+    const words = [
+      ...ADJ_DE,
+      ...NOUN_DE.map((n) => n.word),
+      ...NOUN_DE.map((n) => fugenForm(n)),
+      ...PUNS_DE,
+      ...RHYMES_DE.flat(),
+      ...DOOM_TAILS_DE,
+      ...TITLE_NOUNS_DE,
+      'Käptn',
+    ];
+    const allowedAeOeUe = new Set([
+      'feuer', 'neue', 'quelle', 'steuer', 'bauer', 'mauer', 'dauer', 'trauer',
+      'sauer', 'teuer', 'abenteuer', 'schauen', 'bauen', 'phoenix',
+    ]);
+    const hits: string[] = [];
+    for (const word of words) {
+      const lower = word.toLowerCase();
+      if (!/ae|oe|ue/.test(lower)) continue;
+      const ok = [...allowedAeOeUe].some((allow) => lower === allow || lower.includes(allow));
+      if (!ok) hits.push(word);
+    }
+    expect(hits, `transliterated umlauts: ${hits.join(', ')}`).toEqual([]);
+    expect(ADJ_DE).toContain('Kühn');
+    expect(ADJ_DE).toContain('Süß');
+    expect(NOUN_DE.some((n) => n.word === 'Bär')).toBe(true);
+    expect(NOUN_DE.some((n) => n.word === 'Käse')).toBe(true);
+    expect(NOUN_DE.some((n) => n.word === 'Mütze')).toBe(true);
+    expect(NOUN_DE.some((n) => n.word === 'Fuß')).toBe(true);
+    expect(DOOM_TAILS_DE).toContain('Spaß');
+    expect(words.join(' ')).not.toMatch(/Baer|Kaese|Kuehn|Muetze|Spass|Suess|Floete|Loeffel/);
+  });
+
+  it('pairs German titles with natural funny nouns and keeps McX sparse', () => {
+    const titleWords = new Set(['käptn', 'agent', 'spion', 'doktor', 'baron', 'graf', 'scout', 'pilot', 'kadett', 'ritter']);
+    const allowed = new Set(TITLE_NOUNS_DE.map((w) => w.toLowerCase()));
+    let titles = 0;
+    let mcx = 0;
+    for (let i = 0; i < 400; i++) {
+      const name = generateDisplayName('de');
+      const core = name.replace(/\s+\d{1,3}$/, '');
+      if (/ Mc/i.test(core)) mcx += 1;
+      const spaced = core.match(/^([\p{L}]+) ([\p{L}]+)$/u);
+      if (spaced && titleWords.has(spaced[1].toLowerCase())) {
+        expect(allowed.has(spaced[2].toLowerCase())).toBe(true);
+        titles += 1;
+      }
+    }
+    expect(titles).toBeGreaterThan(10);
+    expect(mcx / 400).toBeGreaterThanOrEqual(0.02);
+    expect(mcx / 400).toBeLessThanOrEqual(0.09);
+    const lemmas = new Set(NOUN_DE.map((n) => n.word));
+    for (const word of TITLE_NOUNS_DE) expect(lemmas.has(word)).toBe(true);
+  });
+
+  it('uses a Latin-capable UI font stack for canvas and DOM', () => {
+    const html = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'index.html'), 'utf8');
+    expect(html).toMatch(/font-family:\s*"Trebuchet MS",\s*"Segoe UI",\s*Arial,\s*"Noto Sans",\s*"DejaVu Sans",\s*sans-serif/);
+    expect(html).toMatch(/Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans/);
+    expect(html).toContain('Noto Sans');
+    expect(html).toContain('DejaVu Sans');
   });
 });

@@ -9,6 +9,7 @@ import {
   PUNS_EN,
   RHYMES_DE,
   RHYMES_EN,
+  TITLE_NOUNS_DE,
   fugenForm,
   inflectDeAdj,
   type DeGender,
@@ -57,7 +58,7 @@ type PatternId =
   | 'inator'
   | 'pun';
 
-const PATTERNS: { id: PatternId; weight: number }[] = [
+const PATTERNS_EN: { id: PatternId; weight: number }[] = [
   { id: 'adjNoun', weight: 22 },
   { id: 'alliterate', weight: 14 },
   { id: 'rhyme', weight: 8 },
@@ -71,8 +72,24 @@ const PATTERNS: { id: PatternId; weight: number }[] = [
   { id: 'pun', weight: 4 },
 ];
 
+const PATTERNS_DE: { id: PatternId; weight: number }[] = [
+  { id: 'adjNoun', weight: 24 },
+  { id: 'alliterate', weight: 14 },
+  { id: 'rhyme', weight: 8 },
+  { id: 'title', weight: 10 },
+  { id: 'great', weight: 1 },
+  { id: 'doom', weight: 7 },
+  { id: 'mcx', weight: 5 },
+  { id: 'space', weight: 1 },
+  { id: 'compound', weight: 14 },
+  { id: 'inator', weight: 5 },
+  { id: 'pun', weight: 4 },
+];
+
 const TITLES_EN = ['Captain', 'Agent', 'Dr', 'Sir', 'Chef', 'Scout', 'Pilot', 'Major', 'Cadet', 'Ensign'] as const;
-const TITLES_DE = ['Käptn', 'Spion', 'Doktor', 'Baron', 'Graf', 'Scout', 'Pilot', 'Major', 'Kadett', 'Ritter'] as const;
+const TITLES_DE = ['Käptn', 'Agent', 'Spion', 'Doktor', 'Baron', 'Graf', 'Scout', 'Pilot', 'Kadett', 'Ritter'] as const;
+
+const TITLE_NOUN_SET = new Set(TITLE_NOUNS_DE.map((w) => w.toLowerCase()));
 
 const recentStems: string[] = [];
 const recentNames: string[] = [];
@@ -173,6 +190,11 @@ export function hasProfanity(value: string): boolean {
 function shortDeNouns(max = 8): readonly DeNoun[] {
   const short = NOUN_DE.filter((n) => n.word.length <= max);
   return short.length ? short : NOUN_DE;
+}
+
+function titleDeNouns(max = 9): readonly DeNoun[] {
+  const titled = NOUN_DE.filter((n) => TITLE_NOUN_SET.has(n.word.toLowerCase()) && n.word.length <= max);
+  return titled.length ? titled : shortDeNouns(max);
 }
 
 function shortEnNouns(max = 8): readonly string[] {
@@ -278,29 +300,30 @@ function buildDe(id: PatternId, rnd: () => number, avoid: Set<string>): NamePart
   }
   if (id === 'title') {
     const title = pick(TITLES_DE, rnd);
-    const n = pickFresh(shortDeNouns(title === 'Doktor' ? 8 : 9), rnd, (x) => [x.word], avoid);
+    const n = pickFresh(titleDeNouns(title === 'Doktor' ? 8 : 9), rnd, (x) => [x.word], avoid);
     const name = fit(`${title} ${n.word}`);
     return name ? { name, adj: null, nouns: [n.word] } : null;
   }
   if (id === 'great') {
-    const n = pickFresh(shortDeNouns(6), rnd, (x) => [x.word], avoid);
+    const n = pickFresh(titleDeNouns(6), rnd, (x) => [x.word], avoid);
     const name = fit(`${articleFor(n.gender)} Große ${n.word}`);
     return name ? { name, adj: null, nouns: [n.word] } : null;
   }
   if (id === 'doom') {
-    const n = pickFresh(shortDeNouns(6), rnd, (x) => [x.word], avoid);
+    const n = pickFresh(titleDeNouns(6), rnd, (x) => [x.word], avoid);
     const tail = pick(DOOM_TAILS_DE, rnd);
     const name = fit(`${n.word} von ${tail}`);
     return name ? { name, adj: null, nouns: [n.word] } : null;
   }
   if (id === 'mcx') {
-    const a = pickFresh(shortDeNouns(6), rnd, (x) => [x.word], avoid);
-    const b = pickFresh(shortDeNouns(6), rnd, (x) => [x.word], avoid);
+    const a = pickFresh(titleDeNouns(6), rnd, (x) => [x.word], avoid);
+    const b = pickFresh(titleDeNouns(6), rnd, (x) => [x.word], new Set([...avoid, a.word.toLowerCase()]));
+    if (a.word === b.word) return null;
     const name = fit(`${a.word} Mc${b.word}`);
     return name ? { name, adj: null, nouns: [a.word, b.word] } : null;
   }
   if (id === 'space') {
-    const n = pickFresh(shortDeNouns(9), rnd, (x) => [x.word], avoid);
+    const n = pickFresh(titleDeNouns(9), rnd, (x) => [x.word], avoid);
     const name = fit(`Weltraum ${n.word}`);
     return name ? { name, adj: null, nouns: [n.word] } : null;
   }
@@ -327,7 +350,7 @@ export function generateNameParts(lang: NameLang = 'en', extraAvoid?: Set<string
   const rnd = cryptoRnd;
   const avoid = avoidSet(extraAvoid);
   for (let i = 0; i < 48; i++) {
-    const pattern = pickWeighted(PATTERNS, rnd);
+    const pattern = pickWeighted(lang === 'de' ? PATTERNS_DE : PATTERNS_EN, rnd);
     const parts = buildPattern(lang, pattern.id, rnd, avoid);
     if (!parts) continue;
     const raw = withOptionalNumber(parts.name, rnd);
