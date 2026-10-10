@@ -31,6 +31,10 @@ export const EN_ONLY_MARKERS = [
   'Create Room',
   'Play Again',
   'Total Score',
+  'Steer against it',
+  'hits in a row',
+  'Ouch!',
+  'Too close to the mine',
 ] as const;
 
 export const DE_ONLY_MARKERS = [
@@ -59,6 +63,10 @@ export const DE_ONLY_MARKERS = [
   'Belohnung auf der Karte',
   'Raum erstellen',
   'Gesamtpunkte',
+  'Gegensteuern',
+  'Treffer hintereinander',
+  'Autsch!',
+  'Zu nah an der Mine',
 ] as const;
 
 export function markersForOtherLanguage(lang: Language): readonly string[] {

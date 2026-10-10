@@ -31,6 +31,7 @@ type GameWin = Window & {
     addCoins?: (n: number) => void;
     killBoss?: () => void;
     setTime?: (t: number) => void;
+    unlockTo?: (n: number) => void;
     simInfo?: () => { state: string; level: number };
   };
   __fillTextLog?: string[];
@@ -66,19 +67,29 @@ async function openAllHudScreens(page: Page): Promise<void> {
 }
 
 async function scanLanguage(page: Page, lang: 'en' | 'de'): Promise<{ hits: string[]; sample: string }> {
+  await openAllHudScreens(page);
   await page.evaluate((next) => {
     const w = window as GameWin;
     w.__spaceGame?.setLang?.(next);
     w.__clearFillTextLog?.();
   }, lang);
   await page.waitForTimeout(120);
-  await openAllHudScreens(page);
-  await page.waitForTimeout(80);
+  await page.evaluate(() => {
+    const w = window as GameWin;
+    w.__spaceGame!.startLevel(1);
+  });
+  await page.waitForTimeout(350);
+  await page.evaluate(() => {
+    const w = window as GameWin;
+    w.__spaceGame!.unlockTo?.(3);
+    w.__spaceGame!.startLevel(3);
+  });
+  await page.waitForTimeout(450);
   await page.evaluate(() => {
     const w = window as GameWin;
     w.__clearFillTextLog?.();
   });
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(280);
   const result = await page.evaluate((otherMarkers: readonly string[]) => {
     const w = window as GameWin;
     const dom = (function collect() {

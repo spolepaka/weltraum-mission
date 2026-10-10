@@ -219,7 +219,7 @@
 <div id="mapHud" class="hidden">
   <div id="mapTitle"><h1 id="gameTitle">🚀 Space Mission</h1><div class="sub"><span id="lblTotalScore">Total Score</span>: <b id="totalScore">0</b> &nbsp;·&nbsp; <span id="lblRecord">Record</span>: <b id="bestStart">0</b> &nbsp;·&nbsp; 🪙 <b id="mapCoins">0</b></div></div>
   <div id="mapHint">👆 Tap on a planet!</div>
-  <button id="helpBtn" class="mapBtn" aria-label="Hilfe">❓</button>
+  <button id="helpBtn" class="mapBtn" aria-label="Help">❓</button>
   <button id="resetBtn" class="mapBtn">↺ Restart</button>
   <button id="shopBtn" class="mapBtn">🛒 Shop</button>
   <button id="missionBtn" class="mapBtn">🎯 Missions</button>
@@ -865,9 +865,9 @@
   function killUfo(u) {
     if (u.sat) { u.hp--; u.flash = 0.1; tone(900, 600, 0.05, "square", 0.04); if (u.hp > 0) return; ufos.forEach(function (o) { o.shd = false; }); hits++; comboKill(u.x, u.y); dropCoin(u.x, u.y, 1, 8); addScore(60); explode(u.x, u.y, 40, CYAN, 300); SFX.boom(); u.dead = true; showMsg("🛰️ " + tr("tips.satDown"), "good", 1.2); return; }
     if (u.shd) { u.shFlash = 0.15; tone(1500, 1200, 0.04, "sine", 0.03); return; }
-    if (u.treasure) { u.dead = true; hits++; recAdd("treasure"); comboKill(u.x, u.y); coinBurst(u.x, u.y, 12, 5); addScore(200); explode(u.x, u.y, 60, GOLD.concat(CYAN), 360); SFX.boom(); SFX.power(); maybeDrop(u.x, u.y, 1); shake = Math.max(shake, 0.25); showMsg("💎 Schatz geknackt! 💎", "good", 1.5); return; }
+    if (u.treasure) { u.dead = true; hits++; recAdd("treasure"); comboKill(u.x, u.y); coinBurst(u.x, u.y, 12, 5); addScore(200); explode(u.x, u.y, 60, GOLD.concat(CYAN), 360); SFX.boom(); SFX.power(); maybeDrop(u.x, u.y, 1); shake = Math.max(shake, 0.25); showMsg("💎 " + tr("tips.treasure") + " 💎", "good", 1.5); return; }
     u.dead = true; hits++; missionAdd("ufos", 1); comboKill(u.x, u.y); dropCoin(u.x, u.y, u.sniper ? 0.75 : 0.55, 5); addScore(u.sniper ? 40 : 25); explode(u.x, u.y, 30, GREEN); SFX.boom(); maybeDrop(u.x, u.y, 0.25); }
-  function killComet(c) { c.dead = true; hits++; recAdd("comets"); comboKill(c.x, c.y); dropCoin(c.x, c.y, 1, 10); addScore(50); explode(c.x, c.y, 40, CYAN, 320); SFX.star(); SFX.boom(); showMsg("Komet getroffen! ☄️ +50", "good", 1.2); }
+  function killComet(c) { c.dead = true; hits++; recAdd("comets"); comboKill(c.x, c.y); dropCoin(c.x, c.y, 1, 10); addScore(50); explode(c.x, c.y, 40, CYAN, 320); SFX.star(); SFX.boom(); showMsg("☄️ " + tr("tips.comet"), "good", 1.2); }
   function damageBoss(n, x, y) {
     boss.hp -= n; boss.flash = 0.08; addScore(Math.round(2 * n));
     tone(300, 200, 0.05, "square", 0.03);
@@ -1111,7 +1111,7 @@
     var a = rnd(0.12, 0.32) * W, b = rnd(0.68, 0.88) * W;
     if (Math.random() < 0.5) { var t = a; a = b; b = t; }
     worm = { ax: a, bx: b, t: 0, y: -90, vy: 70 * speedScale() }; // Portale schweben von oben herunter – man fliegt hinein, wenn sie auf Höhe der Rakete sind
-    if (!wormTip) { wormTip = true; showMsg("🌀 Wurmloch!<br><span style='font-size:20px'>Flieg hinein, wenn es unten bei dir ist – du kommst beim anderen raus!</span>", "new", 2.6); }
+    if (!wormTip) { wormTip = true; showMsg("🌀 " + tr("tips.wormhole"), "new", 2.6); }
     tone(300, 1200, 0.6, "sine", 0.06);
   }
   function teleportShip(nx) {
@@ -1143,7 +1143,7 @@
     if (ship && state === "play") eachPlayer(function () { if (state === "play" && hit(ship.x, ship.y, 20, m.x, m.y, MINE_R)) {
       var wasSafe = invuln > 0 || shield;
       hurt(ship.x, ship.y);
-      if (!wasSafe && state === "play") showMsg("💣 Zu nah an der Mine!", "bad", 1.4);
+      if (!wasSafe && state === "play") showMsg("💣 " + tr("tips.tooCloseMine"), "bad", 1.4);
     } });
   }
   function segDist(px, py, ax, ay, bx, by) {
@@ -1190,7 +1190,7 @@
           shake = 0.25; noise(0.3, 0.1, 400);
         }
       } else if (b.bombTimer <= 0) { b.bombTimer = gl ? 2.2 : 2.8; b.wind = 0.75; tone(160, 260, 0.5, "sawtooth", 0.06); }
-      if (b.spreadT <= 0) { b.spreadT = gl ? 10 : 13; if (!shower) { shower = { phase: "warn", t: 0, n: 0 }; showMsg("☄️ Die Basis ruft einen Steinregen!", "bad", 1.8); } }
+      if (b.spreadT <= 0) { b.spreadT = gl ? 10 : 13; if (!shower) { shower = { phase: "warn", t: 0, n: 0 }; showMsg("☄️ " + tr("tips.baseRockRain"), "bad", 1.8); } }
     } else if (b.type === "crystal") {
       var cl = b.hp / b.maxHp < 0.5;
       if (b.laserCd <= 0 && !(b.wind > 0)) { startBossLaser(); return; }
@@ -1199,7 +1199,7 @@
         if (b.wind <= 0) { (cl ? [-150, -90, -30, 30, 90, 150] : [-120, -60, 0, 60, 120]).forEach(function (vx) { dropBomb(b.x, b.y + 30, vx, 125); bombs[bombs.length - 1].cr = true; }); tone(1600, 900, 0.2, "triangle", 0.06); }
       } else if (b.bombTimer <= 0) { b.bombTimer = cl ? 2.2 : 2.7; b.wind = 0.65; tone(900, 1500, 0.4, "triangle", 0.04); }
       if (cl && b.spreadT <= 0) {
-        b.spreadT = 9; showMsg("❄️ Kristall-Regen! Eis-Steine frieren dich ein!", "bad", 1.6);
+        b.spreadT = 9; showMsg("❄️ " + tr("tips.crystalRain"), "bad", 1.6);
         for (var ci = 0; ci < 3; ci++) { var ir = makeIce(makeRock(rnd(40, W - 40), -20 - ci * 60, rnd(18, 24), false)); rocks.push(ir); }
       }
     } else if (b.type === "kraken") {
@@ -1211,7 +1211,7 @@
         else if (b.slam.ph === "hit" && b.slam.t >= 0.45) b.slam = null;
       } else if (b.laserCd <= 0) { b.laserCd = kl ? 2.8 : 3.6; b.slam = { x: Math.max(30, Math.min(W - 30, ship.x)), t: 0, ph: "warn" }; tone(300, 200, 0.4, "sawtooth", 0.05); }
       if (b.bombTimer <= 0) { b.bombTimer = kl ? 2.1 : 2.7; [-70, 0, 70].forEach(function (vx) { dropBomb(b.x, b.y + 40, vx, 100); bombs[bombs.length - 1].ink = true; }); tone(180, 90, 0.2, "square", 0.04); }
-      if (kl && b.spreadT <= 0) { b.spreadT = 9; spawnUfo(); spawnUfo(); showMsg("🛸 Das Mutterschiff ruft Helfer!", "bad", 1.4); }
+      if (kl && b.spreadT <= 0) { b.spreadT = 9; spawnUfo(); spawnUfo(); showMsg("🛸 " + tr("tips.mothershipHelpers"), "bad", 1.4); }
     } else if (b.type === "station") {
       var sl = b.hp / b.maxHp < 0.5;
       if (b.bombTimer <= 0) {
@@ -1241,7 +1241,7 @@
         if (b.wind <= 0) { var nn = (b.modK || 1) > 1 ? (sul ? 8 : 7) : sul ? 11 : 9, off = Math.random() * 0.2; for (var si = 0; si < nn; si++) { var aa = 0.25 + off + si * (Math.PI - 0.7) / (nn - 1), sv = 140 * speedScale(); bombs.push({ x: b.x + Math.cos(aa) * 70, y: b.y + Math.sin(aa) * 70, vx: Math.cos(aa) * sv, vy: Math.sin(aa) * sv, r: 10, t: 0, fire: true }); } shake = 0.2; noise(0.4, 0.08, 600); }
       } else if (b.bombTimer <= 0) { b.bombTimer = sul ? 2.6 : 3.2; b.wind = 0.8; tone(200, 500, 0.6, "sawtooth", 0.05); }
       if (b.spreadT <= 0) { b.spreadT = sul ? 11 : 14; if (!flare && !grid) startFlare(); }
-      if (sul && b.laserCd <= 0) { b.laserCd = 12; if (!shower) { shower = { phase: "warn", t: 0, n: 0 }; showMsg("☄️ Feuer-Meteore!", "bad", 1.4); } }
+      if (sul && b.laserCd <= 0) { b.laserCd = 12; if (!shower) { shower = { phase: "warn", t: 0, n: 0 }; showMsg("☄️ " + tr("tips.fireMeteors"), "bad", 1.4); } }
     } else if (b.type === "guardian") {
       var gul = b.hp / b.maxHp < 0.5;
       if (b.laserCd <= 0) { startBossLaser(); return; }
@@ -1306,7 +1306,7 @@
       else if (m === "drones") [-1, 1].forEach(function (sd) { if (drones.length < 4) drones.push({ x: b.x + sd * 90, y: b.y, vx: sd * 40, t: 0, warn: 0.7 }); });
       else if (m === "missiles") { if (drones.filter(function (d) { return d.missile; }).length < 3) [0, 1].forEach(function (q) { drones.push({ missile: true, x: rnd(60, W - 60), y: -20 - q * 50, vx: 0, t: 0, warn: 1 }); }); tone(1200, 700, 0.25, "square", 0.05); }
       else if (m === "minions") { spawnUfo(); spawnUfo(); }
-      else if (m === "rain") { if (!shower) { shower = { phase: "warn", t: 0, n: 0 }; showMsg("☄️ Steinregen!", "bad", 1.4); } }
+      else if (m === "rain") { if (!shower) { shower = { phase: "warn", t: 0, n: 0 }; showMsg("☄️ " + tr("tips.rockRain"), "bad", 1.4); } }
       else if (m === "holes") { if (holes.length === 0) { spawnHole(ship.x < W / 2 ? W * 0.84 : W * 0.16, H * 0.5); holes[holes.length - 1].vy = 9; } }
       else if (m === "grid") { if (!grid && !flare) startGrid(); }
       else if (m === "wells") spawnWell();
@@ -1617,7 +1617,7 @@
       meteorT -= dt;
       if (meteorT <= 0 && !shower) {
         meteorT = F.meteorEvery; shower = { phase: "warn", t: 0, n: 0 };
-        showMsg("☄️ Meteorschauer!<br><span style='font-size:20px'>Gleich kommen schnelle Steine von oben!</span>", "bad", 2);
+        showMsg("☄️ " + tr("tips.meteorShower"), "bad", 2);
         tone(600, 300, 0.6, "sawtooth", 0.05);
       }
     }
@@ -1739,7 +1739,7 @@
     ctx.restore();
   }
   function drawUfoShield(u) { if (!u.shd || u.dead) return; ctx.save(); ctx.strokeStyle = "rgba(125,255,234," + (u.shFlash > 0 ? 0.95 : 0.55 + 0.2 * Math.sin(time * 6)) + ")"; ctx.fillStyle = "rgba(125,255,234,.12)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(u.x, u.y, u.r + 12, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore(); if (u.shFlash > 0) u.shFlash -= 0.016; }
-  function startWind() { wind = { phase: "warn", t: 0, dir: Math.random() < 0.5 ? -1 : 1, dur: 4 }; showMsg("💨 Sonnenwind von " + (wind.dir > 0 ? "links" : "rechts") + "!<br><span style='font-size:20px'>Gegensteuern!</span>", "bad", 1.8); tone(260, 520, 0.6, "sine", 0.05); }
+  function startWind() { wind = { phase: "warn", t: 0, dir: Math.random() < 0.5 ? -1 : 1, dur: 4 }; showMsg("💨 " + tr(wind.dir > 0 ? "tips.solarWindLeft" : "tips.solarWindRight"), "bad", 1.8); tone(260, 520, 0.6, "sine", 0.05); }
   function updateWind(dt) {
     wind.t += dt;
     if (wind.phase === "warn") { if (wind.t >= 2) { wind.phase = "blow"; wind.t = 0; } return; }
@@ -1758,7 +1758,7 @@
   function startStorm() {
     var side = Math.random() < 0.5 ? -1 : 1, n = level >= 18 ? 4 : 3;
     for (var i = 0; i < n; i++) wells.push({ mini: true, x: side < 0 ? -30 : W + 30, y: H * (0.2 + 0.13 * i) + rnd(-20, 20), r: 14, vx: -side * rnd(120, 160), vy: 18, t: 0, warn: 1.6 + i * 0.45, side: side });
-    showMsg("🌀 Mini-Loch-Sturm! Achte auf die Pfeile!", "bad", 1.8); tone(300, 80, 1, "sawtooth", 0.06);
+    showMsg("🌀 " + tr("tips.holeStorm"), "bad", 1.8); tone(300, 80, 1, "sawtooth", 0.06);
   }
   function updateWells(dt) {
     wells.forEach(function (w) {
@@ -1811,10 +1811,10 @@
   function hurt(x, y) {
     if (invuln > 0) return;
     if (curStats.perk === "phase" && state === "play" && !ship.down && Math.random() < 0.4) { phaseDodge(); return; }
-    if (shield) { shield = false; invuln = 1.2; explode(ship.x, ship.y, 24, CYAN); SFX.shield(); showMsg("🛡️ Schild hat dich gerettet!", "good", 1.2); updatePower(); return; }
+    if (shield) { shield = false; invuln = 1.2; explode(ship.x, ship.y, 24, CYAN); SFX.shield(); showMsg("🛡️ " + tr("tips.shieldSaved"), "good", 1.2); updatePower(); return; }
     lives--; invuln = 2; shake = 0.4; heartsLostRun++; comboBreak();
     explode(x, y, 30, RED); SFX.hurt();
-    showMsg((twoP ? "P" + curPid + ": " : "") + (lives > 0 ? "Autsch! 💥 Noch " + lives + (lives === 1 ? " Herz" : " Herzen") : "Oh nein! 💥"), "bad", 1.3);
+    showMsg((twoP ? "P" + curPid + ": " : "") + (lives > 0 ? "💥 " + tr("tips.ouchLeft", { n: lives, heart: lives === 1 ? tr("tips.heartOne") : tr("tips.heartMany") }) : "💥 " + tr("tips.ohNo")), "bad", 1.3);
     updateHud();
     if (lives <= 0 && curStats.perk2 === "rebirth" && !ship.reborn) {
       ship.reborn = true; lives = 2; invuln = 3; updateHud();
@@ -1885,7 +1885,7 @@
       // Triebwerks-Partikel
       var sdef = curPid > 1 ? (SHIP_BY[net.looks[curPid]] || AMELIA_DEF) : (SHIP_BY[net.looks[1]] || curShip());
       sdef.engines.forEach(function (en) { particles.push({ x: ship.x + en[0] + rnd(-3, 3), y: ship.y + en[1] + 4, vx: rnd(-20, 20), vy: rnd(120, 200), life: 0.35, max: 0.35, r: rnd(2, 4) * (en[2] || 1), c: pick((((curPid === 1) !== isGuest()) && skinFlame(curSkin(), flameT)) || sdef.flame) }); });
-      if (curStats.regen && !shield) { regenT -= dt; if (regenT <= 0) { regenT = curStats.regen; shield = true; SFX.shield(); showMsg("🛡️ Schild wieder aufgeladen!", "good", 1.2); } }
+      if (curStats.regen && !shield) { regenT -= dt; if (regenT <= 0) { regenT = curStats.regen; shield = true; SFX.shield(); showMsg("🛡️ " + tr("tips.shieldRecharged"), "good", 1.2); } }
     }
     if (fireCooldown > 0) fireCooldown -= dt * (inIon(ship) ? 0.5 : 1);
     if (invuln > 0) invuln -= dt;
@@ -1939,7 +1939,7 @@
       if (ship.tsT <= 0) {
         var near = rocks.concat(bombs, drones).some(function (e) { return !e.dead && Math.abs(e.x - ship.x) < 140 && e.y < ship.y + 20 && ship.y - e.y < 200; });
         if (near) { ship.tsT = 12; [rocks, ufos, drones, bombs].forEach(function (a) { a.forEach(function (e) { if (!e.dead) chill(e); }); }); if (boss) chill(boss);
-          particles.push({ ring: true, x: ship.x, y: ship.y, r: 20, vr: 900, life: 0.6, max: 0.6, c: "#b8fff4" }); tone(1200, 200, 0.6, "sine", 0.08); showMsg("⏳ Zeitlupe!", "good", 1); }
+          particles.push({ ring: true, x: ship.x, y: ship.y, r: 20, vr: 900, life: 0.6, max: 0.6, c: "#b8fff4" }); tone(1200, 200, 0.6, "sine", 0.08); showMsg("⏳ " + tr("tips.slowMo"), "good", 1); }
       }
     } else if (p2k === "frostaura") {
       bombs.forEach(function (b) { if (!b.slowed && Math.abs(b.x - ship.x) < 130 && Math.abs(b.y - ship.y) < 150) { b.slowed = true; b.vx *= 0.5; b.vy *= 0.5; } });
@@ -1965,7 +1965,7 @@
   function phaseDodge() {
     var dir = ship.x < W / 2 ? 1 : -1, nx = Math.max(ship.w / 2 + 4, Math.min(W - ship.w / 2 - 4, ship.x + dir * 140));
     explode(ship.x, ship.y, 18, ["#7dffea", "#b07dff", "#ffffff"], 160); ship.x = nx; explode(ship.x, ship.y, 18, ["#7dffea", "#b07dff", "#ffffff"], 160);
-    invuln = 1; tone(1800, 400, 0.2, "sine", 0.07); showMsg("🌀 Teleport! Ausgewichen!", "good", 1); perkCount.phase = (perkCount.phase || 0) + 1;
+    invuln = 1; tone(1800, 400, 0.2, "sine", 0.07); showMsg("🌀 " + tr("tips.teleportDodge"), "good", 1); perkCount.phase = (perkCount.phase || 0) + 1;
     if (touchTarget !== null) { dragOffset += nx - (touchTarget); touchTarget = nx; }
     if (curPid > 1 && net.role === "host" && netOnline()) tpNotify();
   }
@@ -2018,17 +2018,17 @@
       stars.forEach(function (s) {
         if (!s.dead && hit(s.x, s.y, 22, ship.x, ship.y, sr + 4)) {
           s.dead = true; collected++; missionAdd("stars", 1); addScore(50); explode(s.x, s.y, 30, GOLD); SFX.star();
-          showMsg(pick(["Super!", "Bonus!", "Klasse!", "Spitze!"]) + " ⭐ +50", "good", 1);
+          showMsg(pick([tr("tips.cheer1"), tr("tips.cheer2"), tr("tips.cheer3"), tr("tips.cheer4")]) + " ⭐ +50", "good", 1);
         }
       });
       powers.forEach(function (p) {
         if (!p.dead && hit(p.x, p.y, 22, ship.x, ship.y, sr + 4)) {
           p.dead = true; missionAdd("powers", 1); SFX.power(); explode(p.x, p.y, 24, CYAN);
-          if (p.type === "shield") { shield = true; showMsg("🛡️ Schild!", "good", 1.2); }
-          else if (p.type === "triple") { triple = TRIPLE_TIME; showMsg("🔱 Dreifach-Schuss!", "good", 1.2); }
-          else if (p.type === "laser") { laser = LASER_TIME; showMsg("⚡ Laser!", "good", 1.2); }
-          else if (p.type === "magnet") { magnet = MAGNET_TIME; showMsg("🧲 Magnet!", "good", 1.2); }
-          else { if (lives < MAXLIVES) lives++; showMsg("❤️ Extra-Herz!", "good", 1.2); updateHud(); }
+          if (p.type === "shield") { shield = true; showMsg("🛡️ " + tr("tips.pwrShield"), "good", 1.2); }
+          else if (p.type === "triple") { triple = TRIPLE_TIME; showMsg("🔱 " + tr("tips.pwrTriple"), "good", 1.2); }
+          else if (p.type === "laser") { laser = LASER_TIME; showMsg("⚡ " + tr("tips.pwrLaser"), "good", 1.2); }
+          else if (p.type === "magnet") { magnet = MAGNET_TIME; showMsg("🧲 " + tr("tips.pwrMagnet"), "good", 1.2); }
+          else { if (lives < MAXLIVES) lives++; showMsg("❤️ " + tr("tips.pwrHeart"), "good", 1.2); updateHud(); }
           updatePower();
         }
       });
@@ -2149,7 +2149,7 @@
         if (d < h.r * 1.1) {
           u.dead = true; hits++; addScore(25);
           explode(h.x, h.y, 16, PURPLE, 120); tone(500, 60, 0.5, "sine", 0.1);
-          showMsg("Verschluckt! 🛸 +25", "good", 1.2);
+          showMsg("🛸 " + tr("tips.swallowedPts"), "good", 1.2);
         }
       });
 
@@ -2275,7 +2275,7 @@
     }
     if (twoP && (state === "play" || state === "dying")) {
       ctx.save(); ctx.font = "bold 15px Trebuchet MS, Arial, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      var me = net.role ? (net.role === "host" ? 1 : net.myPid || 2) : 0, tg = "P" + curPid + (me === curPid ? " · DU" : ""), tw = me === curPid ? 62 : 30; ctx.fillStyle = PCOL[curPid].bg;
+      var me = net.role ? (net.role === "host" ? 1 : net.myPid || 2) : 0, tg = "P" + curPid + (me === curPid ? " · " + tr("tips.you") : ""), tw = me === curPid ? 62 : 30; ctx.fillStyle = PCOL[curPid].bg;
       roundRectPath(ship.x - tw / 2, ship.y - 66, tw, 18, 8); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillText(tg, ship.x, ship.y - 57); ctx.restore();
     }
   }
@@ -3227,7 +3227,7 @@
     shield = false; triple = 0; laser = 0; magnet = 0; frozen = 0; lives = 0;
     if (otherAlive()) {
       ship.down = 10;
-      showMsg((why === "hole" ? "🌀 P" + curPid + " wurde verschluckt!" : "💥 P" + curPid + " ist raus!") + " In 10 s geht's weiter!", "bad", 2);
+      showMsg((why === "hole" ? "🌀 " + tr("tips.pSwallowed", { n: curPid }) : "💥 " + tr("tips.pOut", { n: curPid })) + " " + tr("tips.pBackIn"), "bad", 2);
       updateHud();
     } else {
       ship.down = 999; updateHud();
@@ -3238,7 +3238,7 @@
     ship.down = 0; lives = Math.min(2, MAXLIVES); invuln = 3; frozen = 0;
     ship.x = slotX(curPid); ship.y = H - shipBottom();
     explode(ship.x, ship.y, 30, curPid > 1 ? PCOL[curPid].fx : CYAN, 200); SFX.power();
-    showMsg("🚀 P" + curPid + " ist wieder da!", "good", 1.5); updateHud();
+    showMsg("🚀 " + tr("tips.pBack", { n: curPid }), "good", 1.5); updateHud();
     if (curPid > 1) tpNotify();
   }
   function setupControls() {
@@ -3470,7 +3470,7 @@
     if (!net.role || (!net.connected && net.role === "guest")) { el.classList.add("hidden"); return; }
     for (var pid = 1; pid <= MAX_PLAYERS; pid++) { var p = have[pid], pc = PCOL[pid];
       h += '<span class="pchip' + (p ? "" : " free") + '" style="border-color:' + pc.c + (p ? ";background:" + pc.bg : "") + '">P' + pid + (p ? " " + (pid === 1 ? "👑" : "🚀") + (pid === me ? " " + tr("tips.you") : "") : " " + tr("tips.freeSlot")) + "</span>";
-      if (net.role === "host" && p && pid > 1) h += '<button data-kick="' + pid + '" class="onKick" style="font-size:12px;margin-left:4px">Kick P' + pid + '</button>'; }
+      if (net.role === "host" && p && pid > 1) h += '<button data-kick="' + pid + '" class="onKick" style="font-size:12px;margin-left:4px">' + tr("tips.kick") + ' P' + pid + '</button>'; }
     el.innerHTML = h; el.classList.remove("hidden");
     Array.prototype.forEach.call(el.querySelectorAll(".onKick"), function (btn) {
       btn.addEventListener("click", function (e) { e.stopPropagation(); kickGuestByPid(parseInt(btn.getAttribute("data-kick"), 10)); });
@@ -3767,7 +3767,7 @@
     boss = b.boss ? Object.assign({}, b.boss) : null;
     if (boss && a.boss && a.boss._id === boss._id) { boss.x = a.boss.x + (b.boss.x - a.boss.x) * al; boss.y = a.boss.y + (b.boss.y - a.boss.y) * al; }
     worm = b.worm; flare = b.flare; shower = b.shower; grid = b.grid || null;
-    if (b.wind && !wind && b.wind.phase === "warn") showMsg("💨 Sonnenwind von " + (b.wind.dir > 0 ? "links" : "rechts") + "!<br><span style='font-size:20px'>Gegensteuern!</span>", "bad", 1.8);
+    if (b.wind && !wind && b.wind.phase === "warn") showMsg("💨 " + tr(b.wind.dir > 0 ? "tips.solarWindLeft" : "tips.solarWindRight"), "bad", 1.8);
     wind = b.wind || null; ion = b.ion || null;
     score = b.sc; level = b.lv; levelTime = b.lt; time = b.tm; holeWobble = b.hw; holeFlash = b.hf; heartsLostRun = b.hl; if (b.cb !== undefined) { if ((b.cb | 0) > combo) comboPop = 0.25; combo = b.cb | 0; comboT = +b.cbt || 0; }
     if (b.st === "dying") state = "dying";
@@ -3948,7 +3948,7 @@
   ];
   var SHIP_BY = {}; SHIPS.forEach(function (d) { SHIP_BY[d.id] = d; if (d.tier === undefined) d.tier = d.price >= 3000 ? 1 : 0; });
   function shipUnlocked(d) { if (!d.unlock) return true; if (d.unlock.L) return (progress.stars[d.unlock.L] | 0) > 0; if (d.unlock.ach) return !!achDone[d.unlock.ach]; return false; }
-  function unlockText(d) { if (!d.unlock) return ""; if (d.unlock.L) { var sp = bossSpec(d.unlock.L); return "🔒 " + tr("tips.beatBoss", { name: sp.name, level: d.unlock.L }); } if (d.unlock.ach) return "🔒 " + tr("tips.beatAch"); return "🔒"; }
+  function unlockText(d) { if (!d.unlock) return ""; if (d.unlock.L) { var sp = bossSpec(d.unlock.L); return "🔒 " + tr("tips.beatBoss", { name: locBossForLevel(d.unlock.L, sp.name), level: d.unlock.L }); } if (d.unlock.ach) return "🔒 " + tr("tips.beatAch"); return "🔒"; }
   function sectorShipFor(L) { for (var i = 0; i < SHIPS.length; i++) if (SHIPS[i].unlock && SHIPS[i].unlock.L === L) return SHIPS[i]; return null; }
   var UPGRADES = [
     { id: "heart", name: "❤️ Extra-Herz", info: "+1 Herz (einmalig)", prices: [400] },
@@ -4997,7 +4997,7 @@
       if ((x - p.x) * (x - p.x) + (y - p.y) * (y - p.y) < r * r) {
         if (i + 1 > progress.unlocked) {
           lockShake = 0.5; tone(160, 120, 0.2, "square", 0.06);
-          showMsg("🔒 Schaffe zuerst Level " + progress.unlocked + "!", "bad", 1.6);
+          showMsg("🔒 " + tr("game.beatFirst", { level: progress.unlocked }), "bad", 1.6);
         } else flyTo(i);
         return;
       }
@@ -5453,8 +5453,7 @@
   }
   // ---------- Statistik-Seite ----------
   function fmtTime(sec) { var m = Math.floor(sec / 60), h = Math.floor(m / 60); return h > 0 ? tr("tips.hoursMins", { h: h, m: m % 60 }) : tr("tips.mins", { m: m }); }
-  function openStats() {
-    audio(); achCheck();
+  function renderStats() {
     var nAch = 0; ACH.forEach(function (a) { if (achDone[a[0]]) nAch++; });
     var rows = [[tr("tips.statMaxLevel"), rec.maxLevel || 0], [tr("tips.statLevels"), rec.levels], [tr("tips.statThree"), threeStarCount()],
       [tr("tips.statBest"), getBest()], [tr("tips.statCombo"), rec.bestCombo], [tr("tips.statRocks"), rec.rocks], [tr("tips.statUfos"), rec.ufos],
@@ -5462,6 +5461,10 @@
       [tr("tips.statCoins"), rec.coinsV], [tr("tips.statGolden"), rec.golden], [tr("tips.statTreasure"), rec.treasure], [tr("tips.statShips"), shop.owned.length + " / " + SHIPS.length],
       [tr("tips.statAchs"), nAch + " / " + ACH.length], [tr("tips.statTime"), fmtTime(rec.time)]];
     $("statsList").innerHTML = rows.map(function (r) { return "<span>" + r[0] + "</span><span>" + (typeof r[1] === "number" ? fmtN(r[1]) : r[1]) + "</span>"; }).join("");
+  }
+  function openStats() {
+    audio(); achCheck();
+    renderStats();
     $("statsScreen").classList.remove("hidden");
   }
   $("statsBtn").addEventListener("click", function (e) { e.stopPropagation(); openStats(); });
@@ -5485,7 +5488,7 @@
     var m1 = comboMult();
     tone(500 + Math.min(combo, 40) * 30, 700 + Math.min(combo, 40) * 30, 0.05, "triangle", 0.035);
     if (m1 > m0) {
-      showMsg("⚡ COMBO x" + m1 + "! ⚡<br><span style='font-size:20px'>" + combo + " Treffer hintereinander!</span>", "good", 1.3);
+      showMsg("⚡ COMBO x" + m1 + "! ⚡<br><span style='font-size:20px'>" + tr("tips.comboStreak", { n: combo }) + "</span>", "good", 1.3);
       [523, 659, 784, 1047, 1319].slice(0, m1 + 1).forEach(function (f, i) { tone(f, f * 1.01, 0.1, "square", 0.05, i * 0.06); });
       if (ship) { particles.push({ ring: true, x: ship.x, y: ship.y, r: 20, vr: 520, life: 0.45, max: 0.45, c: ["", "", "#7dffa8", "#4ec3ff", "#d08cff", "#ffd54a"][m1] }); explode(ship.x, ship.y - 30, 26, GOLD, 260); }
       shake = Math.max(shake, 0.18);
@@ -5494,15 +5497,15 @@
   }
   function comboTick(dt) {
     if (comboPop > 0) comboPop -= dt;
-    if (combo > 0 && state === "play") { comboT -= dt; if (comboT <= 0) { if (combo >= 10) showMsg("Combo vorbei: " + combo + " Treffer! 👏", "good", 1); combo = 0; } }
+    if (combo > 0 && state === "play") { comboT -= dt; if (comboT <= 0) { if (combo >= 10) showMsg("👏 " + tr("tips.comboOver", { n: combo }), "good", 1); combo = 0; } }
   }
-  function comboBreak() { if (combo >= 5) particles.push({ txt: "Combo weg!", x: ship.x, y: ship.y - 60, vx: 0, vy: -40, life: 0.9, max: 0.9, r: 0, c: "#ff8a8a" }); combo = 0; comboT = 0; }
+  function comboBreak() { if (combo >= 5) particles.push({ txt: tr("tips.comboGone"), x: ship.x, y: ship.y - 60, vx: 0, vy: -40, life: 0.9, max: 0.9, r: 0, c: "#ff8a8a" }); combo = 0; comboT = 0; }
   function drawCombo() {
     if (combo < 2) return;
     var m = comboMult(), col = ["#ffffff", "#ffffff", "#7dffa8", "#4ec3ff", "#d08cff", "#ffd54a"][m], k = 1 + Math.max(0, comboPop) * 1.6;
     ctx.save(); ctx.translate(W - 18, 152); ctx.scale(k, k); ctx.textAlign = "right"; ctx.textBaseline = "middle";
     ctx.font = "bold 22px Trebuchet MS, Arial, sans-serif"; ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,.6)";
-    var txt = "⚡ " + combo + "er Combo" + (m > 1 ? "  x" + m : "");
+    var txt = "⚡ " + tr("tips.comboLabel", { n: combo }) + (m > 1 ? "  x" + m : "");
     ctx.strokeText(txt, 0, 0); ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = m > 1 ? 12 : 0; ctx.fillText(txt, 0, 0);
     ctx.shadowBlur = 0; ctx.fillStyle = "rgba(255,255,255,.25)"; ctx.fillRect(-150, 16, 150, 4); ctx.fillStyle = col; ctx.fillRect(-150 * Math.max(0, comboT / 2.2), 16, 150 * Math.max(0, comboT / 2.2), 4);
     ctx.restore();
@@ -5515,12 +5518,12 @@
     surprise.t -= dt; if (surprise.t > 0) return;
     if (surprise.type === "gold") {
       var rk = makeRock(rnd(80, W - 80), -40, 32, false); rk.golden = true; rk.armor = true; rk.hp = Math.max(4, Math.round(4 * (curStats.dmg || 1))); rk.hue = 45; rk.vy *= 0.55; rk.vx = rnd(-20, 20); rocks.push(rk);
-      showMsg("✨ Ein goldener Asteroid! Schieß ihn ab! ✨", "good", 1.8);
+      showMsg("✨ " + tr("tips.goldAsteroid") + " ✨", "good", 1.8);
     } else {
       var fromL = Math.random() < 0.5;
       ufos.push({ treasure: true, x: fromL ? -40 : W + 40, baseX: 0, y: rnd(H * 0.14, H * 0.3), by: 0, vx: (fromL ? 1 : -1) * rnd(150, 190) * speedScale(), t: 0, amp: 0, vy: 0, r: 26, hp: 3 });
       ufos[ufos.length - 1].by = ufos[ufos.length - 1].y;
-      showMsg("💎 Ein Schatz-UFO! Schnell, triff es! 💎", "good", 1.8);
+      showMsg("💎 " + tr("tips.treasureUfo") + " 💎", "good", 1.8);
     }
     [1047, 1319, 1568, 2093].forEach(function (f, i) { tone(f, f, 0.12, "sine", 0.06, i * 0.08); });
     surprise = null;
@@ -5913,6 +5916,7 @@
     setTxt("achBtn", "🏆 " + tr("achievements"));
     setTxt("statsBtn", "📊 " + tr("yourRecords"));
     setTxt("onlineBtn", "🌍 " + tr("onlinePlay"));
+    var helpBtn = $("helpBtn"); if (helpBtn) helpBtn.setAttribute("aria-label", tr("help"));
     setTxt("helpTitle", "🚀 " + tr("helpTitle"));
     setTxt("helpIntro", tr("helpIntro"));
     setTxt("helpClose", tr("helpClose") + " 🚀");
@@ -5983,9 +5987,10 @@
       $("accountNote").textContent = acc.isConfigured() ? tr("account.anonymousPlay") : tr("account.needConfigDetail");
     }
     setTxt("overYouHave", tr("youScored"));
-    if (typeof renderShop === "function" && shopOpen) renderShop();
+    if (typeof renderShop === "function" && (shopOpen || !$("shopScreen").classList.contains("hidden"))) renderShop();
     if (typeof renderMissions === "function" && !$("missionScreen").classList.contains("hidden")) renderMissions();
     if (typeof renderAch === "function" && !$("achScreen").classList.contains("hidden")) renderAch();
+    if (typeof renderStats === "function" && !$("statsScreen").classList.contains("hidden")) renderStats();
     if (boss && typeof bossSpec === "function") { var nsp = bossSpec(level); if (nsp && nsp.name) boss.name = nsp.name; }
   }
 
