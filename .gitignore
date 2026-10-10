@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.vite/
+
+# SpacetimeDB
+.spacetime/
+*.stdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test outputs
+coverage/
+.nyc_output/
+
+# Temporary
+tmp/
+temp/
+weltraum-extract/
+
+# Chrome profile for tests
+/tmp/smk*
+/tmp/simprof*

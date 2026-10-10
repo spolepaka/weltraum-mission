@@ -1,0 +1,3 @@
+{"ship":"uni","L":21,"win":true,"state":"won","lives":4,"lt":28,"boss":null,"err":null}
+{"ship":"hammer","L":33,"win":false,"state":"over","lives":0,"lt":29,"boss":21,"err":null}
+{"ship":"zwilling","L":45,"win":true,"state":"won","lives":1,"lt":53,"boss":null,"err":null}
