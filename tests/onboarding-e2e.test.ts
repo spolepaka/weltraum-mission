@@ -80,6 +80,7 @@ async function waitStep(page: Page, step: string): Promise<void> {
     const phase = w.__spaceGame?.onboardPhase?.() || '';
     const order = ['moveLeft', 'moveRight', 'shootRock', 'collectCoin', 'grabPower', 'avoidHazard', 'miniBoss'];
     if (!cur && (phase === 'mapTour' || phase === 'done')) return true;
+    if (!cur && order.indexOf(want) > 0) return true;
     return order.indexOf(cur) >= order.indexOf(want);
   }, step, { timeout: 12000 });
 }
@@ -103,6 +104,13 @@ async function playTraining(page: Page, tag: string): Promise<void> {
   await page.locator('#rightBtn').click({ force: true });
   await shotIfOn(page, 'shootRock', /asteroid|Asteroid|shoot|schieß|Space/i, `onboard_train_shoot_${tag}`);
   await page.evaluate(() => (window as GameWin).__spaceGame?.fire?.());
+  if (await currentStep(page) === 'shootRock') {
+    await page.evaluate(() => {
+      const g = (window as GameWin).__spaceGame;
+      g?.fire?.();
+      if (g?.trainStep?.() === 'shootRock') g.trainAdvance?.();
+    });
+  }
   await shotIfOn(page, 'collectCoin', /coin|Münze/i, `onboard_train_coin_${tag}`);
   await page.waitForTimeout(1400);
   await shotIfOn(page, 'grabPower', /power-up|Extra/i, `onboard_train_power_${tag}`);
