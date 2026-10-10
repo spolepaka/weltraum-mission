@@ -446,6 +446,38 @@ export const requestLevelData = spacetimedb.reducer(
   }
 );
 
+export const getLevelData = spacetimedb.procedure(
+  { level: t.u32() },
+  t.option(t.object('LevelDataResult', {
+    level: t.u32(),
+    dataJson: t.string(),
+  })),
+  (ctx, { level }) => {
+    return ctx.withTx(txCtx => {
+      const identity = ctx.sender;
+      
+      if (!validateLevel(level)) {
+        return undefined;
+      }
+      
+      const progress = txCtx.db.playerProgress.identity.find(identity);
+      if (!progress || level > progress.unlockedLevel) {
+        return undefined;
+      }
+      
+      const levelData = txCtx.db.levelData.level.find(level);
+      if (!levelData) {
+        return undefined;
+      }
+      
+      return {
+        level: levelData.level,
+        dataJson: levelData.dataJson,
+      };
+    });
+  }
+);
+
 export const addOwnedShip = spacetimedb.reducer(
   { shipId: t.string() },
   (ctx, { shipId }) => {

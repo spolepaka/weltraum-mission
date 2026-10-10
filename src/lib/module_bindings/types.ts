@@ -28,6 +28,12 @@ export const LevelData = __t.object("LevelData", {
 });
 export type LevelData = __Infer<typeof LevelData>;
 
+export const LevelDataResult = __t.object("LevelDataResult", {
+  level: __t.u32(),
+  dataJson: __t.string(),
+});
+export type LevelDataResult = __Infer<typeof LevelDataResult>;
+
 export const LevelStars = __t.object("LevelStars", {
   identity: __t.identity(),
   level: __t.u32(),

@@ -51,6 +51,7 @@ import UnlockAchievementReducer from "./unlock_achievement_reducer";
 import UpdateSettingsReducer from "./update_settings_reducer";
 
 // Import all procedure arg schemas
+import * as GetLevelDataProcedure from "./get_level_data_procedure";
 
 // Import all table schema definitions
 import LevelDataRow from "./level_data_table";
@@ -105,6 +106,7 @@ const reducersSchema = __reducers(
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
+  __procedureSchema("get_level_data", GetLevelDataProcedure.params, GetLevelDataProcedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */

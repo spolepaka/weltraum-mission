@@ -445,6 +445,32 @@ class SpacetimeClient {
     return true;
   }
 
+  async fetchLevelData(level: number): Promise<{ level: number; dataJson: string } | null> {
+    console.log('[SpacetimeDB] fetchLevelData (procedure):', level);
+    
+    const data = this.getLocalData();
+    if (level > data.unlockedLevel) {
+      console.warn('[SpacetimeDB] Level not unlocked:', level, 'max:', data.unlockedLevel);
+      return null;
+    }
+
+    if (!this.connection) {
+      console.warn('[SpacetimeDB] Not connected');
+      return null;
+    }
+
+    try {
+      const result = await this.connection.procedures.getLevelData({ level });
+      if (result) {
+        return { level: result.level, dataJson: result.dataJson };
+      }
+      return null;
+    } catch (error) {
+      console.error('[SpacetimeDB] fetchLevelData error:', error);
+      return null;
+    }
+  }
+
   getLevelDataFromCache(level: number): object | null {
     if (!this.connection) return null;
     const rows = [...this.connection.db.levelData.iter()];
