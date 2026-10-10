@@ -39,4 +39,12 @@ describe('level catalog', () => {
     expect(targets).toContain(4);
     expect(targets).toContain(5);
   });
+
+  it('falls back to the local catalog when the fetcher fails for an unlocked level', async () => {
+    resetLevelRuntimeForTests();
+    setLevelFetcher(async () => null);
+    const payload = await ensureLevel(20, 20);
+    expect(payload).toMatchObject({ level: 20 });
+    expect(payload?.feats).toBeTruthy();
+  });
 });

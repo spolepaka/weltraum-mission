@@ -39,6 +39,7 @@ import AddOwnedShipReducer from "./add_owned_ship_reducer";
 import ApplySecretCodeReducer from "./apply_secret_code_reducer";
 import CompleteLevelResultReducer from "./complete_level_result_reducer";
 import ImportProgressReducer from "./import_progress_reducer";
+import LegacyImportReducer from "./legacy_import_reducer";
 import EquipShipReducer from "./equip_ship_reducer";
 import PurchaseShipReducer from "./purchase_ship_reducer";
 import PurchaseUpgradeReducer from "./purchase_upgrade_reducer";
@@ -96,6 +97,7 @@ const reducersSchema = __reducers(
   __reducerSchema("complete_level_result", CompleteLevelResultReducer),
   __reducerSchema("equip_ship", EquipShipReducer),
   __reducerSchema("import_progress", ImportProgressReducer),
+  __reducerSchema("legacy_import", LegacyImportReducer),
   __reducerSchema("purchase_ship", PurchaseShipReducer),
   __reducerSchema("purchase_upgrade", PurchaseUpgradeReducer),
   __reducerSchema("report_error", ReportErrorReducer),

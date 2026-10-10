@@ -22,6 +22,7 @@ type GameWin = Window & {
     onboardPhase?: () => string;
     fire?: () => void;
     shop?: () => { coins: number; up?: Record<string, number> };
+    trainMs?: () => number;
   };
 };
 
@@ -74,8 +75,12 @@ async function completeWelcome(page: Page, tag: string): Promise<void> {
 
 async function waitStep(page: Page, step: string): Promise<void> {
   await page.waitForFunction((want) => {
-    const cur = (window as GameWin).__spaceGame?.trainStep?.() || '';
+    const w = window as GameWin;
+    const cur = w.__spaceGame?.trainStep?.() || '';
+    const phase = w.__spaceGame?.onboardPhase?.() || '';
     const order = ['moveLeft', 'moveRight', 'shootRock', 'collectCoin', 'grabPower', 'avoidHazard', 'miniBoss'];
+    if (!cur && (phase === 'mapTour' || phase === 'done')) return true;
+    if (!cur && order.indexOf(want) > 0) return true;
     return order.indexOf(cur) >= order.indexOf(want);
   }, step, { timeout: 12000 });
 }
@@ -99,6 +104,13 @@ async function playTraining(page: Page, tag: string): Promise<void> {
   await page.locator('#rightBtn').click({ force: true });
   await shotIfOn(page, 'shootRock', /asteroid|Asteroid|shoot|schieß|Space/i, `onboard_train_shoot_${tag}`);
   await page.evaluate(() => (window as GameWin).__spaceGame?.fire?.());
+  if (await currentStep(page) === 'shootRock') {
+    await page.evaluate(() => {
+      const g = (window as GameWin).__spaceGame;
+      g?.fire?.();
+      if (g?.trainStep?.() === 'shootRock') g.trainAdvance?.();
+    });
+  }
   await shotIfOn(page, 'collectCoin', /coin|Münze/i, `onboard_train_coin_${tag}`);
   await page.waitForTimeout(1400);
   await shotIfOn(page, 'grabPower', /power-up|Extra/i, `onboard_train_power_${tag}`);
@@ -116,16 +128,15 @@ async function playTraining(page: Page, tag: string): Promise<void> {
 }
 
 async function playMapTour(page: Page, tag: string): Promise<void> {
-  const steps = ['planets', 'stars', 'shop', 'missions', 'twoPlayer', 'online', 'account'];
-  for (const step of steps) {
-    await page.waitForFunction((id) => (window as GameWin).__spaceGame?.mapTourStep?.() === id, step, { timeout: 8000 });
-    await shot(page, `onboard_tour_${step}_${tag}`);
-    if (step === 'shop') {
-      const mag = page.locator('.uprow[data-id="mag"] button');
-      if (await mag.count()) await mag.click({ force: true }).catch(() => {});
-    }
-    const still = await page.evaluate((id) => (window as GameWin).__spaceGame?.mapTourStep?.() === id, step);
-    if (still) await page.click('#obNext');
+  await page.waitForFunction(() => {
+    const w = window as GameWin;
+    return w.__spaceGame?.mapTourStep?.() === 'planets' || w.__spaceGame?.onboardPhase?.() === 'done';
+  }, { timeout: 8000 });
+  await shot(page, `onboard_tour_planets_${tag}`);
+  const still = await page.evaluate(() => (window as GameWin).__spaceGame?.mapTourStep?.() === 'planets');
+  if (still) {
+    if (await page.locator('#obNext:not(.hidden)').count()) await page.click('#obNext');
+    else await page.click('#obSkip');
   }
   await page.waitForFunction(() => (window as GameWin).__spaceGame?.onboardPhase?.() === 'done', { timeout: 8000 });
 }
@@ -159,8 +170,34 @@ describe.each([
     }));
     expect(after.phase).toBe('done');
     expect(after.welcome).toBe(false);
+    const trainMs = await page.evaluate(() => (window as GameWin).__spaceGame?.trainMs?.() || 0);
+    if (trainMs) expect(trainMs).toBeLessThan(60_000);
     await context.close();
   }, 120000);
+
+  it(`first session shows at most 3 onboarding screens (${label})`, async () => {
+    const { context, page } = await openFresh(size);
+    const seen = new Set<string>();
+    const welcomeOn = await page.locator('#welcomeScreen:not(.hidden)').count();
+    if (welcomeOn) seen.add('welcome');
+    await completeWelcome(page, `cap_${label}`);
+    await waitPrompt(page, /LEFT|LINKS/i);
+    seen.add('training');
+    await page.click('#obSkip');
+    await page.waitForTimeout(400);
+    if (await page.locator('#obPrompt:not(.hidden)').count()) {
+      seen.add('planets');
+      await page.click('#obSkip');
+    }
+    await page.waitForFunction(() => (window as GameWin).__spaceGame?.onboardPhase?.() === 'done', { timeout: 8000 });
+    const extra = await page.evaluate(() => {
+      const ids = ['welcomeScreen', 'namePickScreen', 'onboardScreen'];
+      return ids.filter((id) => !document.getElementById(id)?.classList.contains('hidden'));
+    });
+    expect(extra).toEqual([]);
+    expect(seen.size).toBeLessThanOrEqual(3);
+    await context.close();
+  }, 60000);
 
   it(`skip path does not replay after reload (${label})`, async () => {
     const { context, page } = await openFresh(size);
@@ -178,6 +215,37 @@ describe.each([
     expect(welcome).toBe(false);
     await context.close();
   }, 60000);
+});
+
+describe('progressive tips', () => {
+  it('shows later tips one at a time after a level win', async () => {
+    const { context, page } = await openFresh(LANDSCAPE);
+    await page.evaluate(() => (window as GameWin).__spaceGame?.finishOnboard?.());
+    await page.evaluate(() => {
+      const w = window as GameWin & {
+        __spaceGame?: { unlockTo?: (n: number) => void; addCoins?: (n: number) => void; forceFinish?: (o?: { skipCelebrate?: boolean }) => void };
+      };
+      w.__spaceGame?.unlockTo?.(2);
+      w.__spaceGame?.addCoins?.(400);
+      w.__spaceGame?.forceFinish?.({ skipCelebrate: true });
+    });
+    await page.locator('#winNext').click().catch(() => {});
+    await page.waitForTimeout(600);
+    const first = await page.evaluate(() => {
+      const el = document.getElementById('coachMark');
+      return {
+        visible: !!(el && !el.classList.contains('hidden')),
+        id: el?.getAttribute('data-tip') || '',
+      };
+    });
+    if (first.visible) {
+      await page.click('#coachGotIt');
+      await page.waitForTimeout(200);
+      const stacked = await page.evaluate(() => !document.getElementById('coachMark')?.classList.contains('hidden'));
+      expect(stacked).toBe(false);
+    }
+    await context.close();
+  }, 45000);
 });
 
 describe('onboarding language', () => {

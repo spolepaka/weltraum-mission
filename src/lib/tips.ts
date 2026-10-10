@@ -15,6 +15,7 @@ export interface TipsState {
   lastMapTip: TipId | null;
   mapVisits: number;
   onboardDone: boolean;
+  skipAll: boolean;
   lossesByLevel: Record<string, number>;
   lastLossLevel: number | null;
   coinsSeen: boolean;
@@ -39,6 +40,7 @@ const EMPTY: TipsState = {
   lastMapTip: null,
   mapVisits: 0,
   onboardDone: false,
+  skipAll: false,
   lossesByLevel: {},
   lastLossLevel: null,
   coinsSeen: false,
@@ -71,9 +73,16 @@ export function saveTips(state: TipsState): void {
 }
 
 export function canShowTip(state: TipsState, id: TipId): boolean {
+  if (state.skipAll) return false;
   if (state.visitHadTip) return false;
   if (state.dismissed[id]) return false;
   return (state.shown[id] || 0) < TIP_MAX_SHOWS;
+}
+
+export function skipAllTips(state: TipsState): TipsState {
+  const next: TipsState = { ...state, skipAll: true, visitHadTip: true };
+  saveTips(next);
+  return next;
 }
 
 export function markTipShown(state: TipsState, id: TipId): TipsState {

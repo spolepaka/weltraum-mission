@@ -28,6 +28,7 @@ export const AUTH_STORAGE_KEY = 'spaceMissionFirebaseAuth';
 export const ANON_SNAPSHOT_KEY = 'spaceMissionAnonSnapshot';
 export const GUEST_TOKEN_KEY = 'spaceMissionGuestIdentityToken';
 export const EMAIL_FOR_LINK_KEY = 'spaceMissionEmailForLink';
+export const REDIRECT_FLAG_KEY = 'spaceMissionAuthRedirect';
 
 export type AuthProviderId = 'google' | 'emailLink' | 'apple';
 
@@ -43,6 +44,7 @@ export interface AuthUser {
   expiresAt: number;
   uid: string;
   email?: string;
+  displayName?: string;
   provider?: AuthProviderId | string;
 }
 
@@ -249,8 +251,13 @@ async function userToAuthUser(user: User, provider?: AuthProviderId | string): P
     expiresAt: exp,
     uid: user.uid,
     email: user.email || undefined,
+    displayName: user.displayName || undefined,
     provider: provider || user.providerData[0]?.providerId,
   };
+}
+
+function markRedirectPending(): void {
+  try { sessionStorage.setItem(REDIRECT_FLAG_KEY, '1'); } catch { /* ignore */ }
 }
 
 export async function completeRedirectIfNeeded(): Promise<AuthUser | null> {
@@ -267,6 +274,11 @@ export async function completeRedirectIfNeeded(): Promise<AuthUser | null> {
     }
   } catch (err) {
     console.warn('[FirebaseAuth] redirect result failed', err);
+  }
+  if (a.currentUser) {
+    const user = await userToAuthUser(a.currentUser);
+    saveAuthUser(user);
+    return user;
   }
   return loadAuthUser();
 }
@@ -294,6 +306,7 @@ export async function signInWithGoogle(): Promise<AuthUser> {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   if (preferRedirect()) {
+    markRedirectPending();
     await signInWithRedirect(a, provider);
     throw new Error('redirecting');
   }
@@ -304,6 +317,7 @@ export async function signInWithGoogle(): Promise<AuthUser> {
     return user;
   } catch (err) {
     if (shouldFallbackToRedirect(err) || preferRedirect()) {
+      markRedirectPending();
       await signInWithRedirect(a, provider);
       throw new Error('redirecting');
     }
@@ -331,6 +345,7 @@ export async function signInWithApple(): Promise<AuthUser> {
   provider.addScope('email');
   provider.addScope('name');
   if (preferRedirect()) {
+    markRedirectPending();
     await signInWithRedirect(a, provider);
     throw new Error('redirecting');
   }
@@ -341,6 +356,7 @@ export async function signInWithApple(): Promise<AuthUser> {
     return user;
   } catch (err) {
     if (shouldFallbackToRedirect(err) || preferRedirect()) {
+      markRedirectPending();
       await signInWithRedirect(a, provider);
       throw new Error('redirecting');
     }

@@ -16,6 +16,7 @@ function fresh(): TipsState {
     lastMapTip: null,
     mapVisits: 1,
     onboardDone: true,
+    skipAll: false,
     lossesByLevel: {},
     lastLossLevel: null,
     coinsSeen: false,

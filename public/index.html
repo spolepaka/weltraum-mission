@@ -225,7 +225,15 @@
   #accountScreen .panel { max-width: 460px; text-align: left; }
   #accountScreen .accRow { display: flex; justify-content: space-between; gap: 12px; margin: 8px 0; font-size: 18px; }
   #accountScreen .accRow b { color: #ffd54a; }
-  #accountScreen .providerList { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 14px; }
+  #accountScreen .providerList { display: none; flex-direction: column; gap: 10px; margin: 10px 0 14px; }
+  #accountScreen .providerList.open { display: flex; }
+  #accountSignIn.busy { opacity: .75; }
+  #accountBusy { display: none; margin: 8px 0; color: #ffd54a; font-weight: bold; }
+  #accountBusy.show { display: block; }
+  #accountScreen button, #welcomeScreen button, #namePickScreen button { touch-action: manipulation; -webkit-tap-highlight-color: rgba(255,213,74,.35); }
+  .nameChoices { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+  .nameChoices button { width: 100%; }
+  .nameChoices button.on { outline: 3px solid #ffd54a; }
   #accountScreen .emailRow { display: flex; flex-direction: column; gap: 8px; }
   #accountEmail { -webkit-user-select: text; user-select: text; font-size: 18px; font-family: inherit; padding: 10px 12px; border-radius: 12px; border: 2px solid #7dffa8; background: rgba(0,0,0,.5); color: #fff; width: 100%; box-sizing: border-box; }
   #celebrateHud { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); z-index: 8; text-align: center; pointer-events: none; display: none; width: 90%; }
@@ -304,7 +312,8 @@
     <div class="accRow"><span id="accountSyncLabel">Sync</span><b id="accountSync">Offline</b></div>
     <p id="accountNote" class="small" style="color:#aab4e8"></p>
     <div id="accountGuestActions">
-      <button class="big" id="accountSignIn">Parent: save progress</button>
+      <button class="big" id="accountSignIn" type="button">Parent: save progress</button>
+      <p id="accountBusy">Opening sign-in…</p>
       <div id="accountProviderList" class="providerList">
         <button class="big" id="accountGoogle">Sign in with Google</button>
         <div class="emailRow">
@@ -411,7 +420,7 @@
 
 <div id="achToast"></div>
 <div id="joinToast"><span id="joinToastText"></span><button class="onKick" id="joinToastKick">Kick</button></div>
-<div id="coachMark" class="hidden"><div id="coachArrow"></div><div id="coachCard"><p id="coachText"></p><button class="big" id="coachGotIt">Got it</button></div></div>
+<div id="coachMark" class="hidden"><div id="coachArrow"></div><div id="coachCard"><p id="coachText"></p><div class="btnRow"><button class="big" id="coachGotIt" type="button">Got it</button><button class="big alt" id="coachSkipAll" type="button">Skip all tips</button></div></div></div>
 <div id="onboardScreen" class="screen hidden">
   <div class="panel" style="max-width:460px">
     <h1 id="onboardTitle">Fly and shoot</h1>
@@ -428,10 +437,11 @@
       <button class="big langFlag" id="welcomeDe" type="button">🇩🇪 Deutsch</button>
     </div>
     <p id="welcomeNameLabel">Your space name</p>
-    <p id="welcomeNameShow"></p>
+    <p id="welcomeNameShow" class="hidden"></p>
+    <div id="welcomeNameChoices" class="nameChoices"></div>
     <div class="btnRow">
-      <button class="big alt" id="welcomeReroll">New name</button>
-      <button class="big" id="welcomeGo">Let's fly!</button>
+      <button class="big alt" id="welcomeReroll" type="button">New names</button>
+      <button class="big" id="welcomeGo" type="button">Let's fly!</button>
     </div>
   </div>
 </div>
@@ -463,8 +473,9 @@
 <div id="namePickScreen" class="screen hidden">
   <div class="panel" style="max-width:460px">
     <h1 id="namePickTitle">Pick your pilot name</h1>
-    <p id="namePickShow" style="font-size:28px;color:#ffd54a;margin:12px 0"></p>
-    <div class="btnRow"><button class="big" id="namePickReroll">New name</button><button class="big" id="namePickOk">OK</button></div>
+    <p id="namePickShow" class="hidden"></p>
+    <div id="namePickChoices" class="nameChoices"></div>
+    <div class="btnRow"><button class="big" id="namePickReroll" type="button">New names</button><button class="big" id="namePickOk" type="button">OK</button></div>
   </div>
 </div>
 
@@ -751,7 +762,7 @@
 
   // ---------- Zustand ----------
   var state = "map"; // map | play | dying | sucked | won | over
-  var trainOn = false, trainStep = "", trainT = 0, trainMovedL = false, trainMovedR = false, mapTourStep = "", mapTourOn = false;
+  var trainOn = false, trainStep = "", trainT = 0, trainMovedL = false, trainMovedR = false, mapTourStep = "", mapTourOn = false, trainStartedAt = 0, lastTrainMs = 0, coachSessionShown = false, justReturnedFromPlay = false;
   var ship = null, bullets = [], rocks = [], ufos = [], bombs = [], stars = [], powers = [], particles = [], boss = null;
   var score = 0, lives = 3, MAXLIVES = 5, time = 0, level = 1, hits = 0, collected = 0, bossesBeaten = 0, lastBossLevel = 0;
   var spawnTimer = 0, starTimer = 0, ufoTimer = 0, powerTimer = 0, fireCooldown = 0, invuln = 0, shake = 0, msgTimer = 0;
@@ -814,6 +825,7 @@
     audio();
     var asTrain = !!(opts && opts.training);
     trainOn = asTrain;
+    if (asTrain) trainStartedAt = performance.now();
     trainStep = asTrain ? "moveLeft" : "";
     trainT = 0;
     trainMovedL = false;
@@ -857,7 +869,7 @@
       $("trainBanner").classList.remove("hidden");
       $("trainBanner").textContent = tr("tips.trainHud");
       hideMsg();
-      setTimeout(function () { beginTrainStep("moveLeft"); }, 240);
+      beginTrainStep("moveLeft");
     } else {
       $("trainBanner").classList.add("hidden");
       if (fc) showMsg("✨ " + tr("game.neuBanner") + ": " + fc[0] + "!<br><span style='font-size:20px'>" + fc[1] + "</span>" + shipLine, "new", 3.6);
@@ -870,29 +882,46 @@
     if (infoTxt !== lastInfo) { $("lvlInfo").textContent = infoTxt; lastInfo = infoTxt; }
     if (state === "play") $("wordBox").classList.toggle("hidden", !!(boss && boss.type === "emperor"));
   }
+  var loadingLevels = {};
+  function effectiveUnlock() {
+    var local = 1;
+    try {
+      var st = window.__weltraum && window.__weltraum.spacetime;
+      if (st && st.getLocalData) local = st.getLocalData().unlockedLevel || 1;
+    } catch (e) {}
+    return Math.max(progress.unlocked || 1, local || 1);
+  }
+  function isReallyOffline() {
+    try { return typeof navigator !== "undefined" && navigator.onLine === false; } catch (e) { return false; }
+  }
   function tryStartLevel(L) {
     L = Math.max(1, Math.min(MAX_LEVEL, L || 1));
-    if (L > progress.unlocked) {
-      showMsg("🔒 " + tr("game.beatFirst", { level: progress.unlocked }), "bad", 1.6);
+    var unlocked = effectiveUnlock();
+    if (unlocked > progress.unlocked) { progress.unlocked = unlocked; saveProgress(); }
+    if (L > unlocked) {
+      showMsg("🔒 " + tr("game.beatFirst", { level: unlocked }), "bad", 1.6);
       return false;
     }
     if (window.__weltraum && window.__weltraum.canStartLevel && !window.__weltraum.canStartLevel(L)) {
       showMsg("🔒 " + tr("game.beatFirst", { level: L }), "bad", 1.6);
       return false;
     }
+    if (mapTourOn) finishMapTour(false);
     if (L <= 3) { startGame(L); return true; }
     var api = window.__weltraum && window.__weltraum.levels;
     var cached = api && api.cached && api.cached(L);
     if (cached) { applyRemoteLevel(cached); startGame(L); return true; }
-    if (!api || !api.ensure) {
-      showMsg("📡 " + tr("tips.levelOffline"), "bad", 2.4);
-      return false;
-    }
+    loadingLevels[L] = Date.now();
     showMsg("⏳ " + tr("tips.levelLoading", { level: L }), "good", 1.6);
-    api.ensure(L, progress.unlocked).then(function (payload) {
-      if (!payload) { showMsg("📡 " + tr("tips.levelOffline"), "bad", 2.4); return; }
-      applyRemoteLevel(payload);
-      startGame(L);
+    var ensure = (api && api.ensure) ? api.ensure(L, unlocked) : Promise.resolve(null);
+    Promise.resolve(ensure).then(function (payload) {
+      delete loadingLevels[L];
+      if (payload) { applyRemoteLevel(payload); startGame(L); return; }
+      if (isReallyOffline()) showMsg("📡 " + tr("tips.levelOffline"), "bad", 2.4);
+      else showMsg("⏳ " + tr("tips.levelLoading", { level: L }), "good", 2.0);
+    }).catch(function () {
+      delete loadingLevels[L];
+      if (isReallyOffline()) showMsg("📡 " + tr("tips.levelOffline"), "bad", 2.4);
     });
     return true;
   }
@@ -5202,8 +5231,9 @@
   }
   function centerOn(i) { mapScroll = Math.max(0, Math.min(maxScroll(), H * 0.42 - mapBaseY() + i * mapSpacing())); }
 
-  function goToMap() {
-    setTimeout(function () { if (state === "map") { achCheck(); updateAchBtn(); maybeBreak(); maybeMapCoach(); } }, 900);
+  function goToMap(fromPlay) {
+    if (fromPlay) justReturnedFromPlay = true;
+    setTimeout(function () { if (state === "map") { achCheck(); updateAchBtn(); maybeBreak(); maybeMapCoach(); justReturnedFromPlay = false; } }, 400);
     state = "map"; resetInput(); drones = []; boss = null; holes = []; swallows = []; sucked = null; holeFlash = 0; holeWobble = 0;
     ["hud", "wordBox", "controls", "power", "overScreen", "winScreen"].forEach(function (id) { $(id).classList.add("hidden"); });
     $("mapHud").classList.remove("hidden");
@@ -5257,10 +5287,35 @@
     $("obPrompt").classList.add("hidden");
     obClearSpot();
   }
-  function refreshWelcomeName() {
+  function fillNameChoices(boxId, showId) {
     var names = window.__weltraum && window.__weltraum.names;
     var lang = curLang === "de" ? "de" : "en";
-    $("welcomeNameShow").textContent = names ? names.generate(lang) : "Cosmic Fox 42";
+    var box = $(boxId);
+    var list = names && names.choices ? names.choices(lang, 3) : [(names && names.generate(lang)) || "Turbo Fox 11"];
+    if (!box) {
+      if ($(showId)) $(showId).textContent = list[0];
+      return list[0];
+    }
+    box.innerHTML = "";
+    var picked = list[0];
+    list.forEach(function (nm, i) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "big" + (i === 0 ? " on" : "");
+      b.textContent = nm;
+      b.addEventListener("click", function () {
+        picked = nm;
+        if ($(showId)) $(showId).textContent = nm;
+        var kids = box.querySelectorAll("button");
+        for (var k = 0; k < kids.length; k++) kids[k].classList.toggle("on", kids[k] === b);
+      });
+      box.appendChild(b);
+    });
+    if ($(showId)) $(showId).textContent = picked;
+    return picked;
+  }
+  function refreshWelcomeName() {
+    fillNameChoices("welcomeNameChoices", "welcomeNameShow");
   }
   function showWelcome() {
     applyWelcomeI18n();
@@ -5315,15 +5370,15 @@
     showObPrompt(tr("tips.train_" + step), "train");
     fireCooldown = 0;
     if (step === "shootRock") {
-      var rk = makeRock(ship.x, Math.max(80, ship.y - 180), 34, false); rk.vx = 0; rk.vy = 36; rocks.push(rk);
+      var rk = makeRock(ship.x, Math.max(70, ship.y - 90), 30, false); rk.vx = 0; rk.vy = 80; rocks.push(rk);
     } else if (step === "collectCoin") {
-      coinsArr.push({ x: ship.x, y: ship.y - 64, vx: 0, vy: 30, t: 0, v: 10, r: 14 });
+      coinsArr.push({ x: ship.x, y: ship.y - 28, vx: 0, vy: 20, t: 0, v: 10, r: 16 });
     } else if (step === "grabPower") {
-      powers.push({ x: ship.x, y: ship.y - 64, type: "magnet", vy: 30, t: 0 });
+      powers.push({ x: ship.x, y: ship.y - 28, type: "magnet", vy: 20, t: 0 });
     } else if (step === "avoidHazard") {
-      var hz = makeRock(ship.x + 140, -30, 30, false); hz.vx = 0; hz.vy = 70; hz.trainDodge = true; rocks.push(hz);
+      var hz = makeRock(ship.x + 110, ship.y - 80, 26, false); hz.vx = 0; hz.vy = 160; hz.trainDodge = true; rocks.push(hz);
     } else if (step === "miniBoss") {
-      boss = { type: "saucer", name: tr("tips.trainBoss"), mods: [], tint: "#7dffa8", final: false, sector: false, atk: 0.2, modK: 1, holeImmune: true, modT: {}, x: W / 2, y: -60, targetY: 150, k: 0.55, sz: 180, shield: null, shieldCd: 99, droneT: 99, powerT: 99, immuneT: 0, blocks: 0, vx: 40, hp: 8, maxHp: 8, bombTimer: 99, spreadT: 99, laserCd: 99, summonCd: 0, phase: 1, laser: null, t: 0, flash: 0 };
+      boss = { type: "saucer", name: tr("tips.trainBoss"), mods: [], tint: "#7dffa8", final: false, sector: false, atk: 0.2, modK: 1, holeImmune: true, modT: {}, x: W / 2, y: 140, targetY: 140, k: 0.5, sz: 160, shield: null, shieldCd: 99, droneT: 99, powerT: 99, immuneT: 0, blocks: 0, vx: 50, hp: 3, maxHp: 3, bombTimer: 99, spreadT: 99, laserCd: 99, summonCd: 0, phase: 1, laser: null, t: 0, flash: 0 };
       bossSpawned = true;
     }
   }
@@ -5339,18 +5394,17 @@
     trainT += dt;
     if (kb.left || $("leftBtn").classList.contains("down")) trainMovedL = true;
     if (kb.right || $("rightBtn").classList.contains("down")) trainMovedR = true;
-    if (trainStep === "moveLeft" && trainMovedL && trainT > 0.15) trainAdvance();
-    else if (trainStep === "moveRight" && trainMovedR && trainT > 0.15) trainAdvance();
+    if (trainStep === "moveLeft" && trainMovedL) trainAdvance();
+    else if (trainStep === "moveRight" && trainMovedR) trainAdvance();
     else if (trainStep === "avoidHazard") {
-      var gone = rocks.every(function (r) { return !r.trainDodge || r.dead || r.y > H + 40; });
-      if (gone && rocks.some(function (r) { return r.trainDodge; }) === false && trainT > 0.8) trainAdvance();
-      if (rocks.length && rocks.every(function (r) { return r.y > H + 20 || r.dead; }) && trainT > 0.8) trainAdvance();
+      if (rocks.every(function (r) { return !r.trainDodge || r.dead || r.y > H + 20; }) && trainT > 0.25) trainAdvance();
     }
   }
   function grantTrainingCoins() {
     if (shop.coins < 60) { shop.coins = 60; saveShop(); updateMapHud(); updateHud(); }
   }
   function finishTraining(skipped) {
+    if (trainStartedAt) lastTrainMs = performance.now() - trainStartedAt;
     trainOn = false; trainStep = "";
     hideObPrompt();
     $("trainBanner").classList.add("hidden");
@@ -5359,13 +5413,13 @@
     if (api) api.markTraining(api.loadOnboard(), skipped);
     persistOnboard();
     state = "map";
-    goToMap();
-    setTimeout(function () { startMapTour(); }, 280);
+    goToMap(false);
+    setTimeout(function () { startMapTour(); }, 80);
   }
   function startMapTour() {
     var api = onboardApi();
     var st = api ? api.loadOnboard() : null;
-    if (st && st.mapTourDone) return;
+    if (st && (st.mapTourDone || st.skipAllTips)) return;
     mapTourOn = true;
     beginMapTourStep("planets");
   }
@@ -5449,7 +5503,21 @@
   }
   function prefetchNextLevels() {
     var api = window.__weltraum && window.__weltraum.levels;
-    if (api && api.prefetch) api.prefetch(progress.unlocked);
+    var unlocked = effectiveUnlock();
+    if (unlocked > 3) {
+      loadingLevels[unlocked] = Date.now();
+      if (unlocked + 1 <= MAX_LEVEL) loadingLevels[unlocked + 1] = Date.now();
+    }
+    if (api && api.prefetch) api.prefetch(unlocked);
+    if (api && api.ensure) {
+      Promise.all([
+        api.ensure(unlocked, unlocked + 1),
+        unlocked + 1 <= MAX_LEVEL ? api.ensure(unlocked + 1, unlocked + 1) : Promise.resolve(null)
+      ]).then(function () {
+        delete loadingLevels[unlocked];
+        delete loadingLevels[unlocked + 1];
+      });
+    }
   }
   function hideCoach() {
     var el = $("coachMark"); if (el) { el.classList.add("hidden"); el.classList.remove("show", "shop"); }
@@ -5458,19 +5526,54 @@
     var el = $("coachMark"); if (!el) return;
     $("coachText").textContent = text;
     $("coachGotIt").textContent = tr("tips.gotIt");
+    if ($("coachSkipAll")) $("coachSkipAll").textContent = tr("tips.skipAllTips");
     el.classList.remove("hidden"); el.classList.add("show");
     el.classList.toggle("shop", id === "shopCoins");
     el.setAttribute("data-tip", id);
   }
   function maybeMapCoach() {
-    var ob = onboardApi() ? onboardApi().loadOnboard() : null;
+    if (mapTourOn) return;
+    var el = $("coachMark");
+    if (el && !el.classList.contains("hidden")) return;
+    var obApi = onboardApi();
+    var ob = obApi ? obApi.loadOnboard() : null;
+    if (ob && ob.skipAllTips) return;
     if (ob && !ob.mapTourDone) return;
+    if (coachSessionShown && !justReturnedFromPlay) return;
+    var finished = 0; for (var k in progress.stars) if ((progress.stars[k] | 0) > 0) finished++;
+    var acc = window.__weltraum && window.__weltraum.account;
+    if (obApi && ob && typeof obApi.pickProgressiveTip === "function") {
+      var next = obApi.pickProgressiveTip(ob, {
+        unlocked: progress.unlocked,
+        finishedCount: finished,
+        canAffordShip: !!cheapestDeal(),
+        coins: shop.coins,
+        signedIn: !!(acc && acc.isSignedIn && acc.isSignedIn()),
+        firstMap: false,
+        justReturnedFromPlay: justReturnedFromPlay,
+        sessionStart: !justReturnedFromPlay && !coachSessionShown
+      });
+      if (next && next !== "planets") {
+        var progressiveCopy = {
+          shop: tr("tips.coachShop", { n: shop.coins }),
+          missions: tr("tips.coachMissions"),
+          twoPlayer: tr("tips.coachTwoPlayer"),
+          weekly: tr("tips.coachWeekly"),
+          difficulty: tr("tips.coachDifficulty"),
+          account: tr("tips.coachAccount")
+        };
+        if (obApi.markRevealed) obApi.markRevealed(ob, next);
+        coachSessionShown = true;
+        showCoach(next, progressiveCopy[next] || tr("tips.tour_" + next) || next);
+        trackPlay("tip_shown");
+        return;
+      }
+    }
     var api = tipsApi(); if (!api) return;
     var st = api.beginMapVisit(api.loadTips());
+    if (st.skipAll) return;
     if (!st.onboardDone) { st.onboardDone = true; api.saveTips(st); }
-    if (cheapestDeal()) showJit("affordShip");
-    if (progress.unlocked >= 3) showJit("onlineUnlock");
-    var finished = 0; for (var k in progress.stars) if ((progress.stars[k] | 0) > 0) finished++;
+    if (st.visitHadTip) return;
     var losses = st.lastLossLevel ? (st.lossesByLevel[String(st.lastLossLevel)] || 0) : 0;
     var id = api.pickMapTip(st, {
       coins: shop.coins,
@@ -5480,7 +5583,8 @@
       lossesOnLevel: losses,
       missionsReady: typeof missionReady === "function" && missionReady(),
       ghostOn: !!ghostOn,
-      finishedCount: finished
+      finishedCount: finished,
+      justReturnedFromPlay: justReturnedFromPlay
     });
     if (!id) return;
     var copy = {
@@ -5492,6 +5596,7 @@
       ghostShip: tr("tips.coachGhost")
     };
     api.markTipShown(st, id);
+    coachSessionShown = true;
     showCoach(id, copy[id] || "");
     trackPlay("tip_shown");
   }
@@ -5540,10 +5645,9 @@
     var names = window.__weltraum && window.__weltraum.names;
     if (!names) return;
     if (names.current()) return;
-    var lang = (typeof curLang === "string" && curLang === "de") ? "de" : "en";
     $("namePickTitle").textContent = tr("tips.pickName");
     $("namePickReroll").textContent = tr("account.reroll");
-    $("namePickShow").textContent = names.generate(lang);
+    fillNameChoices("namePickChoices", "namePickShow");
     $("namePickScreen").classList.remove("hidden");
   }
   function acceptPickedName() {
@@ -5739,6 +5843,15 @@
     }
     if (isBossLevel(L)) drawMothership(x, y, r, L);
     else if (true) procPlanet(x, y, r, L, mapT); // jeder Planet einzigartig
+    if (!locked && loadingLevels[L]) {
+      ctx.save();
+      ctx.strokeStyle = "#ffd54a";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.55, mapT * 6, mapT * 6 + 4);
+      ctx.stroke();
+      ctx.restore();
+    }
     else {
       var st = STYLES[L] || planetStyle(L), type = st[0], hue = st[1];
       if (type === "ring") {
@@ -6136,7 +6249,7 @@
   $("pauseMapBtn").addEventListener("click", function () { audio(); setPaused(false); goToMap(); });
   document.addEventListener("visibilitychange", function () { if (document.hidden && state === "play" && !net.role) setPaused(true); });
   function loop(now) {
-    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    var dt = Math.min(trainOn ? 0.12 : 0.1, (now - last) / 1000); last = now;
     try { achTick(paused ? 0 : dt * (window.__sim ? (window.__sim.speed || 1) : 1)); } catch (e) {}
     if (state === "map") { update(dt); updateMap(dt); drawMap(); if (shopOpen) drawShop(dt); }
     else if (isGuest() && (state === "play" || state === "dying" || state === "sucked")) guestFrame(dt);
@@ -6442,6 +6555,19 @@
     pickNameNow: maybePickName,
     acceptName: acceptPickedName,
     coachVisible: function () { var el = $("coachMark"); return !!(el && !el.classList.contains("hidden") && el.classList.contains("show")); },
+    coachId: function () { return $("coachMark") && $("coachMark").getAttribute("data-tip"); },
+    trainMs: function () { return lastTrainMs; },
+    loadingLevel: function (n) { return !!loadingLevels[n]; },
+    expandAccount: expandAccountProviders,
+    onboardScreens: function () {
+      var ids = ["welcomeScreen", "namePickScreen", "onboardScreen", "obPrompt", "coachMark"];
+      return ids.filter(function (id) {
+        var el = $(id);
+        if (!el || el.classList.contains("hidden")) return false;
+        if (id === "coachMark" && !el.classList.contains("show")) return false;
+        return true;
+      });
+    },
     onboardVisible: function () { return !$("onboardScreen").classList.contains("hidden"); },
     namePickVisible: function () { return !$("namePickScreen").classList.contains("hidden"); },
     shopBadgeOn: function () { return $("shopBtn").classList.contains("hasDeal"); },
@@ -6638,6 +6764,7 @@
     if (dnt && $("accountDnt")) $("accountDnt").checked = !!dnt.dnt();
     setTxt("onAskLabel", tr("tips.askToJoin"));
     setTxt("coachGotIt", tr("tips.gotIt"));
+    setTxt("coachSkipAll", tr("tips.skipAllTips"));
     setTxt("joinToastKick", tr("tips.kick"));
     var nm = window.__weltraum && window.__weltraum.names && window.__weltraum.names.current && window.__weltraum.names.current();
     setTxt("accountName", (nm && nm.name) || "—");
@@ -6652,7 +6779,16 @@
       $("accountSignOut").classList.toggle("hidden", !acc.isSignedIn());
       $("accountApple").classList.toggle("hidden", !acc.appleEnabled());
       $("accountNameBox").classList.toggle("hidden", !acc.isSignedIn());
-      $("accountNote").textContent = acc.isConfigured() ? tr("account.anonymousPlay") : tr("account.needConfigDetail");
+      var prof = acc.profile ? acc.profile() : null;
+      if (acc.isSignedIn()) {
+        setTxt("accountKind", tr("account.signedIn"));
+        var shown = (prof && (prof.username || prof.googleNameMasked || prof.emailMasked)) || tr("account.signedIn");
+        $("accountNote").textContent = tr("account.signedInAs", { name: shown });
+        if (prof && prof.username) setTxt("accountName", prof.username);
+      } else {
+        setTxt("accountKind", tr("account.guest"));
+        $("accountNote").textContent = acc.isConfigured() ? tr("account.anonymousPlay") : tr("account.needConfigDetail");
+      }
     }
     setTxt("overYouHave", tr("youScored"));
     if (typeof renderShop === "function" && (shopOpen || !$("shopScreen").classList.contains("hidden"))) renderShop();
@@ -6711,16 +6847,37 @@
     }
     return acc;
   }
-  $("accountSignIn").addEventListener("click", function () {
+  function expandAccountProviders() {
+    var started = Date.now();
     var acc = window.__weltraum && window.__weltraum.account;
+    var list = $("accountProviderList");
+    var busy = $("accountBusy");
+    $("accountSignIn").classList.add("busy");
+    if (busy) {
+      busy.textContent = tr("account.opening");
+      busy.classList.add("show");
+    }
+    if (list) list.classList.add("open");
+    $("accountNote").textContent = tr("account.opening");
     if (!acc) return;
     if (!acc.isConfigured()) {
       $("accountNote").textContent = tr("account.needConfigDetail");
       return;
     }
-    $("accountNote").textContent = tr("account.anonymousPlay");
-    var google = $("accountGoogle");
-    if (google && google.focus) google.focus();
+    if (acc.prepareAuth) {
+      Promise.resolve(acc.prepareAuth()).then(function () {
+        if (Date.now() - started < 200 && busy) busy.classList.add("show");
+      }).catch(function (err) {
+        showAccountError(err);
+      });
+    }
+  }
+  ["click", "pointerup", "touchend"].forEach(function (ev) {
+    $("accountSignIn").addEventListener(ev, function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      expandAccountProviders();
+    }, { passive: false });
   });
   $("accountGoogle").addEventListener("click", function () {
     var acc = requireConfiguredAccount();
@@ -6729,6 +6886,8 @@
     acc.signInGoogle().then(function () {
       $("accountNote").textContent = tr("account.linked");
       applyAllI18n();
+      refreshAccountBtn();
+      maybePickName();
     }).catch(showAccountError);
   });
   $("accountEmailLink").addEventListener("click", function () {
@@ -6769,6 +6928,14 @@
     if (api && id) api.dismissTip(api.loadTips(), id);
     hideCoach();
     trackPlay("tip_clicked");
+  });
+  $("coachSkipAll").addEventListener("click", function () {
+    var api = tipsApi();
+    if (api && api.skipAllTips) api.skipAllTips(api.loadTips());
+    var ob = onboardApi();
+    if (ob && ob.markSkipAllTips) ob.markSkipAllTips(ob.loadOnboard());
+    hideCoach();
+    if (mapTourOn) finishMapTour(true);
   });
   function refreshModeBar() {
     var mode = currentMode();
@@ -6859,13 +7026,17 @@
   $("trainBtn").addEventListener("click", function (e) { e.stopPropagation(); replayTutorial(); });
   $("accountReplay").addEventListener("click", function (e) { e.stopPropagation(); replayTutorial(); });
   $("namePickReroll").addEventListener("click", function () {
-    var names = window.__weltraum && window.__weltraum.names;
-    if (!names) return;
-    $("namePickShow").textContent = names.generate(curLang === "de" ? "de" : "en");
+    fillNameChoices("namePickChoices", "namePickShow");
   });
   $("namePickOk").addEventListener("click", acceptPickedName);
 
-  setTimeout(function () { applyAllI18n(); refreshAccountBtn(); }, 80);
+  setTimeout(function () {
+    applyAllI18n();
+    refreshAccountBtn();
+    prefetchNextLevels();
+    var acc = window.__weltraum && window.__weltraum.account;
+    if (acc && acc.onChange) acc.onChange(function () { applyAllI18n(); refreshAccountBtn(); });
+  }, 80);
   setInterval(refreshAccountBtn, 2000);
   if (window.__spaceGame) {
     window.__spaceGame.setLang = setGameLanguage;

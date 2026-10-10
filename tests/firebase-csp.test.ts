@@ -109,11 +109,13 @@ describe('Firebase Auth production CSP', { timeout: 45000 }, () => {
 
     await page.locator('#accountBtn').click();
     await page.waitForSelector('#accountScreen:not(.hidden)');
+    await page.locator('#accountSignIn').click();
+    await page.waitForSelector('#accountProviderList.open', { timeout: 2000 }).catch(() => {});
 
     const popupPromise = page.waitForEvent('popup', { timeout: 20000 }).then((p) => p).catch(() => null);
     const navPromise = page.waitForURL(/accounts\.google\.com|firebaseapp\.com|identitytoolkit/, { timeout: 20000 }).then(() => page.url()).catch(() => null);
 
-    await page.locator('#accountGoogle').click();
+    await page.locator('#accountGoogle').click({ force: true });
 
     const popup = await popupPromise;
     let target = '';
@@ -140,6 +142,8 @@ describe('Firebase Auth production CSP', { timeout: 45000 }, () => {
 
     await page.locator('#accountBtn').click();
     await page.waitForSelector('#accountScreen:not(.hidden)');
+    await page.locator('#accountSignIn').click();
+    await page.waitForSelector('#accountProviderList.open', { timeout: 2000 }).catch(() => {});
     await page.locator('#accountEmail').fill(`parent+csp@example.com`);
     await page.locator('#accountEmailLink').click();
     await page.waitForFunction(() => {

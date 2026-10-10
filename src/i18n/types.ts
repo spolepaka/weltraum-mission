@@ -212,6 +212,8 @@ export interface Translations {
     reroll: string;
     doNotTrack: string;
     replayTutorial: string;
+    opening: string;
+    signedInAs: string;
   };
   game: {
     neuBanner: string;

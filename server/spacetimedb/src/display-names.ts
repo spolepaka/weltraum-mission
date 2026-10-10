@@ -5,6 +5,7 @@ const BLOCKED = [
   'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'dick', 'pussy', 'nazi', 'hitler',
   'sex', 'porn', 'nude', 'slut', 'whore', 'nigger', 'faggot', 'cunt',
   'arsch', 'scheisse', 'scheiße', 'fotze', 'hure', 'wichser', 'mistkerl',
+  'heil', 'fuhrer', 'führer', 'rape', 'kill', 'die', 'hate',
 ];
 
 export type NameKind = 'generated' | 'custom';
@@ -31,10 +32,10 @@ function hasProfanity(value: string): boolean {
 export function validateDisplayName(raw: string, kind: NameKind): { ok: true; name: string } | { ok: false; reason: string } {
   const name = String(raw || '').replace(/\s+/g, ' ').trim();
   if (name.length < NAME_MIN || name.length > NAME_MAX) return { ok: false, reason: 'length' };
-  if (!/^[A-Za-z0-9ÄÖÜäöüß]+(?: [A-Za-z0-9ÄÖÜäöüß]+){0,3}$/.test(name)) return { ok: false, reason: 'chars' };
+  if (!/^[A-Za-z0-9ÄÖÜäöüß]+(?:[- ][A-Za-z0-9ÄÖÜäöüß]+){0,3}$/.test(name)) return { ok: false, reason: 'chars' };
   if (looksLikeEmail(name) || looksLikeUrl(name) || looksLikePhone(name)) return { ok: false, reason: 'pii' };
   if (hasProfanity(name)) return { ok: false, reason: 'blocked' };
-  if (kind === 'generated' && !/ \d{1,3}$/.test(name)) return { ok: false, reason: 'generated' };
+  if (kind === 'generated' && !/[A-Za-zÄÖÜäöüß]/.test(name)) return { ok: false, reason: 'generated' };
   return { ok: true, name };
 }
 

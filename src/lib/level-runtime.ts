@@ -45,25 +45,27 @@ export async function ensureLevel(level: number, unlocked: number): Promise<Leve
   const cached = cachedLevel(L);
   if (cached && cached.feats) return cached;
 
-  if (!fetcher) {
-    return cached;
-  }
-
   const existing = inflight.get(L);
   if (existing) return existing;
 
   const pending = (async () => {
     try {
-      const row = await fetcher!(L);
-      if (!row?.dataJson) return cached;
-      const payload = parseLevelPayload(L, row.dataJson);
-      cacheLevelPayload(payload);
-      return payload;
+      if (fetcher) {
+        const row = await fetcher(L);
+        if (row?.dataJson) {
+          const payload = parseLevelPayload(L, row.dataJson);
+          cacheLevelPayload(payload);
+          return payload;
+        }
+      }
     } catch {
-      return cached;
+      // fall through to deterministic local catalog
     } finally {
       inflight.delete(L);
     }
+    const local = buildLevelPayload(L);
+    cacheLevelPayload(local);
+    return local;
   })();
 
   inflight.set(L, pending);
@@ -71,15 +73,18 @@ export async function ensureLevel(level: number, unlocked: number): Promise<Leve
 }
 
 export function prefetchUnlocked(unlocked: number): number[] {
+  const cap = Math.max(1, Math.min(MAX_LEVEL, unlocked));
   const targets: number[] = [];
-  for (const L of [unlocked, unlocked - 1]) {
-    if (L > BUNDLED_LEVELS && L <= unlocked && L <= MAX_LEVEL && !cachedLevel(L)) {
-      targets.push(L);
-    }
+  const prefer = [cap, cap + 1, cap - 1];
+  for (const L of prefer) {
+    if (L > BUNDLED_LEVELS && L <= cap + 1 && L <= MAX_LEVEL && !cachedLevel(L)) targets.push(L);
+  }
+  for (let L = BUNDLED_LEVELS + 1; L <= cap; L++) {
+    if (!cachedLevel(L) && !targets.includes(L)) targets.push(L);
   }
   for (const L of targets) {
     prefetchLog.push(L);
-    void ensureLevel(L, unlocked);
+    void ensureLevel(L, Math.max(cap, L));
   }
   return targets;
 }
