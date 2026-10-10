@@ -1,22 +1,57 @@
 /**
  * Firebase Auth facade — no Firebase SDK import.
  * The SDK loads via dynamic import() only when Account opens or a session exists.
+ *
+ * Sign-in must call signInWithPopup synchronously inside the click handler
+ * (chunk preloaded). Redirect is only a fallback when the popup is blocked.
  */
+
+export {
+  AUTH_PROVIDERS,
+  PRODUCTION_APP_HOST,
+  FIREBASE_AUTH_PROXY_HOST,
+  enabledProviders,
+  getFirebaseConfig,
+  isAppleEnabled,
+  isAuthConfigured,
+  resolveAuthDomain,
+  setFirebaseEnvForTests,
+  tokenIssuerKind,
+  type AuthProviderId,
+  type FirebaseWebConfig,
+} from './firebase-config';
+
+export {
+  authErrorCode,
+  formatAuthDebugLine,
+  getAuthPathUsed,
+  getLastAuthErrorCode,
+  shouldFallbackToRedirect,
+  type AuthDebugSnapshot,
+  type AuthPathUsed,
+} from './firebase-auth-debug';
+
+import {
+  isAuthConfigured,
+  setFirebaseEnvForTests,
+  tokenIssuerKind,
+  type AuthProviderId,
+} from './firebase-config';
+import {
+  clearLastAuthError,
+  formatAuthDebugLine,
+  getAuthPathUsed,
+  getLastAuthErrorCode,
+  setAuthPathUsed,
+  setLastAuthError,
+  type AuthDebugSnapshot,
+} from './firebase-auth-debug';
 
 export const AUTH_STORAGE_KEY = 'spaceMissionFirebaseAuth';
 export const ANON_SNAPSHOT_KEY = 'spaceMissionAnonSnapshot';
 export const GUEST_TOKEN_KEY = 'spaceMissionGuestIdentityToken';
 export const EMAIL_FOR_LINK_KEY = 'spaceMissionEmailForLink';
 export const REDIRECT_FLAG_KEY = 'spaceMissionAuthRedirect';
-
-export type AuthProviderId = 'google' | 'emailLink' | 'apple';
-
-/** Add a provider here; gate optional ones with envFlag (Apple is off by default). */
-export const AUTH_PROVIDERS: { id: AuthProviderId; envFlag?: string }[] = [
-  { id: 'google' },
-  { id: 'emailLink' },
-  { id: 'apple', envFlag: 'VITE_FIREBASE_APPLE_ENABLED' },
-];
 
 export interface AuthUser {
   idToken: string;
@@ -38,68 +73,8 @@ export interface ProgressSnapshot {
   language: string;
 }
 
-export interface FirebaseWebConfig {
-  apiKey: string;
-  authDomain: string;
-  projectId: string;
-  appId: string;
-  messagingSenderId?: string;
-  storageBucket?: string;
-}
-
-let testEnvOverride: Record<string, string | undefined> | null = null;
-
-/** Test-only: pin or clear VITE_FIREBASE_* without depending on the process env. */
-export function setFirebaseEnvForTests(env: Record<string, string | undefined> | null): void {
-  testEnvOverride = env;
-}
-
-function viteEnv(name: string): string | undefined {
-  if (testEnvOverride && Object.prototype.hasOwnProperty.call(testEnvOverride, name)) {
-    const pinned = testEnvOverride[name];
-    return pinned || undefined;
-  }
-  try {
-    const env = (import.meta as { env?: Record<string, string | undefined> }).env;
-    if (env?.[name]) return env[name];
-  } catch {
-    // not a Vite runtime
-  }
-  try {
-    return (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[name];
-  } catch {
-    return undefined;
-  }
-}
-
-export function getFirebaseConfig(): FirebaseWebConfig | null {
-  const apiKey = viteEnv('VITE_FIREBASE_API_KEY');
-  const authDomain = viteEnv('VITE_FIREBASE_AUTH_DOMAIN');
-  const projectId = viteEnv('VITE_FIREBASE_PROJECT_ID');
-  const appId = viteEnv('VITE_FIREBASE_APP_ID');
-  if (!apiKey || !authDomain || !projectId || !appId) return null;
-  return {
-    apiKey,
-    authDomain,
-    projectId,
-    appId,
-    messagingSenderId: viteEnv('VITE_FIREBASE_MESSAGING_SENDER_ID'),
-    storageBucket: viteEnv('VITE_FIREBASE_STORAGE_BUCKET'),
-  };
-}
-
-export function isAuthConfigured(): boolean {
-  return getFirebaseConfig() !== null;
-}
-
-export function isAppleEnabled(): boolean {
-  return viteEnv('VITE_FIREBASE_APPLE_ENABLED') === '1' || viteEnv('VITE_FIREBASE_APPLE_ENABLED') === 'true';
-}
-
-export function enabledProviders(): AuthProviderId[] {
-  return AUTH_PROVIDERS
-    .filter((p) => !p.envFlag || viteEnv(p.envFlag) === '1' || viteEnv(p.envFlag) === 'true')
-    .map((p) => p.id);
+export interface SignInOpts {
+  forceRedirect?: boolean;
 }
 
 export function loadAuthUser(): AuthUser | null {
@@ -163,32 +138,9 @@ export function clearAnonSnapshot(): void {
   try { localStorage.removeItem(ANON_SNAPSHOT_KEY); } catch { /* ignore */ }
 }
 
-function errCode(err: unknown): string {
-  return String((err as { code?: string })?.code || '');
-}
-
-function errMessage(err: unknown): string {
-  return String((err as { message?: string })?.message || err || '');
-}
-
-/** Popup failed in a way that redirect can recover (iPad Safari, CSP, blocker). */
-export function shouldFallbackToRedirect(err: unknown): boolean {
-  const code = errCode(err);
-  const msg = errMessage(err);
-  return (
-    code === 'auth/popup-blocked' ||
-    code === 'auth/popup-closed-by-user' ||
-    code === 'auth/cancelled-popup-request' ||
-    code === 'auth/operation-not-supported-in-this-environment' ||
-    code === 'auth/internal-error' ||
-    /auth\/internal-error/i.test(msg) ||
-    /popup-blocked/i.test(msg) ||
-    /popup-closed/i.test(msg)
-  );
-}
-
 type AuthImpl = typeof import('./firebase-auth-impl');
 let implPromise: Promise<AuthImpl> | null = null;
+let implReady: AuthImpl | null = null;
 
 export function markRedirectPending(): void {
   try { sessionStorage.setItem(REDIRECT_FLAG_KEY, '1'); } catch { /* ignore */ }
@@ -235,28 +187,77 @@ export function needsFirebaseNow(): boolean {
 }
 
 export function ensureFirebase(): Promise<AuthImpl> {
-  if (!implPromise) implPromise = import('./firebase-auth-impl');
+  if (!implPromise) {
+    implPromise = import('./firebase-auth-impl').then((impl) => {
+      implReady = impl;
+      return impl;
+    });
+  }
   return implPromise;
 }
 
+/** Sync peek — used so Sign in with Google can start a popup without awaiting import(). */
+export function peekFirebase(): AuthImpl | null {
+  return implReady;
+}
+
+export function isFirebaseReady(): boolean {
+  return implReady !== null;
+}
+
+export function getAuthDebug(opts?: {
+  firebaseUser?: boolean;
+  issuer?: AuthDebugSnapshot['issuer'];
+}): AuthDebugSnapshot {
+  const impl = peekFirebase();
+  const liveUser = !!impl?.getFirebaseAuth()?.currentUser;
+  return {
+    path: getAuthPathUsed(),
+    lastError: getLastAuthErrorCode(),
+    firebaseUser: opts?.firebaseUser ?? (liveUser || !!loadAuthUser()),
+    issuer: opts?.issuer ?? tokenIssuerKind(loadAuthUser()?.idToken),
+  };
+}
+
+export function authDebugLine(opts?: {
+  firebaseUser?: boolean;
+  issuer?: AuthDebugSnapshot['issuer'];
+}): string {
+  return formatAuthDebugLine(getAuthDebug(opts));
+}
+
 export async function completeRedirectIfNeeded(): Promise<AuthUser | null> {
-  if (!needsFirebaseNow() && !isAuthConfigured()) return loadAuthUser();
-  if (!needsFirebaseNow() && !loadAuthUser() && !hasRedirectPending()) return null;
+  if (!isAuthConfigured() && !needsFirebaseNow()) return loadAuthUser();
   const impl = await ensureFirebase();
-  const user = await impl.completeRedirectIfNeeded();
-  clearRedirectPending();
-  return user;
+  try {
+    const user = await impl.completeRedirectIfNeeded();
+    clearRedirectPending();
+    return user;
+  } catch (err) {
+    setLastAuthError(err);
+    clearRedirectPending();
+    throw err;
+  }
 }
 
 export async function completeEmailLinkIfNeeded(): Promise<AuthUser | null> {
-  if (!needsFirebaseNow()) return loadAuthUser();
+  if (!needsFirebaseNow() && !isAuthConfigured()) return loadAuthUser();
   const impl = await ensureFirebase();
   return impl.completeEmailLinkIfNeeded();
 }
 
-export async function signInWithGoogle(): Promise<AuthUser> {
-  const impl = await ensureFirebase();
-  return impl.signInWithGoogle();
+/**
+ * Starts Google sign-in. When the auth chunk is preloaded this calls
+ * signInWithPopup synchronously (no await before the popup). Redirect
+ * only if the popup is actually blocked or the chunk is not ready yet.
+ */
+export function signInWithGoogle(opts?: SignInOpts): Promise<AuthUser> {
+  const impl = peekFirebase();
+  if (impl) return impl.signInWithGoogle(opts);
+  setAuthPathUsed('redirect');
+  setLastAuthError({ code: 'auth/popup-blocked', message: 'firebase-chunk-not-ready' });
+  markRedirectPending();
+  return ensureFirebase().then((ready) => ready.signInWithGoogle({ forceRedirect: true }));
 }
 
 export async function startEmailLink(email: string): Promise<void> {
@@ -264,9 +265,18 @@ export async function startEmailLink(email: string): Promise<void> {
   return impl.startEmailLink(email);
 }
 
-export async function signInWithApple(): Promise<AuthUser> {
+export async function signInWithEmulatorGoogle(email: string): Promise<AuthUser> {
   const impl = await ensureFirebase();
-  return impl.signInWithApple();
+  return impl.signInWithEmulatorGoogle(email);
+}
+
+export function signInWithApple(opts?: SignInOpts): Promise<AuthUser> {
+  const impl = peekFirebase();
+  if (impl) return impl.signInWithApple(opts);
+  setAuthPathUsed('redirect');
+  setLastAuthError({ code: 'auth/popup-blocked', message: 'firebase-chunk-not-ready' });
+  markRedirectPending();
+  return ensureFirebase().then((ready) => ready.signInWithApple({ forceRedirect: true }));
 }
 
 export async function signOutFirebase(): Promise<void> {
@@ -278,10 +288,15 @@ export async function signOutFirebase(): Promise<void> {
   return impl.signOutFirebase();
 }
 
+export function watchAuthState(onUser: (user: AuthUser | null) => void): () => void {
+  let unsub: () => void = () => {};
+  void ensureFirebase().then((impl) => {
+    unsub = impl.watchAuthState(onUser);
+  });
+  return () => unsub();
+}
+
 export function watchIdToken(onToken: (user: AuthUser | null) => void): () => void {
-  if (!loadAuthUser() && !needsFirebaseNow()) {
-    return () => undefined;
-  }
   let unsub: () => void = () => {};
   void ensureFirebase().then((impl) => {
     unsub = impl.watchIdToken(onToken);
@@ -296,9 +311,15 @@ export async function currentIdToken(forceRefresh = false): Promise<string | nul
 }
 
 export async function resetFirebaseForTests(): Promise<void> {
-  testEnvOverride = null;
-  if (!implPromise) return;
+  setFirebaseEnvForTests(null);
+  clearLastAuthError();
+  setAuthPathUsed('none');
+  if (!implPromise) {
+    implReady = null;
+    return;
+  }
   const impl = await implPromise;
   await impl.resetFirebaseForTests();
   implPromise = null;
+  implReady = null;
 }

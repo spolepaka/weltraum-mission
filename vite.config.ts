@@ -13,6 +13,18 @@ const FIREBASE_CONNECT = "https://identitytoolkit.googleapis.com https://securet
 const PEER_CONNECT = "https://0.peerjs.com wss://0.peerjs.com https://*.peerjs.com wss://*.peerjs.com";
 const PROD_CONNECT = `connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com ${FIREBASE_CONNECT} ${PEER_CONNECT}`;
 const DEV_CONNECT = `connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com ${FIREBASE_CONNECT} ${PEER_CONNECT}`;
+const FIREBASE_AUTH_PROXY = {
+  '/__/auth': {
+    target: 'https://weltraum-mission.firebaseapp.com',
+    changeOrigin: true,
+    secure: true,
+  },
+  '/__/firebase': {
+    target: 'https://weltraum-mission.firebaseapp.com',
+    changeOrigin: true,
+    secure: true,
+  },
+};
 
 function catalogForHtml<T extends { feats?: Record<string, unknown> }>(cat: T): T {
   const feats = { ...(cat.feats || {}) };
@@ -63,10 +75,12 @@ export default defineConfig({
     port: 5173,
     host: true,
     strictPort: true,
+    proxy: FIREBASE_AUTH_PROXY,
   },
   preview: {
     port: 4173,
     host: true,
     strictPort: true,
+    proxy: FIREBASE_AUTH_PROXY,
   },
 });

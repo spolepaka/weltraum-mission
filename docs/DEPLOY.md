@@ -55,11 +55,14 @@ Onboarding (welcome → Training flight → map tour) is stored in `spaceMission
 ### Firebase project (already created)
 
 - Project id: `weltraum-mission`
-- Auth domain: `weltraum-mission.firebaseapp.com`
+- Auth domain (Firebase Hosting helper): `weltraum-mission.firebaseapp.com`
+- Production first-party `authDomain` (runtime): `space-game-deploy.vercel.app`
 - Trusted issuer: `https://securetoken.google.com/weltraum-mission`
 - Audience: `weltraum-mission`
 
-`VITE_FIREBASE_*` is already set on Vercel (Production + Preview). Do not commit the web apiKey into the repo or tests.
+Safari / iPad ITP partitions third-party storage. If `authDomain` stays on `*.firebaseapp.com` while the app is on `space-game-deploy.vercel.app`, `signInWithRedirect` + `getRedirectResult` come back as a guest. The app now proxies `/__/auth/*` and `/__/firebase/*` through the Vercel host (see `vercel.json`) and uses `location.host` as `authDomain` on that production host.
+
+`VITE_FIREBASE_*` is already set on Vercel (Production + Preview). Do not commit the web apiKey into the repo or tests. The client does **not** require `VITE_FIREBASE_AUTH_DOMAIN` to already be the first-party host — on `space-game-deploy.vercel.app` it overrides to `location.host`.
 
 ### What to finish in the Firebase console
 
@@ -67,8 +70,9 @@ Onboarding (welcome → Training flight → map tour) is stored in `spaceMission
    - **Google** enabled (support email + authorized domains: Vercel host and `localhost`)
    - **Email/Password** with **Email link (passwordless sign-in)** enabled
    - Apple: leave disabled until you are ready. Then enable Apple, add Services ID / key, and set `VITE_FIREBASE_APPLE_ENABLED=1`
-2. **Authentication → Settings → Authorized domains**: production host (no scheme) plus `localhost`
-3. `authDomain` `weltraum-mission.firebaseapp.com` is already allowed by CSP `frame-src` (`https://*.firebaseapp.com` / `https://*.web.app`)
+2. **Authentication → Settings → Authorized domains**: add `space-game-deploy.vercel.app` (no scheme) plus `localhost`
+3. Google Cloud → APIs & Services → Credentials → the Web OAuth client → **Authorized redirect URIs**: add `https://space-game-deploy.vercel.app/__/auth/handler` (the trailing `/__/auth/handler` is required)
+4. CSP `frame-src` includes `'self'` so the first-party `/__/auth/iframe` helper is allowed. `vercel.json` rewrites `/__/auth/:path*` and `/__/firebase/:path*` to `https://weltraum-mission.firebaseapp.com/__/auth/:path*` (transparent proxy, not a 302).
 
 ### What to create in the SpacetimeDB dashboard
 
@@ -88,7 +92,7 @@ In the Vercel project → Settings → Environment Variables (Production + Previ
 | Name | Value |
 |------|--------|
 | `VITE_FIREBASE_API_KEY` | Firebase web `apiKey` |
-| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase web `authDomain` (e.g. `weltraum-mission.firebaseapp.com`) |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Optional. Runtime uses `space-game-deploy.vercel.app` on that host. You may set this to `space-game-deploy.vercel.app` after deploy, or leave `weltraum-mission.firebaseapp.com`. |
 | `VITE_FIREBASE_PROJECT_ID` | Firebase `projectId` (must match the module constant) |
 | `VITE_FIREBASE_APP_ID` | Firebase web `appId` |
 
@@ -105,7 +109,7 @@ On first sign-in the client snapshots anonymous progress, reconnects with the Fi
 
 ### Mobile / Capacitor (next steps, not in this change)
 
-The web app uses `signInWithPopup` with a `signInWithRedirect` fallback for iPad Safari and an installed home-screen web app (`navigator.standalone` / `display-mode: standalone`).
+The web app preloads the Firebase chunk when Account opens, then calls `signInWithPopup` synchronously inside **Sign in with Google**. Redirect is used only if the popup is actually blocked. After either path, `onAuthStateChanged` updates the Account panel. On iPad Safari the first-party `/__/auth` proxy is required so redirect/helper storage is not third-party.
 
 For a later native Capacitor shell:
 

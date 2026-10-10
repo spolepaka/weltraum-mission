@@ -17,15 +17,22 @@ import {
   completeRedirectIfNeeded,
   completeEmailLinkIfNeeded,
   signInWithGoogle,
+  signInWithEmulatorGoogle,
   startEmailLink,
   signInWithApple,
   signOutFirebase,
   watchIdToken,
+  watchAuthState,
   ensureFirebase,
   needsFirebaseNow,
   maskEmail,
   maskDisplayName,
+  getAuthDebug,
+  getFirebaseConfig,
+  authErrorCode,
+  tokenIssuerKind,
   type ProgressSnapshot,
+  type SignInOpts,
 } from './lib/firebase-auth';
 import { mergeCoins, shouldAcceptServerCoins } from './lib/coin-ledger';
 import { loadPeerConstructor } from './lib/online-peer';
@@ -120,6 +127,12 @@ export interface WeltraumApi {
     prepareAuth: () => Promise<void>;
     status: () => SyncStatus;
     guestLabel: () => string;
+    debug: () => {
+      path: 'popup' | 'redirect' | 'none';
+      lastError: string | null;
+      firebaseUser: boolean;
+      issuer: 'anon' | 'firebase' | 'unknown';
+    };
     profile: () => {
       signedIn: boolean;
       email?: string;
@@ -130,9 +143,10 @@ export interface WeltraumApi {
       uid?: string;
     };
     onChange: (cb: () => void) => () => void;
-    signInGoogle: () => Promise<void>;
+    signInGoogle: (opts?: SignInOpts) => Promise<void>;
+    signInEmulatorGoogle: (email: string) => Promise<void>;
     startEmailLink: (email: string) => Promise<void>;
-    signInApple: () => Promise<void>;
+    signInApple: (opts?: SignInOpts) => Promise<void>;
     signOut: () => Promise<void>;
   };
 }
@@ -223,6 +237,21 @@ let watchBound = false;
 let authFlowLock = false;
 const accountListeners: Array<() => void> = [];
 
+function reportAuthFailure(client: SpacetimeClient, err: unknown, path: string): void {
+  const code = authErrorCode(err) || String((err as { message?: string })?.message || err || 'auth_error');
+  let host = '';
+  try { host = window.location.host; } catch { /* ignore */ }
+  client.reportError({
+    errorType: 'firebase_auth',
+    message: code,
+    context: JSON.stringify({
+      path,
+      host,
+      authDomain: getFirebaseConfig()?.authDomain || '',
+    }),
+  });
+}
+
 function notifyAccount(): void {
   accountListeners.forEach((fn) => {
     try { fn(); } catch { /* ignore */ }
@@ -287,7 +316,7 @@ async function connectFirebaseIdentity(client: SpacetimeClient, firstSignIn: boo
     if (snap) saveAnonSnapshot(snap);
   }
   await client.reconnectWithToken(user.idToken);
-  bindTokenWatch(client);
+  bindAuthWatch(client);
   if (!loadDoNotTrack()) client.trackAnalytics('sign_in', 0, loadDifficulty());
   if (firstSignIn) {
     importedOnce = false;
@@ -405,13 +434,19 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       appleEnabled: () => isAppleEnabled(),
       shortId: () => client.shortPlayerId(),
       displayName: () => loadDisplayName()?.name || '',
-      prepareAuth: async () => { await ensureFirebase(); },
+      prepareAuth: async () => {
+        await ensureFirebase();
+        bindAuthWatch(client);
+      },
       status: () => client.getStatus(),
       guestLabel: () => {
         const user = loadAuthUser();
         if (user) return t('account.signedIn');
         return t('account.guest');
       },
+      debug: () => getAuthDebug({
+        issuer: tokenIssuerKind(client.connectToken() || loadAuthUser()?.idToken),
+      }),
       profile: () => {
         const user = loadAuthUser();
         const username = loadDisplayName()?.name || '';
@@ -432,13 +467,31 @@ function installApi(client: SpacetimeClient): WeltraumApi {
           if (i >= 0) accountListeners.splice(i, 1);
         };
       },
-      signInGoogle: async () => {
+      signInGoogle: (opts?: SignInOpts) => {
+        if (!isAuthConfigured()) return Promise.reject(new Error('auth_not_configured'));
+        authFlowLock = true;
+        const snap = snapshotFromGame();
+        if (snap) saveAnonSnapshot(snap);
+        // signInWithGoogle must start the popup synchronously (no await before it).
+        return signInWithGoogle(opts).then(async () => {
+          await connectFirebaseIdentity(client, true);
+          await afterProgressReady(client);
+        }).catch((err: unknown) => {
+          if ((err as { message?: string })?.message !== 'redirecting') {
+            reportAuthFailure(client, err, opts?.forceRedirect ? 'redirect' : 'popup');
+          }
+          throw err;
+        }).finally(() => {
+          authFlowLock = false;
+        });
+      },
+      signInEmulatorGoogle: async (email: string) => {
         if (!isAuthConfigured()) throw new Error('auth_not_configured');
         authFlowLock = true;
         try {
           const snap = snapshotFromGame();
           if (snap) saveAnonSnapshot(snap);
-          await signInWithGoogle();
+          await signInWithEmulatorGoogle(email);
           await connectFirebaseIdentity(client, true);
           await afterProgressReady(client);
         } finally {
@@ -449,20 +502,29 @@ function installApi(client: SpacetimeClient): WeltraumApi {
         if (!isAuthConfigured()) throw new Error('auth_not_configured');
         const snap = snapshotFromGame();
         if (snap) saveAnonSnapshot(snap);
-        await startEmailLink(email);
-      },
-      signInApple: async () => {
-        if (!isAuthConfigured()) throw new Error('auth_not_configured');
-        authFlowLock = true;
         try {
-          const snap = snapshotFromGame();
-          if (snap) saveAnonSnapshot(snap);
-          await signInWithApple();
+          await startEmailLink(email);
+        } catch (err) {
+          reportAuthFailure(client, err, 'emailLink');
+          throw err;
+        }
+      },
+      signInApple: (opts?: SignInOpts) => {
+        if (!isAuthConfigured()) return Promise.reject(new Error('auth_not_configured'));
+        authFlowLock = true;
+        const snap = snapshotFromGame();
+        if (snap) saveAnonSnapshot(snap);
+        return signInWithApple(opts).then(async () => {
           await connectFirebaseIdentity(client, true);
           await afterProgressReady(client);
-        } finally {
+        }).catch((err: unknown) => {
+          if ((err as { message?: string })?.message !== 'redirecting') {
+            reportAuthFailure(client, err, opts?.forceRedirect ? 'redirect' : 'popup');
+          }
+          throw err;
+        }).finally(() => {
           authFlowLock = false;
-        }
+        });
       },
       signOut: async () => {
         importedOnce = false;
@@ -504,10 +566,18 @@ function attachCoopStandIn(): void {
   }
 }
 
-function bindTokenWatch(client: SpacetimeClient): void {
+function bindAuthWatch(client: SpacetimeClient): void {
   if (watchBound) return;
-  if (!loadAuthUser() && !needsFirebaseNow()) return;
   watchBound = true;
+  watchAuthState((user) => {
+    notifyAccount();
+    if (!user || authFlowLock) return;
+    void (async () => {
+      if (client.connectToken() === user.idToken && client.isSignedIn()) return;
+      await connectFirebaseIdentity(client, true);
+      await afterProgressReady(client);
+    })();
+  });
   watchIdToken((user) => {
     if (!user || authFlowLock) return;
     if (!client.isSignedIn()) return;
@@ -535,9 +605,13 @@ async function init(): Promise<void> {
 
   let signed = null as Awaited<ReturnType<typeof completeRedirectIfNeeded>>;
   try {
-    signed = await completeEmailLinkIfNeeded() || await completeRedirectIfNeeded();
+    if (isAuthConfigured() || needsFirebaseNow() || loadAuthUser()) {
+      await ensureFirebase();
+      signed = await completeEmailLinkIfNeeded() || await completeRedirectIfNeeded();
+    }
   } catch (err) {
     console.warn('[Weltraum] Firebase callback failed', err);
+    reportAuthFailure(client, err, 'redirect');
   }
 
   const connected = await initSpacetime();
@@ -555,7 +629,9 @@ async function init(): Promise<void> {
     console.log('[Weltraum] Running in offline mode (local cache)');
     showGameSync('offline');
   }
-  bindTokenWatch(client);
+  if (isAuthConfigured() || needsFirebaseNow() || loadAuthUser()) {
+    bindAuthWatch(client);
+  }
 }
 
 init();
