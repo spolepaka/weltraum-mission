@@ -508,6 +508,7 @@ describe('Lazy levels: returning-player edges', { timeout: 45000 }, () => {
               unlockedLevel: number; coins: number; equippedShip: string; ownedShips: string[];
               upgrades: Record<string, number>; stars: Record<string, number>; best: Record<string, number>; language: string;
             }) => Promise<{ ok: boolean; reason?: string }>;
+            fetchMyProgress: () => Promise<{ unlockedLevel: number } | null>;
           };
         };
       };
@@ -521,11 +522,14 @@ describe('Lazy levels: returning-player edges', { timeout: 45000 }, () => {
         unlockedLevel: 40, coins: 40, equippedShip: 'starter', ownedShips: ['starter'],
         upgrades: {}, stars, best: {}, language: 'en',
       });
-      return { first, second };
+      const remote = await w.__weltraum!.spacetime!.fetchMyProgress();
+      return { first, second, unlocked: remote?.unlockedLevel ?? 0 };
     });
     expect(out.first.ok).toBe(true);
     expect(out.second.ok).toBe(false);
-    expect(out.second.reason || '').toMatch(/already used|Legacy import/i);
+    expect(out.second.reason).toBeTruthy();
+    expect(out.unlocked).toBeLessThan(40);
+    expect(out.unlocked).toBeGreaterThanOrEqual(5);
     await context.close();
   });
 
