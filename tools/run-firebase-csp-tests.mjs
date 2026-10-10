@@ -10,7 +10,8 @@ import { createConnection } from 'node:net';
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '') || process.cwd();
 const AUTH_PORT = 9099;
-const PREVIEW_PORT = 4174;
+const GOOGLE_PORT = 4174;
+const EMAIL_PORT = 4175;
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -74,17 +75,17 @@ function requiredFirebaseEnv() {
   };
 }
 
-async function startPreview(env) {
-  if (await portOpen(PREVIEW_PORT)) {
-    try { await run('fuser', ['-k', `${PREVIEW_PORT}/tcp`]); } catch { /* ignore */ }
-    await waitForPortClosed(PREVIEW_PORT);
+async function startPreview(port, env) {
+  if (await portOpen(port)) {
+    try { await run('fuser', ['-k', `${port}/tcp`]); } catch { /* ignore */ }
+    await waitForPortClosed(port);
   }
   const preview = spawn(
     'npx',
-    ['vite', 'preview', '--host', '127.0.0.1', '--port', String(PREVIEW_PORT), '--strictPort'],
+    ['vite', 'preview', '--host', '127.0.0.1', '--port', String(port), '--strictPort'],
     { cwd: ROOT, stdio: 'inherit', env },
   );
-  await waitForPort(PREVIEW_PORT, 'vite preview (csp)');
+  await waitForPort(port, `vite preview (csp :${port})`);
   return preview;
 }
 
@@ -118,9 +119,9 @@ async function main() {
 
   console.log('[firebase-csp] production build (no localhost CSP) for Google');
   await run('npm', ['run', 'build'], { env: { ...process.env, ...firebaseEnv } });
-  preview = await startPreview({ ...process.env });
+  preview = await startPreview(GOOGLE_PORT, { ...process.env });
 
-  const html = await fetch(`http://127.0.0.1:${PREVIEW_PORT}/`).then((r) => r.text());
+  const html = await fetch(`http://127.0.0.1:${GOOGLE_PORT}/`).then((r) => r.text());
   if (!/script-src[^;]*https:\/\/apis\.google\.com/.test(html) || !/script-src[^;]*https:\/\/www\.gstatic\.com/.test(html)) {
     throw new Error('Production HTML script-src missing apis.google.com / www.gstatic.com');
   }
@@ -131,7 +132,7 @@ async function main() {
   await run('npx', ['vitest', 'run', 'tests/firebase-csp.test.ts'], {
     env: {
       ...process.env,
-      E2E_BASE_URL: `http://127.0.0.1:${PREVIEW_PORT}`,
+      E2E_BASE_URL: `http://127.0.0.1:${GOOGLE_PORT}`,
       FIREBASE_CSP_MODE: 'google',
     },
   });
@@ -139,7 +140,7 @@ async function main() {
   if (preview) {
     preview.kill('SIGTERM');
     preview = null;
-    await waitForPortClosed(PREVIEW_PORT);
+    await waitForPortClosed(GOOGLE_PORT);
   }
 
   console.log('[firebase-csp] emulator build for email link');
@@ -153,12 +154,12 @@ async function main() {
       VITE_FIREBASE_AUTH_DOMAIN: 'demo-weltraum.firebaseapp.com',
     },
   });
-  preview = await startPreview({ ...process.env });
+  preview = await startPreview(EMAIL_PORT, { ...process.env });
 
   await run('npx', ['vitest', 'run', 'tests/firebase-csp.test.ts'], {
     env: {
       ...process.env,
-      E2E_BASE_URL: `http://127.0.0.1:${PREVIEW_PORT}`,
+      E2E_BASE_URL: `http://127.0.0.1:${EMAIL_PORT}`,
       FIREBASE_CSP_MODE: 'email',
     },
   });
