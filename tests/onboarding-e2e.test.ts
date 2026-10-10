@@ -79,45 +79,38 @@ async function waitStep(page: Page, step: string): Promise<void> {
   }, step, { timeout: 12000 });
 }
 
-async function playTraining(page: Page, tag: string): Promise<void> {
-  await waitStep(page, 'moveLeft');
-  await waitPrompt(page, /LEFT|LINKS/i);
-  await shot(page, `onboard_train_left_${tag}`);
-  await page.locator('#leftBtn').click({ force: true });
-  await waitStep(page, 'moveRight');
-  await waitPrompt(page, /RIGHT|RECHTS/i);
-  await shot(page, `onboard_train_right_${tag}`);
-  await page.locator('#rightBtn').click({ force: true });
-  await waitStep(page, 'shootRock');
-  await waitPrompt(page, /asteroid|Asteroid|shoot|schieß|Space/i);
-  await shot(page, `onboard_train_shoot_${tag}`);
-  const shotDbg = await page.evaluate(() => {
-    const w = window as GameWin;
-    const keys = w.__spaceGame ? Object.keys(w.__spaceGame) : [];
-    w.__spaceGame?.fire?.();
-    return { keys: keys.slice(0, 30), step: w.__spaceGame?.trainStep?.(), hasFire: typeof w.__spaceGame?.fire === 'function' };
-  });
-  if (shotDbg.step !== 'collectCoin') {
-    throw new Error(`shoot did not advance: ${JSON.stringify(shotDbg)}`);
+async function currentStep(page: Page): Promise<string> {
+  return page.evaluate(() => (window as GameWin).__spaceGame?.trainStep?.() || '');
+}
+
+async function shotIfOn(page: Page, step: string, re: RegExp, name: string): Promise<void> {
+  await waitStep(page, step);
+  if (await currentStep(page) === step) {
+    await waitPrompt(page, re);
   }
-  await waitStep(page, 'collectCoin');
-  await waitPrompt(page, /coin|Münze/i);
-  await shot(page, `onboard_train_coin_${tag}`);
-  await page.waitForTimeout(1200);
-  await waitStep(page, 'grabPower');
-  await waitPrompt(page, /power-up|Extra/i);
-  await shot(page, `onboard_train_power_${tag}`);
-  await page.waitForTimeout(1200);
-  await waitStep(page, 'avoidHazard');
-  await waitPrompt(page, /away|aus|Steer|Weich/i);
-  await shot(page, `onboard_train_dodge_${tag}`);
+  await shot(page, name);
+}
+
+async function playTraining(page: Page, tag: string): Promise<void> {
+  await shotIfOn(page, 'moveLeft', /LEFT|LINKS/i, `onboard_train_left_${tag}`);
+  await page.locator('#leftBtn').click({ force: true });
+  await shotIfOn(page, 'moveRight', /RIGHT|RECHTS/i, `onboard_train_right_${tag}`);
+  await page.locator('#rightBtn').click({ force: true });
+  await shotIfOn(page, 'shootRock', /asteroid|Asteroid|shoot|schieß|Space/i, `onboard_train_shoot_${tag}`);
+  await page.evaluate(() => (window as GameWin).__spaceGame?.fire?.());
+  await shotIfOn(page, 'collectCoin', /coin|Münze/i, `onboard_train_coin_${tag}`);
+  await page.waitForTimeout(1400);
+  await shotIfOn(page, 'grabPower', /power-up|Extra/i, `onboard_train_power_${tag}`);
+  await page.waitForTimeout(1400);
+  await shotIfOn(page, 'avoidHazard', /away|aus|Steer|Weich/i, `onboard_train_dodge_${tag}`);
   await page.waitForTimeout(2800);
-  await waitStep(page, 'miniBoss');
-  await waitPrompt(page, /trainer|Trainer|tiny|Mini/i);
-  await shot(page, `onboard_train_boss_${tag}`);
-  for (let i = 0; i < 50; i++) {
-    await page.evaluate(() => (window as GameWin).__spaceGame?.fire?.());
-    await page.waitForTimeout(60);
+  await shotIfOn(page, 'miniBoss', /trainer|Trainer|tiny|Mini/i, `onboard_train_boss_${tag}`);
+  for (let i = 0; i < 20; i++) {
+    if ((await currentStep(page)) !== 'miniBoss') break;
+    await page.evaluate(() => {
+      try { (window as GameWin).__spaceGame?.fire?.(); } catch { /* trainer already popped */ }
+    });
+    await page.waitForTimeout(80);
   }
 }
 

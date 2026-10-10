@@ -1063,8 +1063,12 @@
       spawnPower(boss.x, boss.y);
     }
     addScore(500); bossesBeaten++; missionAdd("boss", 1);
-    if (trainOn && trainStep === "miniBoss") { trainAdvance(); }
-    var bx0 = hole ? hole.x : boss.x, by0 = hole ? hole.y : boss.y;
+    var bx0 = hole ? hole.x : (boss ? boss.x : W / 2), by0 = hole ? hole.y : (boss ? boss.y : H / 3);
+    if (trainOn && trainStep === "miniBoss") {
+      bombs = []; drones = []; boss = null;
+      trainAdvance();
+      return;
+    }
     for (var ci = 0; ci < 10; ci++) { dropCoin(bx0 + rnd(-90, 90), by0 + rnd(-30, 30), 1, 5); coinsArr[coinsArr.length - 1].vx = rnd(-60, 60); }
     bombs = []; drones = []; boss = null;
   }
