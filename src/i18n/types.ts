@@ -193,6 +193,11 @@ export interface Translations {
     saved: string;
     signIn: string;
     signInSave: string;
+    google: string;
+    emailLink: string;
+    emailPlaceholder: string;
+    emailSent: string;
+    apple: string;
     signOut: string;
     close: string;
     needConfig: string;

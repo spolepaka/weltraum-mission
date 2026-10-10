@@ -1,23 +1,28 @@
 /**
  * Vite entry loaded by the game HTML.
  * Connects the official SpacetimeDB SDK and routes save/load, level
- * start/complete, purchases, codes, co-op security, and SpacetimeAuth.
+ * start/complete, purchases, codes, co-op security, and Firebase Auth.
  */
 
 import { initLanguage, getLanguage, setLanguage, toggleLanguage, t, onLanguageChange, getCatalog } from './i18n';
 import { initSpacetime, getSpacetimeClient, type SyncStatus, type SpacetimeClient } from './lib/spacetime-client';
 import * as coop from './coop-security';
 import {
-  completeSignInIfNeeded,
-  getAuthConfig,
   isAuthConfigured,
+  isAppleEnabled,
   loadAuthUser,
   loadAnonSnapshot,
+  saveAnonSnapshot,
   clearAnonSnapshot,
-  startSignIn,
-  clearAuthUser,
+  completeRedirectIfNeeded,
+  completeEmailLinkIfNeeded,
+  signInWithGoogle,
+  startEmailLink,
+  signInWithApple,
+  signOutFirebase,
+  watchIdToken,
   type ProgressSnapshot,
-} from './lib/spacetime-auth';
+} from './lib/firebase-auth';
 import { mergeCoins, shouldAcceptServerCoins } from './lib/coin-ledger';
 
 export interface WeltraumApi {
@@ -50,11 +55,14 @@ export interface WeltraumApi {
   account: {
     isConfigured: () => boolean;
     isSignedIn: () => boolean;
+    appleEnabled: () => boolean;
     shortId: () => string;
     status: () => SyncStatus;
     guestLabel: () => string;
-    signIn: () => Promise<void>;
-    signOut: () => void;
+    signInGoogle: () => Promise<void>;
+    startEmailLink: (email: string) => Promise<void>;
+    signInApple: () => Promise<void>;
+    signOut: () => Promise<void>;
   };
 }
 
@@ -139,6 +147,39 @@ function applyHigherServerCoins(client: SpacetimeClient): void {
   }
 }
 
+let importedOnce = false;
+let watchBound = false;
+let authFlowLock = false;
+
+async function mergeAfterSignIn(client: SpacetimeClient): Promise<void> {
+  if (importedOnce) return;
+  const snap = loadAnonSnapshot() || snapshotFromGame();
+  if (snap && loadAuthUser()) {
+    importedOnce = true;
+    client.importProgress(snap);
+    clearAnonSnapshot();
+    await client.reconcileWithServer();
+    applyHigherServerCoins(client);
+  }
+}
+
+async function connectFirebaseIdentity(client: SpacetimeClient, firstSignIn: boolean): Promise<void> {
+  const user = loadAuthUser();
+  if (!user?.idToken) return;
+  if (firstSignIn) {
+    const snap = snapshotFromGame();
+    if (snap) saveAnonSnapshot(snap);
+  }
+  await client.reconnectWithToken(user.idToken);
+  if (firstSignIn) {
+    importedOnce = false;
+    await mergeAfterSignIn(client);
+  } else {
+    await client.reconcileWithServer();
+    applyHigherServerCoins(client);
+  }
+}
+
 function installApi(client: SpacetimeClient): WeltraumApi {
   const api: WeltraumApi = {
     i18n: { t, getLanguage, setLanguage, toggleLanguage, onLanguageChange, getCatalog },
@@ -185,18 +226,50 @@ function installApi(client: SpacetimeClient): WeltraumApi {
     account: {
       isConfigured: () => isAuthConfigured(),
       isSignedIn: () => client.isSignedIn() || !!loadAuthUser(),
+      appleEnabled: () => isAppleEnabled(),
       shortId: () => client.shortPlayerId(),
       status: () => client.getStatus(),
-      guestLabel: () => (client.isSignedIn() ? t('account.signedIn') : t('account.guest')),
-      signIn: async () => {
-        if (!isAuthConfigured()) {
-          throw new Error('auth_not_configured');
-        }
-        await startSignIn(snapshotFromGame());
+      guestLabel: () => {
+        const user = loadAuthUser();
+        if (user?.email) return user.email;
+        return client.isSignedIn() ? t('account.signedIn') : t('account.guest');
       },
-      signOut: () => {
-        clearAuthUser();
-        window.location.reload();
+      signInGoogle: async () => {
+        if (!isAuthConfigured()) throw new Error('auth_not_configured');
+        authFlowLock = true;
+        try {
+          const snap = snapshotFromGame();
+          if (snap) saveAnonSnapshot(snap);
+          await signInWithGoogle();
+          await connectFirebaseIdentity(client, true);
+        } finally {
+          authFlowLock = false;
+        }
+      },
+      startEmailLink: async (email: string) => {
+        if (!isAuthConfigured()) throw new Error('auth_not_configured');
+        const snap = snapshotFromGame();
+        if (snap) saveAnonSnapshot(snap);
+        await startEmailLink(email);
+      },
+      signInApple: async () => {
+        if (!isAuthConfigured()) throw new Error('auth_not_configured');
+        authFlowLock = true;
+        try {
+          const snap = snapshotFromGame();
+          if (snap) saveAnonSnapshot(snap);
+          await signInWithApple();
+          await connectFirebaseIdentity(client, true);
+        } finally {
+          authFlowLock = false;
+        }
+      },
+      signOut: async () => {
+        importedOnce = false;
+        await signOutFirebase();
+        await client.restoreGuestIdentity();
+        await client.reconcileWithServer();
+        applyHigherServerCoins(client);
       },
     },
   };
@@ -227,6 +300,20 @@ function attachCoopStandIn(): void {
   }
 }
 
+function bindTokenWatch(client: SpacetimeClient): void {
+  if (watchBound) return;
+  watchBound = true;
+  watchIdToken((user) => {
+    if (!user || authFlowLock) return;
+    if (!client.isSignedIn()) return;
+    void (async () => {
+      await client.reconnectWithToken(user.idToken);
+      await client.reconcileWithServer();
+      applyHigherServerCoins(client);
+    })();
+  });
+}
+
 async function init(): Promise<void> {
   console.log('[Weltraum] Initializing SpacetimeDB client...');
   initLanguage();
@@ -237,22 +324,20 @@ async function init(): Promise<void> {
   api.onSyncStatusChange(() => undefined);
   attachCoopStandIn();
 
+  let signed = null as Awaited<ReturnType<typeof completeRedirectIfNeeded>>;
   try {
-    const signed = await completeSignInIfNeeded();
-    if (signed) {
-      console.log('[Weltraum] SpacetimeAuth sign-in complete');
-    }
+    signed = await completeEmailLinkIfNeeded() || await completeRedirectIfNeeded();
   } catch (err) {
-    console.warn('[Weltraum] SpacetimeAuth callback failed', err);
+    console.warn('[Weltraum] Firebase callback failed', err);
   }
 
   const connected = await initSpacetime();
   if (connected) {
     console.log('[Weltraum] SpacetimeDB connected', client.getIdentityHex());
-    const snap = loadAnonSnapshot();
-    if (snap && loadAuthUser()) {
-      client.importProgress(snap);
-      clearAnonSnapshot();
+    if (signed) {
+      await connectFirebaseIdentity(client, true);
+    } else {
+      await mergeAfterSignIn(client);
     }
     await client.reconcileWithServer();
     applyHigherServerCoins(client);
@@ -261,9 +346,9 @@ async function init(): Promise<void> {
     console.log('[Weltraum] Running in offline mode (local cache)');
     showGameSync('offline');
   }
+  bindTokenWatch(client);
 }
 
-void getAuthConfig();
 init();
 
 export { t, getLanguage, setLanguage, toggleLanguage };

@@ -153,7 +153,27 @@ describe.each([
     expect(info.btnText.toLowerCase()).toMatch(/account|konto|guest|gast/);
     expect(info.screenHidden).toBe(false);
     expect(info.kind).toMatch(/guest|gast/i);
-    expect(info.signIn.length).toBeGreaterThan(3);
+    expect(info.signIn).toMatch(/Parent: save progress|Eltern: Fortschritt sichern/);
+    const providers = await page.evaluate(() => ({
+      google: document.getElementById('accountGoogle')?.textContent || '',
+      email: document.getElementById('accountEmailLink')?.textContent || '',
+      appleHidden: document.getElementById('accountApple')?.classList.contains('hidden') ?? true,
+    }));
+    expect(providers.google).toMatch(/Google/);
+    expect(providers.email).toMatch(/Email|E-Mail/);
+    expect(providers.appleHidden).toBe(true);
+    const note = await page.evaluate(() => {
+      (document.getElementById('accountGoogle') as HTMLButtonElement | null)?.click();
+      return document.getElementById('accountNote')?.textContent || '';
+    });
+    expect(note).toMatch(/VITE_FIREBASE_|Firebase|Gast|guest/i);
+    await page.evaluate(() => {
+      const w = window as GameWin;
+      w.__spaceGame?.setLang?.('de');
+    });
+    await page.waitForTimeout(80);
+    const deParent = await page.evaluate(() => document.getElementById('accountSignIn')?.textContent || '');
+    expect(deParent).toBe('Eltern: Fortschritt sichern');
     await context.close();
   });
 

@@ -4,6 +4,18 @@
  */
 
 import { schema, table, t } from 'spacetimedb/server';
+import { assertTrustedCaller, authSnapshotFromCtx } from './auth-trust';
+
+/** Account-linked only. Do not call from guest gameplay — local hosts trap on JWT lookup. */
+function assertTrusted(ctx: { senderAuth?: { hasJWT: boolean; isInternal?: boolean; jwt?: { issuer?: string } | null } }): void {
+  try {
+    assertTrustedCaller(authSnapshotFromCtx(ctx));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('Untrusted token issuer')) throw err;
+    console.warn(`Issuer check skipped: ${msg}`);
+  }
+}
 
 const MAX_LEVEL = 100;
 const MAX_COINS = 10_000_000;
@@ -842,6 +854,7 @@ export const importProgress = spacetimedb.reducer(
     language: t.string(),
   },
   (ctx, data) => {
+    assertTrusted(ctx);
     const identity = ctx.sender;
     const progress = ctx.db.playerProgress.identity.find(identity);
     if (!progress) throw new Error('Progress not found');
