@@ -13,6 +13,7 @@ import {
   resetFirebaseForTests,
   saveAuthUser,
   saveGuestToken,
+  shouldFallbackToRedirect,
 } from '../src/lib/firebase-auth';
 
 const store: Record<string, string> = {};
@@ -88,5 +89,12 @@ describe('Firebase Auth config (no emulator)', () => {
     clearAuthUser();
     expect(loadAuthUser()).toBeNull();
     expect(loadGuestToken()).toBe('guest-token-1');
+  });
+
+  it('falls back to redirect on popup-blocked and auth/internal-error', () => {
+    expect(shouldFallbackToRedirect({ code: 'auth/popup-blocked' })).toBe(true);
+    expect(shouldFallbackToRedirect({ code: 'auth/internal-error' })).toBe(true);
+    expect(shouldFallbackToRedirect({ message: 'Firebase: Error (auth/internal-error).' })).toBe(true);
+    expect(shouldFallbackToRedirect({ code: 'auth/invalid-email' })).toBe(false);
   });
 });

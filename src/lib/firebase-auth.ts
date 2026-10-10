@@ -205,13 +205,27 @@ function preferRedirect(): boolean {
   return iPad || iPhone;
 }
 
-function isPopupBlocked(err: unknown): boolean {
-  const code = (err as { code?: string })?.code || '';
+function errCode(err: unknown): string {
+  return String((err as { code?: string })?.code || '');
+}
+
+function errMessage(err: unknown): string {
+  return String((err as { message?: string })?.message || err || '');
+}
+
+/** Popup failed in a way that redirect can recover (iPad Safari, CSP, blocker). */
+export function shouldFallbackToRedirect(err: unknown): boolean {
+  const code = errCode(err);
+  const msg = errMessage(err);
   return (
     code === 'auth/popup-blocked' ||
     code === 'auth/popup-closed-by-user' ||
     code === 'auth/cancelled-popup-request' ||
-    code === 'auth/operation-not-supported-in-this-environment'
+    code === 'auth/operation-not-supported-in-this-environment' ||
+    code === 'auth/internal-error' ||
+    /auth\/internal-error/i.test(msg) ||
+    /popup-blocked/i.test(msg) ||
+    /popup-closed/i.test(msg)
   );
 }
 
@@ -278,7 +292,7 @@ export async function signInWithGoogle(): Promise<AuthUser> {
     saveAuthUser(user);
     return user;
   } catch (err) {
-    if (isPopupBlocked(err) || preferRedirect()) {
+    if (shouldFallbackToRedirect(err) || preferRedirect()) {
       await signInWithRedirect(a, provider);
       throw new Error('redirecting');
     }
@@ -315,7 +329,7 @@ export async function signInWithApple(): Promise<AuthUser> {
     saveAuthUser(user);
     return user;
   } catch (err) {
-    if (isPopupBlocked(err)) {
+    if (shouldFallbackToRedirect(err) || preferRedirect()) {
       await signInWithRedirect(a, provider);
       throw new Error('redirecting');
     }

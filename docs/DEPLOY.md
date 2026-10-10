@@ -249,8 +249,8 @@ Production (`vercel.json` + built `index.html`) does **not** allow localhost. Vi
 
 ```
 default-src 'self';
-script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net;
-connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://apis.google.com https://0.peerjs.com wss://0.peerjs.com;
+script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net https://apis.google.com https://www.gstatic.com;
+connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com https://0.peerjs.com wss://0.peerjs.com;
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:;
 media-src 'self' data: blob:;
@@ -258,5 +258,5 @@ frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*
 frame-ancestors 'none';
 ```
 
-`connect-src` includes Identity Toolkit (sign-in), Secure Token (hourly refresh), and `apis.google.com`. `frame-src` covers the Google popup/redirect iframe and the Firebase `authDomain` (`*.firebaseapp.com` / `*.web.app`).
+Firebase Auth popup/redirect loads gapi from `https://apis.google.com/js/api.js` and helpers from `https://www.gstatic.com` — those must be in **script-src** (connect-src alone is not enough; missing them yields `auth/internal-error`). `connect-src` also allows Identity Toolkit, Secure Token, `www.googleapis.com`, and `apis.google.com`. `frame-src` covers the Google accounts popup/redirect iframe and the Firebase `authDomain` (`*.firebaseapp.com` / `*.web.app`, including `weltraum-mission.firebaseapp.com`).
 

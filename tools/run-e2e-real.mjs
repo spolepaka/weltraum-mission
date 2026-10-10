@@ -108,8 +108,11 @@ async function main() {
   if (!html.includes('https://maincloud.spacetimedb.com') || !html.includes('wss://maincloud.spacetimedb.com')) {
     throw new Error('Production HTML missing Maincloud connect-src hosts');
   }
-  if (!html.includes('identitytoolkit.googleapis.com') || !html.includes('securetoken.googleapis.com') || !html.includes('apis.google.com') || !html.includes('accounts.google.com')) {
+  if (!html.includes('identitytoolkit.googleapis.com') || !html.includes('securetoken.googleapis.com') || !html.includes('apis.google.com') || !html.includes('accounts.google.com') || !html.includes('www.gstatic.com') || !html.includes('www.googleapis.com')) {
     throw new Error('Production HTML missing Firebase / Google CSP hosts');
+  }
+  if (!/script-src[^;]*https:\/\/apis\.google\.com/.test(html) || !/script-src[^;]*https:\/\/www\.gstatic\.com/.test(html)) {
+    throw new Error('Production HTML script-src missing Firebase gapi / gstatic hosts');
   }
   if (html.includes('auth.spacetimedb.com')) {
     throw new Error('Production HTML still allows SpacetimeAuth host');

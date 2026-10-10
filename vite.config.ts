@@ -9,7 +9,7 @@ import { de } from './src/i18n/de';
  * Vite's default publicDir would copy that file unprocessed and overwrite
  * the bundled entry, so we treat it as the HTML source and disable publicDir.
  */
-const FIREBASE_CONNECT = "https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://apis.google.com";
+const FIREBASE_CONNECT = "https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com";
 const PROD_CONNECT = `connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com ${FIREBASE_CONNECT}`;
 const DEV_CONNECT = `connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com ${FIREBASE_CONNECT}`;
 
