@@ -46,9 +46,15 @@ describe('i18n structure', () => {
     setLanguage('de');
     expect(t('bossDefeated')).toBe('BOSS BESIEGT!');
     expect(t('account.guest')).toBe('Anonymer Gast');
+    expect(t('account.signInSave')).toBe('Eltern: Fortschritt sichern');
+    expect(t('account.google')).toBe('Mit Google anmelden');
+    expect(t('account.emailLink')).toBe('E-Mail-Link (ohne Passwort)');
     setLanguage('en');
     expect(t('bossDefeated')).toBe('BOSS DEFEATED!');
     expect(t('account.guest')).toBe('Anonymous guest');
+    expect(t('account.signInSave')).toBe('Parent: save progress');
+    expect(t('account.google')).toBe('Sign in with Google');
+    expect(t('account.emailLink')).toBe('Email link (passwordless)');
   });
 
   it('markersForOtherLanguage returns the opposite set', () => {

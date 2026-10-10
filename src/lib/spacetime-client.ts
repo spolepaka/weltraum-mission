@@ -10,7 +10,12 @@ import {
 import type { Identity } from 'spacetimedb';
 import { validateLevelResult, type LevelResultInput } from './validation';
 import { mergeCoins, coinDeltaToPush } from './coin-ledger';
-import { loadAuthUser, type ProgressSnapshot } from './spacetime-auth';
+import {
+  loadAuthUser,
+  loadGuestToken,
+  saveGuestToken,
+  type ProgressSnapshot,
+} from './firebase-auth';
 
 export type SyncStatus = 'connected' | 'connecting' | 'disconnected' | 'syncing' | 'error' | 'offline';
 
@@ -70,6 +75,7 @@ class SpacetimeClient {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
   private connectWaiters: Array<(ok: boolean) => void> = [];
+  private silentReconnect = false;
   lastError: string | null = null;
 
   constructor(config: Partial<SpacetimeConfig> = {}) {
@@ -254,7 +260,12 @@ class SpacetimeClient {
           .onConnect((conn, identity, token) => {
             console.log('[SpacetimeDB] Connected with identity:', identity.toHexString());
             this.identity = identity;
-            this.saveIdentityToken(token);
+            if (loadAuthUser()) {
+              this.identityToken = token;
+            } else {
+              this.saveIdentityToken(token);
+              saveGuestToken(token);
+            }
             this.reconnectAttempts = 0;
             this.setStatus('connected');
 
@@ -267,21 +278,21 @@ class SpacetimeClient {
             console.error('[SpacetimeDB] Connection error:', error);
             this.setStatus('error');
             this.flushConnectWaiters(false);
-            this.scheduleReconnect();
+            if (!this.silentReconnect) this.scheduleReconnect();
           })
           .onDisconnect((_ctx, error) => {
             console.log('[SpacetimeDB] Disconnected', error ? `with error: ${error.message}` : '');
             this.setStatus('disconnected');
             this.connection = null;
             this.subscriptionHandle = null;
-            if (!this.isReconnecting) {
+            if (!this.silentReconnect && !this.isReconnecting) {
               this.scheduleReconnect();
             }
           });
 
-        const oidc = loadAuthUser();
-        const token = oidc?.idToken || this.identityToken;
-        if (token) {
+        const firebase = loadAuthUser();
+        const token = firebase?.idToken || this.identityToken;
+        if (token && token.length > 8) {
           builder.withToken(token);
         }
 
@@ -827,17 +838,48 @@ class SpacetimeClient {
     return !!loadAuthUser();
   }
 
+  /** Token that `.withToken()` will send on the next connect. */
+  connectToken(): string | null {
+    return loadAuthUser()?.idToken || this.identityToken;
+  }
+
   shortPlayerId(): string {
     const hex = this.getIdentityHex();
     if (!hex) return '----';
     return hex.replace(/^0x/i, '').slice(0, 8).toUpperCase();
   }
 
-  async reconnectWithToken(token: string): Promise<boolean> {
-    this.saveIdentityToken(token);
-    this.disconnect();
-    this.reconnectAttempts = 0;
-    return this.connect();
+  async reconnectWithToken(token: string, opts?: { replaceGuest?: boolean }): Promise<boolean> {
+    this.silentReconnect = true;
+    try {
+      if (opts?.replaceGuest) {
+        this.saveIdentityToken(token);
+      } else {
+        this.identityToken = token;
+      }
+      this.disconnect();
+      this.reconnectAttempts = 0;
+      return await this.connect();
+    } finally {
+      this.silentReconnect = false;
+    }
+  }
+
+  restoreGuestIdentity(): Promise<boolean> {
+    const guest = loadGuestToken();
+    if (guest) {
+      return this.reconnectWithToken(guest, { replaceGuest: true });
+    }
+    this.silentReconnect = true;
+    try {
+      this.identityToken = null;
+      try { localStorage.removeItem(IDENTITY_STORAGE_KEY); } catch { /* ignore */ }
+      this.disconnect();
+      this.reconnectAttempts = 0;
+      return this.connect();
+    } finally {
+      this.silentReconnect = false;
+    }
   }
 
   setUpgradeLevel(upgradeId: string, level: number): void {

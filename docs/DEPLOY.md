@@ -36,25 +36,37 @@
    - WebSocket: `wss://maincloud.spacetimedb.com`
    - Module name: `weltraum-mission`
 
-### SpacetimeAuth (optional Sign in / Save my progress)
+### Firebase Auth (optional Parent: save progress)
 
-Anonymous play always works. The map **Account** button shows guest / short player id / online-offline-saved. **Sign in / Save my progress** uses SpacetimeAuth (OIDC) + PKCE in the browser. The official SDK only accepts `.withToken(idToken)` — there is no extra official SPA login widget.
+Anonymous / guest SpacetimeDB play always works and stays the default. The map **Account** button shows guest / short player id / online-offline-saved. **Parent: save progress** / **Eltern: Fortschritt sichern** offers **Sign in with Google** and **Email link (passwordless)** via the Firebase JS modular SDK. After sign-in the official SpacetimeDB SDK connects with `.withToken(firebaseIdToken)`.
 
-This is **off** until you create a client in the dashboard and set the env var. Until then the button explains that sign-in is not configured and guests keep playing.
+This is **off** until the Firebase env vars below are set. Until then the button explains that sign-in is not configured and guests keep playing.
+
+Apple Sign-In is wired (`OAuthProvider('apple.com')`) but **off** unless `VITE_FIREBASE_APPLE_ENABLED=1`. Enable it later with config only (Firebase console + Apple developer + that flag).
+
+**The SpacetimeDB module must be republished** after this change (issuer trust lives in `server/spacetimedb/src/auth-trust.ts`). Change `FIREBASE_PROJECT_ID` there if the Firebase project id is not `weltraum-mission`, then republish again.
+
+### What to create in the Firebase console
+
+1. Open [https://console.firebase.google.com](https://console.firebase.google.com) and create a project. Preferred project id: `weltraum-mission` (must match `FIREBASE_PROJECT_ID` in `server/spacetimedb/src/auth-trust.ts`).
+2. Add a **Web** app. Copy the config values (`apiKey`, `authDomain`, `projectId`, `appId`; optional `messagingSenderId`, `storageBucket`).
+3. **Authentication → Sign-in method**:
+   - Enable **Google**. Set a support email. Add the production authorized domain (Vercel host) and `localhost`.
+   - Enable **Email/Password** and turn on **Email link (passwordless sign-in)**.
+   - Apple: leave disabled until you are ready. Then enable Apple, add Services ID / key, and set `VITE_FIREBASE_APPLE_ENABLED=1`.
+4. **Authentication → Settings → Authorized domains**: your Vercel origin (no scheme), plus `localhost`.
+5. Authorized auth domain (`authDomain`) is typically `<projectId>.firebaseapp.com`. That host must stay in CSP `frame-src` (this repo already allows `https://*.firebaseapp.com` and `https://*.web.app`).
 
 ### What to create in the SpacetimeDB dashboard
 
-1. Open [https://spacetimedb.com](https://spacetimedb.com) and sign in.
-2. Go to **SpacetimeAuth** (sometimes labeled Auth / OIDC).
-3. **Create a project** (any name, e.g. `weltraum-mission`).
-4. **Create a public client** (SPA / public client, **no client secret**):
-   - Application type: Single-page app / public
-   - Redirect URI: your live origin, e.g. `https://space-game-deploy.vercel.app/`
-     (trailing slash must match; also add `http://localhost:5173/` for local Vite)
-   - Post-logout redirect: same origins
-   - Grant: Authorization Code + PKCE
-   - Scopes: `openid profile email`
-5. Copy the **Client ID**.
+Firebase ID tokens are OIDC JWTs:
+
+- Issuer: `https://securetoken.google.com/<projectId>`
+- Audience: `<projectId>`
+
+On the Maincloud database `weltraum-mission`, add that issuer as a trusted JWT / OpenID Connect identity provider (audience = the Firebase project id). Without this, `.withToken(firebaseIdToken)` is rejected at connect time.
+
+Then **republish the module** so `assertTrustedCaller` (anonymous or our Firebase issuer only) is live.
 
 ### Wire it into Vercel
 
@@ -62,16 +74,32 @@ In the Vercel project → Settings → Environment Variables (Production + Previ
 
 | Name | Value |
 |------|--------|
-| `VITE_SPACETIME_AUTH_CLIENT_ID` | the public client id from the dashboard |
+| `VITE_FIREBASE_API_KEY` | Firebase web `apiKey` |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase web `authDomain` (e.g. `weltraum-mission.firebaseapp.com`) |
+| `VITE_FIREBASE_PROJECT_ID` | Firebase `projectId` (must match the module constant) |
+| `VITE_FIREBASE_APP_ID` | Firebase web `appId` |
 
-Optional overrides (defaults are already correct):
+Optional (only if the SDK / console shows them):
 
-- `VITE_SPACETIME_AUTH_ISSUER` = `https://auth.spacetimedb.com/oidc`
-- `VITE_SPACETIME_AUTH_REDIRECT` = full redirect URL if it is not the site origin
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_APPLE_ENABLED` = `1` when Apple should appear
+- `VITE_FIREBASE_AUTH_EMULATOR` = `http://127.0.0.1:9099` for local emulator tests only (never set in Vercel)
 
-Redeploy after adding the variable (`npm run build` reads Vite `VITE_*` at build time).
+Redeploy after adding the variables (`npm run build` reads Vite `VITE_*` at build time).
 
-On first sign-in the client snapshots anonymous progress, reconnects with the OIDC token (new identity), and calls `importProgress` so coins / unlocks / ships merge (max, never wipe). Guests who never sign in keep the anonymous identity already stored in `localStorage`.
+On first sign-in the client snapshots anonymous progress, reconnects with the Firebase ID token (new identity: issuer+sub), and calls `importProgress` so coins / unlocks / ships merge (max, never wipe). Hourly token refresh uses `onIdTokenChanged` and a silent SpacetimeDB reconnect (no page reload, no second import, no double rewards). Sign-out restores the stored guest identity. Guests who never sign in keep the anonymous identity already stored in `localStorage`.
+
+### Mobile / Capacitor (next steps, not in this change)
+
+The web app uses `signInWithPopup` with a `signInWithRedirect` fallback for iPad Safari and an installed home-screen web app (`navigator.standalone` / `display-mode: standalone`).
+
+For a later native Capacitor shell:
+
+1. Add `@capacitor-firebase/authentication` and `@capacitor-firebase/app`.
+2. Configure Google (iOS URL scheme / reversed client id, Android SHA-1) in the native projects. Apple later via the same plugin.
+3. Keep this Firebase project. After native sign-in, still call SpacetimeDB `.withToken(firebaseIdToken)` and keep the module issuer rule unchanged.
+4. Do not put Capacitor-only secrets in Vite `VITE_*` vars.
 
 ## Configuring the Client
 
@@ -215,9 +243,13 @@ Production (`vercel.json` + built `index.html`) does **not** allow localhost. Vi
 ```
 default-src 'self';
 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net;
-connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://auth.spacetimedb.com https://0.peerjs.com wss://0.peerjs.com;
+connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://apis.google.com https://0.peerjs.com wss://0.peerjs.com;
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:;
 media-src 'self' data: blob:;
+frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*.web.app;
 frame-ancestors 'none';
 ```
+
+`connect-src` includes Identity Toolkit (sign-in), Secure Token (hourly refresh), and `apis.google.com`. `frame-src` covers the Google popup/redirect iframe and the Firebase `authDomain` (`*.firebaseapp.com` / `*.web.app`).
+

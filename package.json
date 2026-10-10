@@ -6,11 +6,13 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run --exclude tests/e2e-real.test.ts --exclude tests/play-ipad.test.ts",
+    "test": "vitest run --exclude tests/e2e-real.test.ts --exclude tests/play-ipad.test.ts --exclude tests/firebase-auth-emulator.test.ts",
     "test:play": "vitest run tests/play-ipad.test.ts",
     "test:watch": "vitest",
     "test:e2e:real": "node tools/run-e2e-real.mjs",
     "test:e2e:local": "node tools/run-e2e-real.mjs --local",
+    "test:firebase": "node tools/run-firebase-emulator-tests.mjs",
+    "firebase:emulators": "firebase emulators:start --only auth --project demo-weltraum",
     "test:smoke": "node tools/smoke.mjs 9222 \"$PWD/public/index.html\" 1024 768 && node tools/smoke.mjs 9223 \"$PWD/public/index.html\" 768 1024",
     "spacetime:build": "cd server/spacetimedb && spacetime build",
     "spacetime:generate": "spacetime generate --lang typescript --module-path server/spacetimedb --out-dir src/lib/module_bindings",
@@ -18,11 +20,13 @@
     "spacetime:publish:local": "cd server/spacetimedb && spacetime publish --server http://localhost:3000 weltraum-dev"
   },
   "dependencies": {
+    "firebase": "^11.10.0",
     "spacetimedb": "2.11.*"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.5",
+    "firebase-tools": "^14.22.0",
     "playwright": "^1.64.0",
     "typescript": "~5.6.2",
     "vite": "^6.0.0",

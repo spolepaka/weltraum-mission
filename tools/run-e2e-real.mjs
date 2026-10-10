@@ -100,6 +100,12 @@ async function main() {
   if (!html.includes('https://maincloud.spacetimedb.com') || !html.includes('wss://maincloud.spacetimedb.com')) {
     throw new Error('Production HTML missing Maincloud connect-src hosts');
   }
+  if (!html.includes('identitytoolkit.googleapis.com') || !html.includes('securetoken.googleapis.com') || !html.includes('apis.google.com') || !html.includes('accounts.google.com')) {
+    throw new Error('Production HTML missing Firebase / Google CSP hosts');
+  }
+  if (html.includes('auth.spacetimedb.com')) {
+    throw new Error('Production HTML still allows SpacetimeAuth host');
+  }
   console.log('[e2e] preview is serving the bundled game (' + html.length + ' bytes HTML)');
 
   const env = {

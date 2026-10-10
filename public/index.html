@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Space Mission">
 <meta name="theme-color" content="#050816">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net; connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://auth.spacetimedb.com https://0.peerjs.com wss://0.peerjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net; connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://apis.google.com https://0.peerjs.com wss://0.peerjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*.web.app;">
 <title>Space Mission</title>
 <script type="module" src="/src/main.ts"></script>
 <style>
@@ -179,6 +179,9 @@
   #accountScreen .panel { max-width: 460px; text-align: left; }
   #accountScreen .accRow { display: flex; justify-content: space-between; gap: 12px; margin: 8px 0; font-size: 18px; }
   #accountScreen .accRow b { color: #ffd54a; }
+  #accountScreen .providerList { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 14px; }
+  #accountScreen .emailRow { display: flex; flex-direction: column; gap: 8px; }
+  #accountEmail { -webkit-user-select: text; user-select: text; font-size: 18px; font-family: inherit; padding: 10px 12px; border-radius: 12px; border: 2px solid #7dffa8; background: rgba(0,0,0,.5); color: #fff; width: 100%; box-sizing: border-box; }
   #celebrateHud { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); z-index: 8; text-align: center; pointer-events: none; display: none; width: 90%; }
   #celebrateHud.show { display: block; }
   #celebrateHud h2 { margin: 0 0 8px; font-size: min(48px, 8vw); color: #ffd54a; text-shadow: 0 0 18px #ff5ad0, 0 3px 0 #6a3a00; }
@@ -240,10 +243,18 @@
     <div class="accRow"><span id="accountIdLabel">Player ID</span><b id="accountId">----</b></div>
     <div class="accRow"><span id="accountSyncLabel">Sync</span><b id="accountSync">Offline</b></div>
     <p id="accountNote" class="small" style="color:#aab4e8"></p>
-    <div class="btnRow">
-      <button class="big" id="accountSignIn">Sign in / Save my progress</button>
-      <button class="big alt hidden" id="accountSignOut">Sign out</button>
+    <div id="accountGuestActions">
+      <button class="big" id="accountSignIn">Parent: save progress</button>
+      <div id="accountProviderList" class="providerList">
+        <button class="big" id="accountGoogle">Sign in with Google</button>
+        <div class="emailRow">
+          <input id="accountEmail" type="email" autocomplete="email" inputmode="email" placeholder="Parent email">
+          <button class="big" id="accountEmailLink">Email link (passwordless)</button>
+        </div>
+        <button class="big hidden" id="accountApple">Sign in with Apple</button>
+      </div>
     </div>
+    <button class="big alt hidden" id="accountSignOut">Sign out</button>
     <button class="big alt" id="accountClose">Close</button>
   </div>
 </div>
@@ -5978,16 +5989,22 @@
     setTxt("accountIdLabel", tr("account.playerId"));
     setTxt("accountSyncLabel", tr("account.status"));
     setTxt("accountSignIn", tr("account.signInSave"));
+    setTxt("accountGoogle", tr("account.google"));
+    setTxt("accountEmailLink", tr("account.emailLink"));
+    setTxt("accountApple", tr("account.apple"));
     setTxt("accountSignOut", tr("account.signOut"));
     setTxt("accountClose", tr("account.close"));
     setTxt("accountBtnLabel", tr("account.button"));
+    var emailEl = $("accountEmail");
+    if (emailEl) emailEl.setAttribute("placeholder", tr("account.emailPlaceholder"));
     if (acc) {
       setTxt("accountKind", acc.guestLabel());
       setTxt("accountId", acc.shortId());
       var st = acc.status();
       setTxt("accountSync", st === "connected" ? tr("account.online") : (st === "syncing" ? tr("syncing") : tr("account.offline")));
-      $("accountSignIn").classList.toggle("hidden", acc.isSignedIn());
+      $("accountGuestActions").classList.toggle("hidden", acc.isSignedIn());
       $("accountSignOut").classList.toggle("hidden", !acc.isSignedIn());
+      $("accountApple").classList.toggle("hidden", !acc.appleEnabled());
       $("accountNote").textContent = acc.isConfigured() ? tr("account.anonymousPlay") : tr("account.needConfigDetail");
     }
     setTxt("overYouHave", tr("youScored"));
@@ -6029,6 +6046,22 @@
   }
   $("accountBtn").addEventListener("click", function (e) { e.stopPropagation(); openAccount(); });
   $("accountClose").addEventListener("click", function () { $("accountScreen").classList.add("hidden"); });
+  function showAccountError(err) {
+    if (err && err.message === "redirecting") {
+      $("accountNote").textContent = tr("account.linking");
+      return;
+    }
+    $("accountNote").textContent = tr("account.linkFailed") + " (" + (err && err.message ? err.message : err) + ")";
+  }
+  function requireConfiguredAccount() {
+    var acc = window.__weltraum && window.__weltraum.account;
+    if (!acc) return null;
+    if (!acc.isConfigured()) {
+      $("accountNote").textContent = tr("account.needConfigDetail");
+      return null;
+    }
+    return acc;
+  }
   $("accountSignIn").addEventListener("click", function () {
     var acc = window.__weltraum && window.__weltraum.account;
     if (!acc) return;
@@ -6036,13 +6069,41 @@
       $("accountNote").textContent = tr("account.needConfigDetail");
       return;
     }
-    acc.signIn().catch(function (err) {
-      $("accountNote").textContent = tr("account.linkFailed") + " (" + (err && err.message ? err.message : err) + ")";
-    });
+    $("accountNote").textContent = tr("account.anonymousPlay");
+    var google = $("accountGoogle");
+    if (google && google.focus) google.focus();
+  });
+  $("accountGoogle").addEventListener("click", function () {
+    var acc = requireConfiguredAccount();
+    if (!acc) return;
+    $("accountNote").textContent = tr("account.linking");
+    acc.signInGoogle().then(function () {
+      $("accountNote").textContent = tr("account.linked");
+      applyAllI18n();
+    }).catch(showAccountError);
+  });
+  $("accountEmailLink").addEventListener("click", function () {
+    var acc = requireConfiguredAccount();
+    if (!acc) return;
+    var email = ($("accountEmail").value || "").trim();
+    $("accountNote").textContent = tr("account.linking");
+    acc.startEmailLink(email).then(function () {
+      $("accountNote").textContent = tr("account.emailSent");
+    }).catch(showAccountError);
+  });
+  $("accountApple").addEventListener("click", function () {
+    var acc = requireConfiguredAccount();
+    if (!acc) return;
+    $("accountNote").textContent = tr("account.linking");
+    acc.signInApple().then(function () {
+      $("accountNote").textContent = tr("account.linked");
+      applyAllI18n();
+    }).catch(showAccountError);
   });
   $("accountSignOut").addEventListener("click", function () {
     var acc = window.__weltraum && window.__weltraum.account;
-    if (acc) acc.signOut();
+    if (!acc) return;
+    Promise.resolve(acc.signOut()).then(function () { applyAllI18n(); });
   });
 
   setTimeout(function () { applyAllI18n(); refreshAccountBtn(); }, 80);
