@@ -36,7 +36,44 @@
    - WebSocket: `wss://maincloud.spacetimedb.com`
    - Module name: `weltraum-mission`
 
-### Configuring the Client
+### SpacetimeAuth (optional Sign in / Save my progress)
+
+Anonymous play always works. The map **Account** button shows guest / short player id / online-offline-saved. **Sign in / Save my progress** uses SpacetimeAuth (OIDC) + PKCE in the browser. The official SDK only accepts `.withToken(idToken)` — there is no extra official SPA login widget.
+
+This is **off** until you create a client in the dashboard and set the env var. Until then the button explains that sign-in is not configured and guests keep playing.
+
+### What to create in the SpacetimeDB dashboard
+
+1. Open [https://spacetimedb.com](https://spacetimedb.com) and sign in.
+2. Go to **SpacetimeAuth** (sometimes labeled Auth / OIDC).
+3. **Create a project** (any name, e.g. `weltraum-mission`).
+4. **Create a public client** (SPA / public client, **no client secret**):
+   - Application type: Single-page app / public
+   - Redirect URI: your live origin, e.g. `https://space-game-deploy.vercel.app/`
+     (trailing slash must match; also add `http://localhost:5173/` for local Vite)
+   - Post-logout redirect: same origins
+   - Grant: Authorization Code + PKCE
+   - Scopes: `openid profile email`
+5. Copy the **Client ID**.
+
+### Wire it into Vercel
+
+In the Vercel project → Settings → Environment Variables (Production + Preview):
+
+| Name | Value |
+|------|--------|
+| `VITE_SPACETIME_AUTH_CLIENT_ID` | the public client id from the dashboard |
+
+Optional overrides (defaults are already correct):
+
+- `VITE_SPACETIME_AUTH_ISSUER` = `https://auth.spacetimedb.com/oidc`
+- `VITE_SPACETIME_AUTH_REDIRECT` = full redirect URL if it is not the site origin
+
+Redeploy after adding the variable (`npm run build` reads Vite `VITE_*` at build time).
+
+On first sign-in the client snapshots anonymous progress, reconnects with the OIDC token (new identity), and calls `importProgress` so coins / unlocks / ships merge (max, never wipe). Guests who never sign in keep the anonymous identity already stored in `localStorage`.
+
+## Configuring the Client
 
 The production build always defaults to Maincloud:
 
@@ -108,9 +145,11 @@ npm run test:e2e:local
 | Reducer | Description |
 |---------|-------------|
 | `setLanguage` | Set player's language preference |
-| `syncProgress` | Sync unlocked level, coins, equipped ship |
+| `syncProgress` | Sync unlocked level and equipped ship. **Does not SET coins** (avoids clobbering a just-earned bonus). |
 | `syncLevelStars` | Sync level completion stars and best score |
-| `completeLevelResult` | Submit level completion with anti-cheat validation |
+| `completeLevelResult` | Submit level completion; **ADDs** `coinsEarned` after validation |
+| `addCoins` | ADD coins (missions, offline catch-up). Never decreases. |
+| `importProgress` | Merge anonymous → signed-in progress (max coins/unlocks, union ships) |
 | `requestLevelData` | Validate player can access a level |
 | `purchaseShip` | Purchase a ship with coins |
 | `equipShip` | Equip an owned ship |
@@ -128,6 +167,7 @@ npm run test:e2e:local
 | Procedure | Description |
 |-----------|-------------|
 | `getLevelData` | Get level data JSON (validates unlock status) |
+| `getMyProgress` | Private snapshot of this identity (unlock, coins, ships) for reconcile |
 
 ### Tables
 
@@ -153,7 +193,7 @@ The server validates all submitted results:
 - **Level bounds**: Must be 1-100
 - **Score per level**: Max = level × 100,000
 - **Coins per level**: Max = level × 5,000
-- **Time bounds**: 10 seconds to 10 minutes
+- **Time bounds**: 3 seconds to 10 minutes (short wins and tests must not be rejected)
 - **Level gating**: Can only complete unlocked levels
 - **Ship validation**: Must be from valid ship list
 - **Upgrade validation**: Max level 5 (1 for heart)
@@ -175,7 +215,7 @@ Production (`vercel.json` + built `index.html`) does **not** allow localhost. Vi
 ```
 default-src 'self';
 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net;
-connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://0.peerjs.com wss://0.peerjs.com;
+connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://auth.spacetimedb.com https://0.peerjs.com wss://0.peerjs.com;
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:;
 media-src 'self' data: blob:;

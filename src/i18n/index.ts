@@ -1,27 +1,46 @@
-import { en, type Translations } from './en';
+import { en } from './en';
 import { de } from './de';
+import {
+  LANGUAGE_META,
+  SUPPORTED_LANGUAGES,
+  type Language,
+  type Translations,
+} from './types';
 
-export type Language = 'en' | 'de';
+export type { Language, Translations };
+export { LANGUAGE_META, SUPPORTED_LANGUAGES };
 
-const translations: Record<Language, Translations> = { en, de };
+const catalogs: Record<Language, Translations> = { en, de };
+
+export function registerLanguage(lang: Language, catalog: Translations): void {
+  catalogs[lang] = catalog;
+}
+
+export function getCatalog(lang: Language = getLanguage()): Translations {
+  return catalogs[lang] || catalogs.en;
+}
+
+export function getAllCatalogs(): Record<Language, Translations> {
+  return catalogs;
+}
 
 let currentLanguage: Language = 'en';
 let listeners: Array<(lang: Language) => void> = [];
 
 const STORAGE_KEY = 'spaceMissionLanguage';
 
-export function initLanguage(): void {
+export function initLanguage(): Language {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'en' || stored === 'de') {
-      currentLanguage = stored;
+    if (stored && (SUPPORTED_LANGUAGES as readonly string[]).includes(stored)) {
+      currentLanguage = stored as Language;
     } else {
-      const browserLang = navigator.language.toLowerCase();
-      currentLanguage = browserLang.startsWith('de') ? 'de' : 'en';
+      currentLanguage = 'en';
     }
   } catch {
     currentLanguage = 'en';
   }
+  return currentLanguage;
 }
 
 export function getLanguage(): Language {
@@ -29,21 +48,22 @@ export function getLanguage(): Language {
 }
 
 export function setLanguage(lang: Language): void {
-  if (lang !== currentLanguage) {
-    currentLanguage = lang;
-    try {
-      localStorage.setItem(STORAGE_KEY, lang);
-    } catch {
-      // Ignore storage errors
-    }
-    listeners.forEach(fn => fn(lang));
+  if (!(SUPPORTED_LANGUAGES as readonly string[]).includes(lang)) return;
+  if (lang === currentLanguage) return;
+  currentLanguage = lang;
+  try {
+    localStorage.setItem(STORAGE_KEY, lang);
+  } catch {
+    // ignore
   }
+  listeners.forEach(fn => fn(lang));
 }
 
 export function toggleLanguage(): Language {
-  const newLang = currentLanguage === 'en' ? 'de' : 'en';
-  setLanguage(newLang);
-  return newLang;
+  const idx = SUPPORTED_LANGUAGES.indexOf(currentLanguage);
+  const next = SUPPORTED_LANGUAGES[(idx + 1) % SUPPORTED_LANGUAGES.length];
+  setLanguage(next);
+  return next;
 }
 
 export function onLanguageChange(callback: (lang: Language) => void): () => void {
@@ -53,38 +73,65 @@ export function onLanguageChange(callback: (lang: Language) => void): () => void
   };
 }
 
-export function t(key: string, params?: Record<string, string | number>): string {
-  const keys = key.split('.');
-  let value: unknown = translations[currentLanguage];
-  
+function lookup(source: unknown, keys: string[]): unknown {
+  let value: unknown = source;
   for (const k of keys) {
-    if (value && typeof value === 'object' && k in value) {
+    if (value && typeof value === 'object' && k in (value as object)) {
       value = (value as Record<string, unknown>)[k];
     } else {
-      value = translations.en;
-      for (const k2 of keys) {
-        if (value && typeof value === 'object' && k2 in value) {
-          value = (value as Record<string, unknown>)[k2];
-        } else {
-          return key;
-        }
-      }
-      break;
+      return undefined;
     }
   }
-  
+  return value;
+}
+
+export function t(key: string, params?: Record<string, string | number>): string {
+  const keys = key.split('.');
+  let value = lookup(catalogs[currentLanguage], keys);
   if (typeof value !== 'string') {
-    return key;
+    value = lookup(catalogs.en, keys);
   }
-  
+  if (typeof value !== 'string') return key;
+
   let result = value;
   if (params) {
     for (const [paramKey, paramValue] of Object.entries(params)) {
-      result = result.replace(`{${paramKey}}`, String(paramValue));
+      result = result.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
     }
   }
-  
   return result;
 }
 
-export { type Translations };
+export function flattenStrings(obj: unknown, out: string[] = []): string[] {
+  if (typeof obj === 'string') {
+    out.push(obj);
+    return out;
+  }
+  if (Array.isArray(obj)) {
+    obj.forEach(item => flattenStrings(item, out));
+    return out;
+  }
+  if (obj && typeof obj === 'object') {
+    Object.values(obj).forEach(v => flattenStrings(v, out));
+  }
+  return out;
+}
+
+if (typeof window !== 'undefined') {
+  const w = window as Window & {
+    __I18N_BUNDLE__?: { en: Translations; de: Translations };
+    __I18N_API__?: {
+      t: typeof t;
+      getLanguage: typeof getLanguage;
+      setLanguage: typeof setLanguage;
+      toggleLanguage: typeof toggleLanguage;
+      onLanguageChange: typeof onLanguageChange;
+      initLanguage: typeof initLanguage;
+      getCatalog: typeof getCatalog;
+    };
+  };
+  w.__I18N_BUNDLE__ = { en, de };
+  w.__I18N_API__ = { t, getLanguage, setLanguage, toggleLanguage, onLanguageChange, initLanguage, getCatalog };
+}
+
+export { en, de };

@@ -34,6 +34,16 @@ export const LevelDataResult = __t.object("LevelDataResult", {
 });
 export type LevelDataResult = __Infer<typeof LevelDataResult>;
 
+export const MyProgressResult = __t.object("MyProgressResult", {
+  unlockedLevel: __t.u32(),
+  coins: __t.u64(),
+  equippedShip: __t.string(),
+  ownedShipsCsv: __t.string(),
+  language: __t.string(),
+  totalScore: __t.u64(),
+});
+export type MyProgressResult = __Infer<typeof MyProgressResult>;
+
 export const LevelStars = __t.object("LevelStars", {
   identity: __t.identity(),
   level: __t.u32(),

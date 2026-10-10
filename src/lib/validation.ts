@@ -6,7 +6,7 @@
 export const MAX_LEVEL = 100;
 export const MAX_SCORE_PER_LEVEL = 100_000;
 export const MAX_COINS_PER_LEVEL = 5_000;
-export const MIN_TIME_MS = 10_000;
+export const MIN_TIME_MS = 3_000;
 export const MAX_TIME_MS = 600_000;
 
 export interface LevelResultInput {

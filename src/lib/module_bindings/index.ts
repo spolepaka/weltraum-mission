@@ -34,9 +34,11 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AddCoinsReducer from "./add_coins_reducer";
 import AddOwnedShipReducer from "./add_owned_ship_reducer";
 import ApplySecretCodeReducer from "./apply_secret_code_reducer";
 import CompleteLevelResultReducer from "./complete_level_result_reducer";
+import ImportProgressReducer from "./import_progress_reducer";
 import EquipShipReducer from "./equip_ship_reducer";
 import PurchaseShipReducer from "./purchase_ship_reducer";
 import PurchaseUpgradeReducer from "./purchase_upgrade_reducer";
@@ -52,6 +54,7 @@ import UpdateSettingsReducer from "./update_settings_reducer";
 
 // Import all procedure arg schemas
 import * as GetLevelDataProcedure from "./get_level_data_procedure";
+import * as GetMyProgressProcedure from "./get_my_progress_procedure";
 
 // Import all table schema definitions
 import LevelDataRow from "./level_data_table";
@@ -87,10 +90,12 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("add_coins", AddCoinsReducer),
   __reducerSchema("add_owned_ship", AddOwnedShipReducer),
   __reducerSchema("apply_secret_code", ApplySecretCodeReducer),
   __reducerSchema("complete_level_result", CompleteLevelResultReducer),
   __reducerSchema("equip_ship", EquipShipReducer),
+  __reducerSchema("import_progress", ImportProgressReducer),
   __reducerSchema("purchase_ship", PurchaseShipReducer),
   __reducerSchema("purchase_upgrade", PurchaseUpgradeReducer),
   __reducerSchema("report_error", ReportErrorReducer),
@@ -107,6 +112,7 @@ const reducersSchema = __reducers(
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
   __procedureSchema("get_level_data", GetLevelDataProcedure.params, GetLevelDataProcedure.returnType),
+  __procedureSchema("get_my_progress", GetMyProgressProcedure.params, GetMyProgressProcedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */
