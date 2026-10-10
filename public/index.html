@@ -5427,6 +5427,19 @@
       fitWelcomeToViewport();
     }
   }
+  function pinOverlayToVisualViewport(el, on) {
+    if (!el) return;
+    var vv = window.visualViewport;
+    if (on && vv) {
+      el.style.top = Math.round(vv.offsetTop || 0) + "px";
+      el.style.height = Math.round(vv.height) + "px";
+      el.style.bottom = "auto";
+    } else {
+      el.style.top = "";
+      el.style.height = "";
+      el.style.bottom = "";
+    }
+  }
   function fitWelcomeToViewport() {
     var screen = $("welcomeScreen");
     var panel = screen && screen.querySelector(".welcomePanel");
@@ -5434,9 +5447,13 @@
     var vv = window.visualViewport;
     var vh = vv && vv.height ? vv.height : window.innerHeight;
     var keyboard = !!(vv && window.innerHeight - vv.height > 80);
-    if (screen) screen.classList.toggle("kbOpen", keyboard && !screen.classList.contains("hidden"));
-    if (acc) acc.classList.toggle("kbOpen", keyboard && !acc.classList.contains("hidden"));
-    if (panel && screen && !screen.classList.contains("hidden")) {
+    var welcomeOn = !!(screen && !screen.classList.contains("hidden"));
+    var accOn = !!(acc && !acc.classList.contains("hidden"));
+    if (screen) screen.classList.toggle("kbOpen", keyboard && welcomeOn);
+    if (acc) acc.classList.toggle("kbOpen", keyboard && accOn);
+    pinOverlayToVisualViewport(screen, keyboard && welcomeOn);
+    pinOverlayToVisualViewport(acc, keyboard && accOn);
+    if (panel && welcomeOn) {
       panel.style.maxHeight = Math.max(140, Math.floor(vh - 12)) + "px";
     }
     var focused = document.activeElement;

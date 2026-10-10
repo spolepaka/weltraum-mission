@@ -44,6 +44,8 @@ type GameWin = Window & {
     fitWelcome?: () => void;
     displayName?: () => string | undefined;
     showHostRoster?: () => string;
+    skipTraining?: () => void;
+    startLevel?: (n: number) => void;
   };
   __fillTextLog?: string[];
   __clearFillTextLog?: () => void;
@@ -600,9 +602,14 @@ describe('custom welcome name', { timeout: 60000 }, () => {
     await page.fill('#welcomeNameIn', 'Leo Pilot');
     await page.click('#welcomeGo');
     await page.waitForFunction(() => document.getElementById('welcomeScreen')?.classList.contains('hidden'), { timeout: 8000 });
-    await page.evaluate(() => (window as GameWin).__spaceGame?.finishOnboard?.());
+    await page.evaluate(() => {
+      const g = (window as GameWin).__spaceGame;
+      g?.skipTraining?.();
+      g?.finishOnboard?.();
+    });
     expect(await page.evaluate(() => (window as GameWin).__spaceGame?.displayName?.())).toBe('Leo Pilot');
 
+    await page.waitForSelector('#accountBtn', { state: 'visible', timeout: 8000 });
     await page.click('#accountBtn');
     await page.waitForSelector('#accountScreen:not(.hidden)', { timeout: 4000 });
     const account = await page.evaluate(() => ({
@@ -615,6 +622,7 @@ describe('custom welcome name', { timeout: 60000 }, () => {
 
     const roster = await page.evaluate(() => (window as GameWin).__spaceGame?.showHostRoster?.() || '');
     expect(roster).toMatch(/Leo Pilot/);
+    await page.evaluate(() => document.getElementById('onlineScreen')?.classList.add('hidden'));
 
     await page.click('#twoPBtn');
     await page.evaluate(() => {
