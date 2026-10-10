@@ -10,6 +10,8 @@ import {
   RHYMES_DE,
   RHYMES_EN,
   TITLE_NOUNS_DE,
+  INATOR_STEMS_DE,
+  INATOR_STEMS_EN,
   fugenForm,
   inflectDeAdj,
   type DeGender,
@@ -270,9 +272,9 @@ function buildEn(id: PatternId, rnd: () => number, avoid: Set<string>): NamePart
     return name ? { name, adj: null, nouns: [a, b] } : null;
   }
   if (id === 'inator') {
-    const n = pickFresh(shortEnNouns(7), rnd, (w) => [w], avoid);
-    const name = fit(`${n.replace(/e$/i, '')}-inator`);
-    return name ? { name, adj: null, nouns: [n] } : null;
+    const stem = pickFresh(INATOR_STEMS_EN, rnd, (w) => [w], avoid);
+    const name = fit(`${stem}-inator`);
+    return name ? { name, adj: null, nouns: [stem] } : null;
   }
   const pun = pickFresh(PUNS_EN, rnd, (p) => p.split(/[\s-]+/), avoid);
   return fit(pun) ? { name: pun, adj: null, nouns: pun.split(/[\s-]+/) } : null;
@@ -338,9 +340,9 @@ function buildDe(id: PatternId, rnd: () => number, avoid: Set<string>): NamePart
     return null;
   }
   if (id === 'inator') {
-    const n = pickFresh(shortDeNouns(7), rnd, (x) => [x.word], avoid);
-    const name = fit(`${n.word.replace(/e$/i, '')}-inator`);
-    return name ? { name, adj: null, nouns: [n.word] } : null;
+    const stem = pickFresh(INATOR_STEMS_DE, rnd, (w) => [w], avoid);
+    const name = fit(`${stem}-inator`);
+    return name ? { name, adj: null, nouns: [stem] } : null;
   }
   const pun = pickFresh(PUNS_DE, rnd, (p) => p.split(/[\s-]+/), avoid);
   return fit(pun) ? { name: pun, adj: null, nouns: pun.split(/[\s-]+/) } : null;

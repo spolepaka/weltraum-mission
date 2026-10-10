@@ -19,6 +19,8 @@ import {
   PUNS_DE,
   RHYMES_DE,
   TITLE_NOUNS_DE,
+  INATOR_STEMS_DE,
+  INATOR_STEMS_EN,
   fugenForm,
   type DeGender,
 } from '../src/lib/name-words';
@@ -238,5 +240,28 @@ describe('kid-safe display names', () => {
     expect(html).toMatch(/Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans/);
     expect(html).toContain('Noto Sans');
     expect(html).toContain('DejaVu Sans');
+  });
+
+  it('builds -inator names from full curated stems without truncating', () => {
+    const stems = {
+      en: new Set(INATOR_STEMS_EN.map((s) => s.toLowerCase())),
+      de: new Set(INATOR_STEMS_DE.map((s) => s.toLowerCase())),
+    };
+    for (const stem of [...INATOR_STEMS_EN, ...INATOR_STEMS_DE]) {
+      expect(`${stem}-inator`.length).toBeLessThanOrEqual(16);
+    }
+    let hits = 0;
+    for (let i = 0; i < 800; i++) {
+      const lang = i % 2 ? 'de' : 'en';
+      const core = generateDisplayName(lang).replace(/\s+\d{1,3}$/, '');
+      const m = core.match(/^([\p{L}]+)-inator$/iu);
+      if (!m) {
+        expect(core.toLowerCase().includes('inator') && !/-inator$/i.test(core)).toBe(false);
+        continue;
+      }
+      expect(stems[lang].has(m[1].toLowerCase()), core).toBe(true);
+      hits += 1;
+    }
+    expect(hits).toBeGreaterThan(8);
   });
 });

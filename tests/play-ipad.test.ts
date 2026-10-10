@@ -419,3 +419,54 @@ describe('German umlaut rendering', { timeout: 45000 }, () => {
     await context.close();
   });
 });
+
+describe.each([
+  ['1024x768', LANDSCAPE],
+  ['768x1024', PORTRAIT],
+  ['844x390', IPHONE_LANDSCAPE],
+] as const)('welcome modal fit %s', { timeout: 45000 }, (label, size) => {
+  for (const lang of ['en', 'de'] as const) {
+    it(`fits without scroll and keeps Let's fly in view (${label}, ${lang})`, async () => {
+      const context = await browser.newContext({
+        viewport: size,
+        deviceScaleFactor: 2,
+        hasTouch: true,
+        isMobile: true,
+      });
+      const page = await context.newPage();
+      await page.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForFunction(() => !!(window as GameWin).__spaceGame, { timeout: 20000 });
+      await page.waitForSelector('#welcomeScreen:not(.hidden)', { timeout: 8000 });
+      await page.click(lang === 'de' ? '#welcomeDe' : '#welcomeEn');
+      await page.waitForTimeout(80);
+      const info = await page.evaluate(() => {
+        const screen = document.getElementById('welcomeScreen');
+        const panel = document.querySelector('#welcomeScreen .welcomePanel') as HTMLElement | null;
+        const go = document.getElementById('welcomeGo');
+        if (!screen || !panel || !go) return { ok: false };
+        const pr = panel.getBoundingClientRect();
+        const gr = go.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const pad = 1;
+        return {
+          ok: true,
+          overflow: panel.scrollHeight > panel.clientHeight + pad || panel.scrollWidth > panel.clientWidth + pad,
+          screenOverflow: screen.scrollHeight > screen.clientHeight + pad,
+          goInView: gr.top >= -pad && gr.left >= -pad && gr.bottom <= vh + pad && gr.right <= vw + pad,
+          panelInView: pr.top >= -pad && pr.bottom <= vh + pad && pr.left >= -pad && pr.right <= vw + pad,
+          goText: (go.textContent || '').trim(),
+          scrollH: panel.scrollHeight,
+          clientH: panel.clientHeight,
+        };
+      });
+      expect(info.ok).toBe(true);
+      expect(info.overflow, `${label} ${lang} panel scroll ${info.scrollH}>${info.clientH}`).toBe(false);
+      expect(info.screenOverflow).toBe(false);
+      expect(info.goInView).toBe(true);
+      expect(info.panelInView).toBe(true);
+      expect(info.goText).toMatch(lang === 'de' ? /Losfliegen/ : /fly/i);
+      await context.close();
+    });
+  }
+});

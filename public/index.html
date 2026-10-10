@@ -135,10 +135,78 @@
   #obPrompt .btnRow { margin-top: 4px; }
   #obPrompt .big { font-size: 20px; padding: 10px 22px; margin-top: 4px; }
   #welcomeScreen { z-index: 50; }
-  .welcomePanel { max-width: 480px; }
-  .langFlag { min-width: 160px; }
-  .langFlag.on { outline: 4px solid #7dffa8; }
-  #welcomeNameShow { font-size: 30px; color: #ffd54a; margin: 8px 0 4px; font-weight: bold; }
+  .welcomePanel {
+    max-width: min(520px, 94vw);
+    padding: 14px 16px 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-sizing: border-box;
+  }
+  #welcomeScreen .welcomePanel h1 { margin: 0 0 2px; font-size: 26px; }
+  #welcomeScreen .welcomePanel p { margin: 0; font-size: 15px; line-height: 1.25; }
+  .welcomeFlags { display: flex; justify-content: center; gap: 8px; flex-wrap: nowrap; }
+  .langFlag {
+    min-width: 0;
+    margin: 0;
+    padding: 6px 14px;
+    font-size: 16px;
+    border-radius: 22px;
+    border: none;
+    background: #ffd54a;
+    color: #2a1660;
+    font-weight: bold;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #b8901a;
+  }
+  .langFlag.on { outline: 3px solid #7dffa8; }
+  #welcomeNameShow { font-size: 20px; color: #ffd54a; margin: 0; font-weight: bold; }
+  .nameChips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 0; }
+  .nameChips button, .nameChip {
+    width: auto;
+    flex: 1 1 118px;
+    margin: 0;
+    padding: 8px 10px;
+    font-size: 15px;
+    font-weight: bold;
+    font-family: inherit;
+    border: none;
+    border-radius: 16px;
+    background: #ffd54a;
+    color: #2a1660;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #b8901a;
+  }
+  .nameChips button.on, .nameChip.on { outline: 3px solid #7dffa8; }
+  .welcomeActions { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 2px; }
+  #welcomeReroll {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: #8fb0ff;
+    color: #12204a;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #4a5ea8;
+  }
+  #welcomeGo { margin: 0; padding: 10px 26px; font-size: 20px; flex: 1 1 auto; max-width: 280px; }
+  @media (max-height: 430px) {
+    .welcomePanel { padding: 8px 12px 10px; gap: 5px; }
+    #welcomeScreen .welcomePanel h1 { font-size: 20px; }
+    #welcomeScreen .welcomePanel p { font-size: 13px; }
+    .langFlag { padding: 4px 10px; font-size: 14px; }
+    .nameChips { flex-wrap: nowrap; }
+    .nameChips button, .nameChip { font-size: 13px; padding: 6px 6px; flex: 1 1 0; }
+    #welcomeReroll { width: 38px; height: 38px; min-width: 38px; font-size: 18px; }
+    #welcomeGo { padding: 8px 18px; font-size: 17px; }
+  }
   #trainBtn { bottom: calc(70px + env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); font-size: 15px; background: rgba(40,90,60,.85); border-color: #7dffa8; }
   #trainBanner { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 8; background: rgba(20,80,50,.9); border: 2px solid #7dffa8; border-radius: 14px; padding: 4px 14px; font-size: 16px; font-weight: bold; zoom: var(--s); pointer-events: none; }
   #joinToast { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); z-index: 45; display: none; gap: 10px; align-items: center; background: rgba(20,40,90,.94); border: 2px solid #7dffa8; border-radius: 16px; padding: 8px 12px; color: #fff; }
@@ -234,6 +302,8 @@
   .nameChoices { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
   .nameChoices button { width: 100%; }
   .nameChoices button.on { outline: 3px solid #ffd54a; }
+  .nameChoices.nameChips { flex-direction: row; flex-wrap: wrap; margin: 0; }
+  .nameChoices.nameChips button { width: auto; }
   #accountScreen .emailRow { display: flex; flex-direction: column; gap: 8px; }
   #accountEmail { -webkit-user-select: text; user-select: text; font-size: 18px; font-family: inherit; padding: 10px 12px; border-radius: 12px; border: 2px solid #7dffa8; background: rgba(0,0,0,.5); color: #fff; width: 100%; box-sizing: border-box; }
   #celebrateHud { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); z-index: 8; text-align: center; pointer-events: none; display: none; width: 90%; }
@@ -433,15 +503,15 @@
   <div class="panel welcomePanel">
     <h1 id="welcomeTitle">Welcome, pilot!</h1>
     <p id="welcomeLangLabel">Pick a language</p>
-    <div class="btnRow">
-      <button class="big langFlag" id="welcomeEn" type="button">🇬🇧 English</button>
-      <button class="big langFlag" id="welcomeDe" type="button">🇩🇪 Deutsch</button>
+    <div class="welcomeFlags" role="group" aria-labelledby="welcomeLangLabel">
+      <button class="langFlag" id="welcomeEn" type="button">🇬🇧 English</button>
+      <button class="langFlag" id="welcomeDe" type="button">🇩🇪 Deutsch</button>
     </div>
     <p id="welcomeNameLabel">Your space name</p>
     <p id="welcomeNameShow" class="hidden"></p>
-    <div id="welcomeNameChoices" class="nameChoices"></div>
-    <div class="btnRow">
-      <button class="big alt" id="welcomeReroll" type="button">New names</button>
+    <div id="welcomeNameChoices" class="nameChoices nameChips"></div>
+    <div class="welcomeActions">
+      <button class="rerollBtn" id="welcomeReroll" type="button" aria-label="New name" title="New name">🔄</button>
       <button class="big" id="welcomeGo" type="button">Let's fly!</button>
     </div>
   </div>
@@ -5299,10 +5369,11 @@
     }
     box.innerHTML = "";
     var picked = list[0];
+    var chip = box.classList.contains("nameChips");
     list.forEach(function (nm, i) {
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "big" + (i === 0 ? " on" : "");
+      b.className = (chip ? "nameChip" : "big") + (i === 0 ? " on" : "");
       b.textContent = nm;
       b.addEventListener("click", function () {
         picked = nm;
@@ -5331,7 +5402,8 @@
     $("welcomeTitle").textContent = tr("tips.welcomeTitle");
     $("welcomeLangLabel").textContent = tr("tips.welcomeLang");
     $("welcomeNameLabel").textContent = tr("tips.welcomeName");
-    $("welcomeReroll").textContent = tr("account.reroll");
+    $("welcomeReroll").setAttribute("aria-label", tr("account.reroll"));
+    $("welcomeReroll").setAttribute("title", tr("account.reroll"));
     $("welcomeGo").textContent = tr("tips.welcomeGo");
     $("trainBtn").textContent = "🎓 " + tr("tips.trainBtn");
     $("accountReplay").textContent = tr("account.replayTutorial");
