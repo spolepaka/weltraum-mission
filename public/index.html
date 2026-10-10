@@ -109,6 +109,18 @@
   #coachArrow { position: absolute; width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-top: 22px solid #ffd54a; animation: coachPulse 1s ease-in-out infinite; display: none; }
   #coachMark.shop #coachArrow { display: block; right: 46px; bottom: 78px; }
   @keyframes coachPulse { 0%,100% { transform: translateY(0); opacity: 1; } 50% { transform: translateY(8px); opacity: .45; } }
+  .obSpot { position: relative; z-index: 54 !important; box-shadow: 0 0 0 4px #ffd54a, 0 0 0 9999px rgba(5,8,22,.62), 0 0 28px #ffd54a; animation: coachPulse 1s ease-in-out infinite; }
+  #obPrompt { position: absolute; left: 50%; top: calc(72px + env(safe-area-inset-top)); transform: translateX(-50%); z-index: 55; width: min(520px, 92vw); background: rgba(12,18,48,.96); border: 3px solid #ffd54a; border-radius: 20px; padding: 14px 16px 12px; text-align: center; zoom: var(--s); box-shadow: 0 12px 36px rgba(0,0,0,.5); }
+  #obText { margin: 0 0 10px; font-size: 22px; font-weight: bold; line-height: 1.35; color: #fff; }
+  #obPrompt .btnRow { margin-top: 4px; }
+  #obPrompt .big { font-size: 20px; padding: 10px 22px; margin-top: 4px; }
+  #welcomeScreen { z-index: 50; }
+  .welcomePanel { max-width: 480px; }
+  .langFlag { min-width: 160px; }
+  .langFlag.on { outline: 4px solid #7dffa8; }
+  #welcomeNameShow { font-size: 30px; color: #ffd54a; margin: 8px 0 4px; font-weight: bold; }
+  #trainBtn { bottom: calc(70px + env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); font-size: 15px; background: rgba(40,90,60,.85); border-color: #7dffa8; }
+  #trainBanner { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 8; background: rgba(20,80,50,.9); border: 2px solid #7dffa8; border-radius: 14px; padding: 4px 14px; font-size: 16px; font-weight: bold; zoom: var(--s); pointer-events: none; }
   #joinToast { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); z-index: 45; display: none; gap: 10px; align-items: center; background: rgba(20,40,90,.94); border: 2px solid #7dffa8; border-radius: 16px; padding: 8px 12px; color: #fff; }
   #joinToast.show { display: flex; }
   .shopPanel { max-width: 820px; width: 96%; padding: 14px 18px 18px; text-align: left; background: linear-gradient(170deg, #121a44, #24124a 60%, #0d1030); }
@@ -244,6 +256,7 @@
   </div>
   <button id="weeklyBtn" class="mapBtn">🏆 Weekly</button>
   <button id="resetBtn" class="mapBtn">↺ Restart</button>
+  <button id="trainBtn" class="mapBtn">🎓 Training</button>
   <button id="shopBtn" class="mapBtn">🛒 Shop<span id="shopBadge">!</span></button>
   <button id="missionBtn" class="mapBtn">🎯 Missions</button>
   <button id="onlineBtn" class="mapBtn">🌍 Online</button>
@@ -283,6 +296,7 @@
     <label class="small" style="display:flex;gap:8px;align-items:center;margin:10px 0">
       <input type="checkbox" id="accountDnt"> <span id="accountDntLabel">Do not track play stats</span>
     </label>
+    <button class="big" id="accountReplay">Replay tutorial</button>
     <button class="big alt hidden" id="accountSignOut">Sign out</button>
     <button class="big alt" id="accountClose">Close</button>
   </div>
@@ -379,6 +393,30 @@
     <div class="btnRow"><button class="big" id="onboardNext">Next</button><button class="big alt" id="onboardSkip">Skip</button></div>
   </div>
 </div>
+<div id="welcomeScreen" class="screen hidden">
+  <div class="panel welcomePanel">
+    <h1 id="welcomeTitle">Welcome, pilot!</h1>
+    <p id="welcomeLangLabel">Pick a language</p>
+    <div class="btnRow">
+      <button class="big langFlag" id="welcomeEn" type="button">🇬🇧 English</button>
+      <button class="big langFlag" id="welcomeDe" type="button">🇩🇪 Deutsch</button>
+    </div>
+    <p id="welcomeNameLabel">Your space name</p>
+    <p id="welcomeNameShow"></p>
+    <div class="btnRow">
+      <button class="big alt" id="welcomeReroll">New name</button>
+      <button class="big" id="welcomeGo">Let's fly!</button>
+    </div>
+  </div>
+</div>
+<div id="obPrompt" class="hidden">
+  <p id="obText"></p>
+  <div class="btnRow">
+    <button class="big" id="obNext">Next</button>
+    <button class="big alt" id="obSkip">Skip</button>
+  </div>
+</div>
+<div id="trainBanner" class="hidden">Training flight</div>
 <div id="weeklyScreen" class="screen hidden">
   <div class="panel" style="max-width:480px">
     <h1 id="weeklyTitle">Weekly challenge</h1>
@@ -682,6 +720,7 @@
 
   // ---------- Zustand ----------
   var state = "map"; // map | play | dying | sucked | won | over
+  var trainOn = false, trainStep = "", trainT = 0, trainMovedL = false, trainMovedR = false, mapTourStep = "", mapTourOn = false;
   var ship = null, bullets = [], rocks = [], ufos = [], bombs = [], stars = [], powers = [], particles = [], boss = null;
   var score = 0, lives = 3, MAXLIVES = 5, time = 0, level = 1, hits = 0, collected = 0, bossesBeaten = 0, lastBossLevel = 0;
   var spawnTimer = 0, starTimer = 0, ufoTimer = 0, powerTimer = 0, fireCooldown = 0, invuln = 0, shake = 0, msgTimer = 0;
@@ -740,9 +779,16 @@
     var bg = bossGene(L);
     return { type: type, hp: Math.round(base[0] * (330 + 17 * (L - 18))), speed: base[1] * (1 + (L - 18) * 0.003), name: bg ? bg.name : locShort(type), mods: mods, tint: sec.tint };
   }
-  function startGame(L) {
+  function startGame(L, opts) {
     audio();
-    L = Math.max(1, Math.min(MAX_LEVEL, L || progress.unlocked));
+    var asTrain = !!(opts && opts.training);
+    trainOn = asTrain;
+    trainStep = asTrain ? "moveLeft" : "";
+    trainT = 0;
+    trainMovedL = false;
+    trainMovedR = false;
+    if (asTrain) L = 0;
+    else L = Math.max(1, Math.min(MAX_LEVEL, L || progress.unlocked));
     curStats = shipStats(); coinsArr = []; coinsRun = 0;
     // Universums-Titan war in Level 13–17 zu stark: dort lädt sein Schild langsamer und die Drohnen treffen schwächer
     if (shop.equipped === "kaiserbrecher" && L === 100) curStats = Object.assign({}, curStats, { dmg: curStats.dmg * 1.6 }); // gebaut, um den Kaiser zu brechen
@@ -774,8 +820,18 @@
     hideMsg(); updateHud(); updatePower(); updateLevelInfo();
     var shipLine = "<br><span style='font-size:17px;color:#7dffea'>🚀 " + shipNameOf(curShip()) + ": " + (shipPerkOf(curShip()) || "") + "</span>";
     var fc = featCopy(L);
-    if (fc) showMsg("✨ " + tr("game.neuBanner") + ": " + fc[0] + "!<br><span style='font-size:20px'>" + fc[1] + "</span>" + shipLine, "new", 3.6);
-    else showMsg((isBossLevel(L) ? "Level " + L + ": " + tr("game.bossLevel") + " 👾" : "Level " + L + " – " + tr("game.letsGo") + " 🚀") + shipLine, "good", 2.4);
+    if (asTrain) {
+      LEVEL_TIME = 99999;
+      spawnTimer = 99999; starTimer = 99999; ufoTimer = 99999; powerTimer = 99999; holeTimer = 99999; cometTimer = 99999;
+      $("trainBanner").classList.remove("hidden");
+      $("trainBanner").textContent = tr("tips.trainHud");
+      hideMsg();
+      setTimeout(function () { beginTrainStep("moveLeft"); }, 240);
+    } else {
+      $("trainBanner").classList.add("hidden");
+      if (fc) showMsg("✨ " + tr("game.neuBanner") + ": " + fc[0] + "!<br><span style='font-size:20px'>" + fc[1] + "</span>" + shipLine, "new", 3.6);
+      else showMsg((isBossLevel(L) ? "Level " + L + ": " + tr("game.bossLevel") + " 👾" : "Level " + L + " – " + tr("game.letsGo") + " 🚀") + shipLine, "good", 2.4);
+    }
   }
   var lastInfo = "";
   function updateLevelInfo() {
@@ -811,6 +867,7 @@
   }
   function finishLevel() {
     if (state !== "play") return;
+    if (trainOn) { finishTraining(false); return; }
     state = "won"; resetInput();
     var lvBest = twoP && others.length ? Math.max.apply(null, allLives()) : lives;
     var stars = lvBest >= 3 ? 3 : lvBest === 2 ? 2 : 1;
@@ -886,6 +943,7 @@
       else if (F.ice && Math.random() < F.iceP) makeIce(rk);
     }
     if (level >= 19 && !rk.armor) { rk.tough = true; rk.hp = rk.hp0 = Math.max(2, Math.round(dmgRef() * (big ? 2.2 : 1.3) * heat() / 1.3)); }
+    if (rk.ice || rk.armor) showJit("hazard");
     rocks.push(rk);
   }
   function makeIce(rk) { rk.ice = true; rk.hue = 195; return rk; }
@@ -921,6 +979,7 @@
       shield: null, shieldCd: 6, droneT: 3, powerT: 9, immuneT: 0, blocks: 0, vx: bt[2] * (Math.random() < 0.5 ? -1 : 1), hp: bt[1], maxHp: bt[1],
       bombTimer: 2.5, spreadT: 3.2, laserCd: 3.5, summonCd: 0, phase: 1, laser: null, t: 0, flash: 0 };
     hideMsg(); SFX.boss(); tone(90, 45, 0.9, "sawtooth", 0.07, 0.2); tone(90, 45, 0.9, "sawtooth", 0.07, 1.1);
+    if (!trainOn) showJit("boss");
   }
   function golemArm(sd) { var b = boss; return b.wind > 0 ? -26 : Math.sin(b.t * 2 + sd) * 6; }
   function bossSep() { return 120 + 30 * Math.sin(boss.t * 1.3); }
@@ -944,7 +1003,7 @@
     // spätere Sektoren: etwas größer (+12/20 %) und stärkerer Sog (+15 % ab L50, +30 % ab L80), aber immer langsamer als die Rakete
     var hk = level >= 70 ? 1.2 : level >= 40 ? 1.12 : 1, pk = level >= 80 ? 1.3 : level >= 50 ? 1.15 : 1;
     holes.push({ x: x === undefined ? rnd(90, W - 90) : x, y: y === undefined ? -60 : y, r: 18 * hk, r0: 18 * hk, pk: pk, vy: 22 * speedScale(), rot: 0, pulse: 0 });
-    if (!holeTipShown) { holeTipShown = true; showMsg("⚫ " + tr("tips.holeWarn"), "bad", 2.8); tone(150, 60, 0.8, "sine", 0.12); }
+    if (!holeTipShown) { holeTipShown = true; showJit("blackHole"); tone(150, 60, 0.8, "sine", 0.12); }
   }
   function spawnComet() {
     var fromLeft = Math.random() < 0.5, sc = speedScale();
@@ -967,6 +1026,7 @@
     if (r.armor && r.hp > dd) { r.hp -= dd; r.flash = 0.12; addScore(5); explode(r.x, r.y, 10, STEEL, 140); tone(900, 500, 0.06, "square", 0.05); return; }
     if (r.tough && r.hp > dd) { r.hp -= dd; r.flash = 0.1; addScore(2); explode(r.x, r.y - r.r * 0.5, 5, ["#ffffff", "#c8b8a8", "#ffd54a"], 110); return; }
     r.dead = true; hits++; missionAdd("rocks", 1); comboKill(r.x, r.y);
+    if (trainOn && trainStep === "shootRock") trainAdvance();
     if (r.golden) { recAdd("golden"); coinBurst(r.x, r.y, 10, 5); addScore(150); explode(r.x, r.y, 60, GOLD, 360); SFX.boom(); SFX.power(); shake = Math.max(shake, 0.25); showMsg("✨ " + tr("tips.gold") + " ✨", "good", 1.5); return; }
     if (r.meteor) dropCoin(r.x, r.y, 0.08, 1); else if (r.armor) dropCoin(r.x, r.y, 0.5, 4); else if (r.big) dropCoin(r.x, r.y, 0.35, 3); else dropCoin(r.x, r.y, 0.2, 2);
     if (r.ice) { addScore(15); explode(r.x, r.y, 26, ICE); tone(1500, 900, 0.15, "triangle", 0.07); SFX.boom(); return; }
@@ -1003,6 +1063,7 @@
       spawnPower(boss.x, boss.y);
     }
     addScore(500); bossesBeaten++; missionAdd("boss", 1);
+    if (trainOn && trainStep === "miniBoss") { trainAdvance(); }
     var bx0 = hole ? hole.x : boss.x, by0 = hole ? hole.y : boss.y;
     for (var ci = 0; ci < 10; ci++) { dropCoin(bx0 + rnd(-90, 90), by0 + rnd(-30, 30), 1, 5); coinsArr[coinsArr.length - 1].vx = rnd(-60, 60); }
     bombs = []; drones = []; boss = null;
@@ -1084,6 +1145,7 @@
   function gameOver(reason) {
     state = "over"; sucked = null; holeWobble = 0; recAdd("losses"); combo = 0;
     noteLevelLoss(level);
+    showJit("firstLoss");
     trackPlay("level_loss", level);
     $("overTitle").textContent = reason === "hole" ? tr("game.holeDeath") + " 🕳️" : tr("game.missionEnded");
     ["hud", "wordBox", "controls", "power"].forEach(function (id) { $(id).classList.add("hidden"); });
@@ -1198,7 +1260,7 @@
     var a = rnd(0.12, 0.32) * W, b = rnd(0.68, 0.88) * W;
     if (Math.random() < 0.5) { var t = a; a = b; b = t; }
     worm = { ax: a, bx: b, t: 0, y: -90, vy: 70 * speedScale() }; // Portale schweben von oben herunter – man fliegt hinein, wenn sie auf Höhe der Rakete sind
-    if (!wormTip) { wormTip = true; showMsg("🌀 " + tr("tips.wormhole"), "new", 2.6); }
+    if (!wormTip) { wormTip = true; showJit("wormhole"); }
     tone(300, 1200, 0.6, "sine", 0.06);
   }
   function teleportShip(nx) {
@@ -1896,6 +1958,7 @@
 
   // ---------- Treffer am Spieler ----------
   function hurt(x, y) {
+    if (trainOn) { invuln = 0.35; explode(x, y, 16, CYAN); return; }
     if (invuln > 0) return;
     if (curStats.perk === "phase" && state === "play" && !ship.down && Math.random() < 0.4) { phaseDodge(); return; }
     if (shield) { shield = false; invuln = 1.2; explode(ship.x, ship.y, 24, CYAN); SFX.shield(); showMsg("🛡️ " + tr("tips.shieldSaved"), "good", 1.2); updatePower(); return; }
@@ -1918,6 +1981,7 @@
   // ---------- Vom Schwarzen Loch verschluckt: sofort vorbei (egal ob Herzen, Schild oder Blinken) ----------
   var sucked = null, holeFlash = 0;
   function suckIntoHole(h) {
+    if (trainOn) return;
     if (state !== "play") return;
     if (twoP) { // Zu zweit: nur dieser Spieler ist raus
       heartsLostRun++; explode(h.x, h.y, 50, PURPLE, 260); tone(500, 30, 1.2, "sawtooth", 0.12); h.pulse = 0.5;
@@ -2111,6 +2175,7 @@
       powers.forEach(function (p) {
         if (!p.dead && hit(p.x, p.y, 22, ship.x, ship.y, sr + 4)) {
           p.dead = true; missionAdd("powers", 1); SFX.power(); explode(p.x, p.y, 24, CYAN);
+          if (trainOn && trainStep === "grabPower") trainAdvance();
           if (p.type === "shield") { shield = true; showMsg("🛡️ " + tr("tips.pwrShield"), "good", 1.2); }
           else if (p.type === "triple") { triple = TRIPLE_TIME; showMsg("🔱 " + tr("tips.pwrTriple"), "good", 1.2); }
           else if (p.type === "laser") { laser = LASER_TIME; showMsg("⚡ " + tr("tips.pwrLaser"), "good", 1.2); }
@@ -2143,6 +2208,7 @@
   }
   function updateWorld(dt) {
 
+    trainTick(dt);
     // Bewegung der Rakete(n)
     playerTick(dt);
     forOthers(function () { playerTick(dt); });
@@ -2161,7 +2227,7 @@
         if (bossSpawned && !boss && swallows.length === 0 && finishTimer === 0 && celebrateT <= 0 && !celebrateKind) {
           startBossCelebrate();
         }
-      } else if (levelTime >= LEVEL_TIME && finishTimer === 0 && celebrateT <= 0) {
+      } else if (!trainOn && levelTime >= LEVEL_TIME && finishTimer === 0 && celebrateT <= 0) {
         finishTimer = 1.2; showMsg(tr("levelComplete") + " ⭐", "good", 1.2); SFX.level();
       }
       if (celebrateT > 0) {
@@ -2175,7 +2241,7 @@
     }
 
     // Spawnen (während des Bosskampfs weniger Asteroiden)
-    if (state === "play") {
+    if (state === "play" && !trainOn) {
       spawnTimer -= dt * modeTune().spawnRate;
       if (spawnTimer <= 0) { spawnRock(); spawnTimer = spawnEvery() * rnd(0.7, 1.3) * (boss ? 2.2 * ((boss.modK || 1) > 1 ? 2 : 1) : 1) / teamSpawn(); }
       starTimer -= dt;
@@ -4143,8 +4209,9 @@
       if (c.dead || !canPick) { if (c.y > H + 20) c.dead = true; return; }
       var dx = ship.x - c.x, dy = ship.y - c.y, d = Math.sqrt(dx * dx + dy * dy) + 0.01;
       if (R > 0 && d < R) { var sp = Math.min(d, 430 * dt); c.x += dx / d * sp; c.y += dy / d * sp; }
-      if (d < 22 + c.r + 6) {
+        if (d < 22 + c.r + 6) {
         c.dead = true; shop.coins += c.v; coinsRun += c.v; recAdd("coinsV", c.v); saveShop(); updateHud(); netEmit(["c", c.v, r1(c.x), r1(c.y)]); missionAdd("coins", 1);
+        if (trainOn && trainStep === "collectCoin") trainAdvance();
         particles.push({ txt: "+" + c.v, x: c.x, y: c.y - 10, vx: 0, vy: -70, life: 0.9, max: 0.9, r: 0, c: "#ffd54a" });
         tone(1320, 1760, 0.07, "triangle", 0.07); tone(1760, 2200, 0.08, "triangle", 0.05, 0.06);
         for (var i = 0; i < 7; i++) particles.push({ x: c.x, y: c.y, vx: rnd(-90, 90), vy: rnd(-90, 60), life: 0.4, max: 0.4, r: rnd(1.5, 3), c: pick(GOLD) });
@@ -4954,6 +5021,7 @@
     if (window.__weltraum && window.__weltraum.onPurchaseUpgrade) window.__weltraum.onPurchaseUpgrade(id, price);
     shopToast("🔧 " + tr("tips.upgradeLv", { name: locUpgrade(up).name.replace(/^\S+\s/, ""), level: lv + 1 }), "good"); celebrate(); renderShop();
     flashEl(document.querySelector('.uprow[data-id="' + id + '"]'));
+    if (mapTourOn && mapTourStep === "shop") mapTourAdvance();
   }
   function drawShop(dt) {
     shopT += dt;
@@ -5035,7 +5103,7 @@
     if (!p || typeof p !== "object") p = {};
     var st0 = p.stars && typeof p.stars === "object" ? p.stars : {}, un = Math.max(1, Math.min(MAX_LEVEL_C, p.unlocked | 0 || 1));
     while (un < MAX_LEVEL_C && (st0[un] | 0) > 0) un++; // alte Spielstände: Level 12 geschafft -> 13 offen
-    return { unlocked: un, stars: st0, best: p.best || {}, failed: p.failed | 0 };
+    return { unlocked: un, stars: st0, best: p.best || {}, failed: p.failed | 0, onboard: p.onboard || null };
   }
   function saveProgress() { save("spaceMissionProgress", JSON.stringify(progress)); updateMapHud(); }
   function totalScore() { var t = 0; for (var k in progress.best) t += progress.best[k] | 0; return t; }
@@ -5113,11 +5181,209 @@
       rocketS = restS(); mapAnim = null; centerOn(progress.unlocked - 1);
     }
     prefetchNextLevels();
-    maybePickName();
+    var ob = onboardApi() ? onboardApi().loadOnboard() : null;
+    if (!ob || ob.welcomeDone) maybePickName();
     refreshShopBadge();
   }
 
   function tipsApi() { return window.__weltraum && window.__weltraum.tips; }
+  function onboardApi() { return window.__weltraum && window.__weltraum.onboard; }
+  function obState() { var api = onboardApi(); return api ? api.loadOnboard() : { welcomeDone: true, trainingDone: true, mapTourDone: true, skipped: false, jitShown: {} }; }
+  function saveOb(st) { var api = onboardApi(); if (api) api.saveOnboard(st); return st; }
+  function showJit(id) {
+    var api = onboardApi(); if (!api) return false;
+    var st = api.loadOnboard();
+    if (!api.canShowJit(st, id)) return false;
+    api.markJit(st, id);
+    showMsg(tr("tips.jit_" + id), "new", 2.8);
+    return true;
+  }
+  function obClearSpot() {
+    var list = document.querySelectorAll(".obSpot");
+    for (var i = 0; i < list.length; i++) list[i].classList.remove("obSpot");
+  }
+  function obSpot(id) {
+    obClearSpot();
+    var el = $(id);
+    if (el) el.classList.add("obSpot");
+  }
+  function showObPrompt(text, mode) {
+    $("obText").textContent = text;
+    $("obNext").textContent = tr("tips.tourNext");
+    $("obSkip").textContent = mode === "tour" ? tr("tips.tourSkip") : tr("tips.trainSkip");
+    $("obNext").classList.toggle("hidden", mode !== "tour");
+    $("obPrompt").classList.remove("hidden");
+  }
+  function hideObPrompt() {
+    $("obPrompt").classList.add("hidden");
+    obClearSpot();
+  }
+  function refreshWelcomeName() {
+    var names = window.__weltraum && window.__weltraum.names;
+    var lang = curLang === "de" ? "de" : "en";
+    $("welcomeNameShow").textContent = names ? names.generate(lang) : "Cosmic Fox 42";
+  }
+  function showWelcome() {
+    applyWelcomeI18n();
+    refreshWelcomeName();
+    $("welcomeEn").classList.toggle("on", curLang !== "de");
+    $("welcomeDe").classList.toggle("on", curLang === "de");
+    $("welcomeScreen").classList.remove("hidden");
+    $("namePickScreen").classList.add("hidden");
+    $("onboardScreen").classList.add("hidden");
+  }
+  function applyWelcomeI18n() {
+    $("welcomeTitle").textContent = tr("tips.welcomeTitle");
+    $("welcomeLangLabel").textContent = tr("tips.welcomeLang");
+    $("welcomeNameLabel").textContent = tr("tips.welcomeName");
+    $("welcomeReroll").textContent = tr("account.reroll");
+    $("welcomeGo").textContent = tr("tips.welcomeGo");
+    $("trainBtn").textContent = "🎓 " + tr("tips.trainBtn");
+    $("accountReplay").textContent = tr("account.replayTutorial");
+    $("trainBanner").textContent = tr("tips.trainHud");
+  }
+  function acceptWelcome() {
+    var names = window.__weltraum && window.__weltraum.names;
+    var shown = $("welcomeNameShow").textContent || "";
+    if (names) names.save(shown, "generated");
+    $("welcomeScreen").classList.add("hidden");
+    var api = onboardApi();
+    if (api) api.markWelcome(api.loadOnboard());
+    persistOnboard();
+    startGame(0, { training: true });
+  }
+  function persistOnboard() {
+    var api = onboardApi();
+    if (!api) return;
+    progress.onboard = api.loadOnboard();
+    saveProgress();
+    if (window.__weltraum && window.__weltraum.onGameSave) window.__weltraum.onGameSave();
+  }
+  function hydrateOnboard() {
+    var api = onboardApi();
+    if (!api || !progress.onboard) return;
+    var cur = api.loadOnboard();
+    if (!cur.welcomeDone && progress.onboard.welcomeDone) api.saveOnboard(progress.onboard);
+  }
+  function beginTrainStep(step) {
+    if (!trainOn) return;
+    trainStep = step;
+    trainT = 0;
+    rocks = []; powers = []; coinsArr = []; boss = null; holes = []; bombs = []; ufos = [];
+    var highlights = { moveLeft: "leftBtn", moveRight: "rightBtn", shootRock: "fireBtn", collectCoin: "", grabPower: "", avoidHazard: "leftBtn", miniBoss: "fireBtn" };
+    obSpot(highlights[step] || "");
+    if (step === "avoidHazard") { $("rightBtn").classList.add("obSpot"); }
+    showObPrompt(tr("tips.train_" + step), "train");
+    if (step === "shootRock") {
+      var rk = makeRock(ship.x, Math.max(80, ship.y - 180), 34, false); rk.vx = 0; rk.vy = 36; rocks.push(rk);
+    } else if (step === "collectCoin") {
+      coinsArr.push({ x: ship.x, y: ship.y - 48, vx: 0, vy: 70, t: 0, v: 10, r: 13 });
+    } else if (step === "grabPower") {
+      powers.push({ x: ship.x, y: ship.y - 52, type: "magnet", vy: 70, t: 0 });
+    } else if (step === "avoidHazard") {
+      var hz = makeRock(ship.x + 140, -30, 30, false); hz.vx = 0; hz.vy = 70; hz.trainDodge = true; rocks.push(hz);
+    } else if (step === "miniBoss") {
+      boss = { type: "saucer", name: tr("tips.trainBoss"), mods: [], tint: "#7dffa8", final: false, sector: false, atk: 0.2, modK: 1, holeImmune: true, modT: {}, x: W / 2, y: -60, targetY: 150, k: 0.55, sz: 180, shield: null, shieldCd: 99, droneT: 99, powerT: 99, immuneT: 0, blocks: 0, vx: 40, hp: 8, maxHp: 8, bombTimer: 99, spreadT: 99, laserCd: 99, summonCd: 0, phase: 1, laser: null, t: 0, flash: 0 };
+      bossSpawned = true;
+    }
+  }
+  function trainAdvance() {
+    if (!trainOn) return;
+    var api = onboardApi();
+    var next = api ? api.nextTrainStep(trainStep) : null;
+    if (!next) { finishTraining(false); return; }
+    beginTrainStep(next);
+  }
+  function trainTick(dt) {
+    if (!trainOn || state !== "play") return;
+    trainT += dt;
+    if (kb.left || $("leftBtn").classList.contains("down")) trainMovedL = true;
+    if (kb.right || $("rightBtn").classList.contains("down")) trainMovedR = true;
+    if (trainStep === "moveLeft" && trainMovedL && trainT > 0.15) trainAdvance();
+    else if (trainStep === "moveRight" && trainMovedR && trainT > 0.15) trainAdvance();
+    else if (trainStep === "avoidHazard") {
+      var gone = rocks.every(function (r) { return !r.trainDodge || r.dead || r.y > H + 40; });
+      if (gone && rocks.some(function (r) { return r.trainDodge; }) === false && trainT > 0.8) trainAdvance();
+      if (rocks.length && rocks.every(function (r) { return r.y > H + 20 || r.dead; }) && trainT > 0.8) trainAdvance();
+    }
+  }
+  function grantTrainingCoins() {
+    if (shop.coins < 60) { shop.coins = 60; saveShop(); updateMapHud(); updateHud(); }
+  }
+  function finishTraining(skipped) {
+    trainOn = false; trainStep = "";
+    hideObPrompt();
+    $("trainBanner").classList.add("hidden");
+    grantTrainingCoins();
+    var api = onboardApi();
+    if (api) api.markTraining(api.loadOnboard(), skipped);
+    persistOnboard();
+    state = "map";
+    goToMap();
+    setTimeout(function () { startMapTour(); }, 280);
+  }
+  function startMapTour() {
+    var api = onboardApi();
+    var st = api ? api.loadOnboard() : null;
+    if (st && st.mapTourDone) return;
+    mapTourOn = true;
+    beginMapTourStep("planets");
+  }
+  function beginMapTourStep(step) {
+    mapTourStep = step;
+    mapTourOn = true;
+    if (step === "shop") {
+      grantTrainingCoins();
+      if ($("shopScreen").classList.contains("hidden")) openShopIfPossible();
+    } else {
+      $("shopScreen").classList.add("hidden");
+    }
+    var spots = { planets: "mapHint", stars: "mapHint", shop: "shopBtn", missions: "missionBtn", twoPlayer: "twoPBtn", online: "onlineBtn", account: "accountBtn" };
+    obSpot(spots[step] || "");
+    if (step === "account") { $("langBtn").classList.add("obSpot"); }
+    showObPrompt(tr("tips.tour_" + step), "tour");
+  }
+  function openShopIfPossible() {
+    if (typeof openShop === "function") openShop();
+    else $("shopScreen").classList.remove("hidden");
+  }
+  function mapTourAdvance() {
+    var api = onboardApi();
+    var next = api ? api.nextMapStep(mapTourStep) : null;
+    if (!next) { finishMapTour(false); return; }
+    beginMapTourStep(next);
+  }
+  function finishMapTour(skipped) {
+    mapTourOn = false; mapTourStep = "";
+    hideObPrompt();
+    $("shopScreen").classList.add("hidden");
+    var api = onboardApi();
+    if (api) api.markMapTour(api.loadOnboard(), skipped);
+    persistOnboard();
+    var tipsA = tipsApi();
+    if (tipsA) {
+      var ts = tipsA.loadTips();
+      ts.onboardDone = true;
+      tipsA.saveTips(ts);
+    }
+  }
+  function replayTutorial() {
+    var api = onboardApi();
+    if (api) api.resetTutorial(api.loadOnboard());
+    $("accountScreen").classList.add("hidden");
+    $("welcomeScreen").classList.add("hidden");
+    startGame(0, { training: true });
+  }
+  function bootOnboarding() {
+    hydrateOnboard();
+    var api = onboardApi();
+    var st = api ? api.loadOnboard() : { welcomeDone: true, trainingDone: true, mapTourDone: true };
+    var phase = api ? api.phaseOf(st) : "done";
+    if (phase === "welcome") { showWelcome(); return; }
+    if (phase === "training") { startGame(0, { training: true }); return; }
+    if (phase === "mapTour") { startMapTour(); return; }
+    maybePickName();
+  }
   function noteLevelLoss(L) {
     var api = tipsApi();
     if (!api) return;
@@ -5153,9 +5419,13 @@
     el.setAttribute("data-tip", id);
   }
   function maybeMapCoach() {
+    var ob = onboardApi() ? onboardApi().loadOnboard() : null;
+    if (ob && !ob.mapTourDone) return;
     var api = tipsApi(); if (!api) return;
     var st = api.beginMapVisit(api.loadTips());
-    if (!st.onboardDone) { maybeOnboard(st); return; }
+    if (!st.onboardDone) { st.onboardDone = true; api.saveTips(st); }
+    if (cheapestDeal()) showJit("affordShip");
+    if (progress.unlocked >= 3) showJit("onlineUnlock");
     var finished = 0; for (var k in progress.stars) if ((progress.stars[k] | 0) > 0) finished++;
     var losses = st.lastLossLevel ? (st.lossesByLevel[String(st.lastLossLevel)] || 0) : 0;
     var id = api.pickMapTip(st, {
@@ -5202,12 +5472,19 @@
   }
   function finishOnboard() {
     $("onboardScreen").classList.add("hidden");
+    $("welcomeScreen").classList.add("hidden");
+    hideObPrompt();
+    trainOn = false;
+    mapTourOn = false;
     var api = tipsApi();
     if (api) {
       var st = api.loadTips();
       st.onboardDone = true;
       api.saveTips(st);
     }
+    var ob = onboardApi();
+    if (ob) ob.markAllDone(ob.loadOnboard(), true);
+    persistOnboard();
   }
   function maybePickName() {
     var names = window.__weltraum && window.__weltraum.names;
@@ -6049,6 +6326,7 @@
   document.addEventListener("webkitfullscreenchange", onFs);
   resize();
   goToMap();
+  setTimeout(bootOnboarding, 60);
   requestAnimationFrame(loop);
 
   // Test-Helfer
@@ -6095,6 +6373,20 @@
     showCoach: function (id, text) { showCoach(id, text); },
     hideCoach: hideCoach,
     finishOnboard: finishOnboard,
+    startTraining: function () { startGame(0, { training: true }); },
+    startWelcome: showWelcome,
+    acceptWelcome: acceptWelcome,
+    skipTraining: function () { finishTraining(true); },
+    skipMapTour: function () { finishMapTour(true); },
+    trainAdvance: trainAdvance,
+    mapTourAdvance: mapTourAdvance,
+    replayTutorial: replayTutorial,
+    onboardPhase: function () {
+      var api = onboardApi();
+      return api ? api.phaseOf(api.loadOnboard()) : "done";
+    },
+    trainStep: function () { return trainStep; },
+    mapTourStep: function () { return mapTourStep; },
     pickNameNow: maybePickName,
     acceptName: acceptPickedName,
     coachVisible: function () { var el = $("coachMark"); return !!(el && !el.classList.contains("hidden") && el.classList.contains("show")); },
@@ -6272,6 +6564,16 @@
     setTxt("modeNormal", tr("tips.modeNormal"));
     setTxt("modeVeteran", tr("tips.modeVeteran"));
     setTxt("weeklyBtn", "🏆 " + tr("tips.weekly"));
+    setTxt("weeklyTitle", tr("tips.weekly"));
+    setTxt("weeklyIntro", tr("tips.weeklyIntro"));
+    setTxt("weeklyPlay", tr("tips.weeklyPlay"));
+    setTxt("weeklyClose", tr("backToMap"));
+    applyWelcomeI18n();
+    if (!$("onboardScreen").classList.contains("hidden")) renderOnboard();
+    if (!$("namePickScreen").classList.contains("hidden")) {
+      setTxt("namePickTitle", tr("tips.pickName"));
+      setTxt("namePickReroll", tr("account.reroll"));
+    }
     if (typeof refreshModeBar === "function") refreshModeBar();
     var dnt = window.__weltraum && window.__weltraum.analytics;
     if (dnt && $("accountDnt")) $("accountDnt").checked = !!dnt.dnt();
@@ -6476,6 +6778,27 @@
     onboardStep++; renderOnboard();
   });
   $("onboardSkip").addEventListener("click", finishOnboard);
+  $("welcomeEn").addEventListener("click", function () {
+    if (typeof setGameLanguage === "function") setGameLanguage("en");
+    $("welcomeEn").classList.add("on"); $("welcomeDe").classList.remove("on");
+    refreshWelcomeName();
+  });
+  $("welcomeDe").addEventListener("click", function () {
+    if (typeof setGameLanguage === "function") setGameLanguage("de");
+    $("welcomeDe").classList.add("on"); $("welcomeEn").classList.remove("on");
+    refreshWelcomeName();
+  });
+  $("welcomeReroll").addEventListener("click", refreshWelcomeName);
+  $("welcomeGo").addEventListener("click", acceptWelcome);
+  $("obSkip").addEventListener("click", function () {
+    if (trainOn) finishTraining(true);
+    else if (mapTourOn) finishMapTour(true);
+  });
+  $("obNext").addEventListener("click", function () {
+    if (mapTourOn) mapTourAdvance();
+  });
+  $("trainBtn").addEventListener("click", function (e) { e.stopPropagation(); replayTutorial(); });
+  $("accountReplay").addEventListener("click", function (e) { e.stopPropagation(); replayTutorial(); });
   $("namePickReroll").addEventListener("click", function () {
     var names = window.__weltraum && window.__weltraum.names;
     if (!names) return;

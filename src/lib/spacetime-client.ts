@@ -329,10 +329,6 @@ class SpacetimeClient {
   }
 
   private setupSubscriptions(conn: DbConnection): void {
-    conn.db.levelData.onInsert((_ctx, row) => {
-      console.log('[SpacetimeDB] Level data received:', row.level);
-    });
-
     this.subscriptionHandle = conn.subscriptionBuilder()
       .onApplied(() => {
         console.log('[SpacetimeDB] Subscription applied');
@@ -342,7 +338,6 @@ class SpacetimeClient {
         console.error('[SpacetimeDB] Subscription error:', ctx.event);
       })
       .subscribe([
-        'SELECT * FROM level_data',
         'SELECT * FROM server_config',
       ]);
   }

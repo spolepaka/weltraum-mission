@@ -144,7 +144,7 @@ async function main() {
   }
 
   console.log('[e2e] running Playwright suite');
-  await run('npx', ['vitest', 'run', 'tests/e2e-real.test.ts', 'tests/play-ipad.test.ts', 'tests/lazy-load.test.ts', 'tests/online-multiplayer.test.ts'], { env });
+  await run('npx', ['vitest', 'run', 'tests/e2e-real.test.ts', 'tests/play-ipad.test.ts', 'tests/lazy-load.test.ts', 'tests/online-multiplayer.test.ts', 'tests/onboarding-e2e.test.ts'], { env });
 
   if (previewProc) previewProc.kill('SIGTERM');
   console.log('[e2e] real suite passed');

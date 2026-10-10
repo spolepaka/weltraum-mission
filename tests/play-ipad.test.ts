@@ -17,6 +17,7 @@ const HUD_SCREENS = [
   'shopScreen', 'missionScreen', 'achScreen', 'statsScreen',
   'onlineScreen', 'accountScreen', 'helpScreen', 'pauseScreen',
   'confirmScreen', 'onboardScreen', 'namePickScreen', 'weeklyScreen',
+  'welcomeScreen',
 ];
 
 type GameWin = Window & {
@@ -60,6 +61,10 @@ async function openPage(size: { width: number; height: number }): Promise<{ cont
     return !!(w.__spaceGame && typeof w.__spaceGame.forceFinish === 'function');
   }, { timeout: 20000 });
   await page.waitForTimeout(200);
+  await page.evaluate(() => {
+    const w = window as GameWin;
+    w.__spaceGame?.finishOnboard?.();
+  });
   return { context, page };
 }
 

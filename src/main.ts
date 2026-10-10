@@ -43,6 +43,7 @@ import {
   type NameKind,
 } from './lib/display-names';
 import * as tips from './lib/tips';
+import * as onboard from './lib/onboarding';
 import { loadDifficulty, saveDifficulty, parseDifficulty, type Difficulty } from './lib/difficulty';
 import { isoWeekKey, weeklyChallenge } from './lib/weekly';
 import { loadDoNotTrack, saveDoNotTrack, type AnalyticsKind } from './lib/analytics';
@@ -89,6 +90,7 @@ export interface WeltraumApi {
     save: (name: string, kind: NameKind) => { ok: true; name: string } | { ok: false; reason: string };
   };
   tips: typeof tips;
+  onboard: typeof onboard;
   difficulty: {
     current: () => Difficulty;
     set: (mode: Difficulty) => void;
@@ -302,6 +304,7 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       },
     },
     tips,
+    onboard,
     difficulty: {
       current: () => loadDifficulty(),
       set: (mode) => {

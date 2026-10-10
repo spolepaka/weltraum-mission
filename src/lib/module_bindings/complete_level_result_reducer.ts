@@ -17,4 +17,5 @@ export default {
   coinsEarned: __t.u64(),
   timeMs: __t.u64(),
   heartsLeft: __t.u32(),
+  mode: __t.string(),
 };
