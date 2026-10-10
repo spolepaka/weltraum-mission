@@ -1,12 +1,24 @@
 /**
  * Vite entry loaded by the game HTML.
  * Connects the official SpacetimeDB SDK and routes save/load, level
- * start/complete, purchases, codes, and co-op security through it.
+ * start/complete, purchases, codes, co-op security, and SpacetimeAuth.
  */
 
-import { initLanguage, getLanguage, setLanguage, toggleLanguage, t, onLanguageChange } from './i18n';
+import { initLanguage, getLanguage, setLanguage, toggleLanguage, t, onLanguageChange, getCatalog } from './i18n';
 import { initSpacetime, getSpacetimeClient, type SyncStatus, type SpacetimeClient } from './lib/spacetime-client';
 import * as coop from './coop-security';
+import {
+  completeSignInIfNeeded,
+  getAuthConfig,
+  isAuthConfigured,
+  loadAuthUser,
+  loadAnonSnapshot,
+  clearAnonSnapshot,
+  startSignIn,
+  clearAuthUser,
+  type ProgressSnapshot,
+} from './lib/spacetime-auth';
+import { mergeCoins, shouldAcceptServerCoins } from './lib/coin-ledger';
 
 export interface WeltraumApi {
   i18n: {
@@ -15,6 +27,7 @@ export interface WeltraumApi {
     setLanguage: typeof setLanguage;
     toggleLanguage: typeof toggleLanguage;
     onLanguageChange: typeof onLanguageChange;
+    getCatalog: typeof getCatalog;
   };
   spacetime: SpacetimeClient;
   coop: typeof coop;
@@ -34,19 +47,30 @@ export interface WeltraumApi {
   onPurchaseUpgrade: (upgradeId: string, price: number) => boolean;
   onSecretCode: (code: string) => { success: boolean; message: string };
   canStartLevel: (level: number) => boolean;
+  account: {
+    isConfigured: () => boolean;
+    isSignedIn: () => boolean;
+    shortId: () => string;
+    status: () => SyncStatus;
+    guestLabel: () => string;
+    signIn: () => Promise<void>;
+    signOut: () => void;
+  };
 }
 
 declare global {
   interface Window {
     __weltraum?: WeltraumApi;
     __spaceGame?: {
-      forceFinish?: () => void;
+      forceFinish?: (opts?: { skipCelebrate?: boolean }) => void;
       tryStartLevel?: (level: number) => boolean;
       startLevel?: (level: number) => void;
-      progress?: () => { unlocked: number; stars: Record<string, number> };
-      shop?: () => { coins: number; owned: string[]; equipped: string };
+      progress?: () => { unlocked: number; stars: Record<string, number>; best?: Record<string, number> };
+      shop?: () => { coins: number; owned: string[]; equipped: string; up?: Record<string, number> };
+      applyRemoteShop?: (coins: number) => void;
       coop?: Record<string, unknown>;
     };
+    __I18N_BUNDLE__?: unknown;
   }
 }
 
@@ -61,13 +85,32 @@ function showGameSync(status: 'saved' | 'saving' | 'offline' | 'error'): void {
   }
 }
 
+function snapshotFromGame(): ProgressSnapshot | undefined {
+  const game = window.__spaceGame;
+  if (!game?.progress || !game.shop) return undefined;
+  const progress = game.progress();
+  const shop = game.shop();
+  return {
+    unlockedLevel: progress.unlocked || 1,
+    coins: shop.coins || 0,
+    equippedShip: shop.equipped || 'starter',
+    ownedShips: shop.owned || ['starter'],
+    upgrades: shop.up || {},
+    stars: Object.fromEntries(Object.entries(progress.stars || {}).map(([k, v]) => [k, Number(v)])),
+    best: progress.best || {},
+    language: getLanguage(),
+  };
+}
+
 function syncFromGame(client: SpacetimeClient): void {
   const game = window.__spaceGame;
   if (!game?.progress || !game.shop) return;
 
   const progress = game.progress();
   const shop = game.shop();
-  client.syncProgress(progress.unlocked || 1, BigInt(shop.coins || 0), shop.equipped || 'starter');
+  const localCoins = BigInt(shop.coins || 0);
+
+  client.syncProgress(progress.unlocked || 1, localCoins, shop.equipped || 'starter');
 
   const stars = progress.stars || {};
   for (const [levelStr, starVal] of Object.entries(stars)) {
@@ -78,16 +121,27 @@ function syncFromGame(client: SpacetimeClient): void {
   }
 
   const local = client.getLocalData();
-  local.unlockedLevel = progress.unlocked || 1;
-  local.coins = BigInt(shop.coins || 0);
+  local.unlockedLevel = Math.max(local.unlockedLevel || 1, progress.unlocked || 1);
+  local.coins = mergeCoins(local.coins, localCoins);
   local.equippedShip = shop.equipped || 'starter';
   local.ownedShips = shop.owned || ['starter'];
+  if (shop.up) local.upgrades = shop.up;
   client.saveLocalData(local);
+}
+
+function applyHigherServerCoins(client: SpacetimeClient): void {
+  const game = window.__spaceGame;
+  if (!game?.shop) return;
+  const shop = game.shop();
+  const local = client.getLocalData();
+  if (shouldAcceptServerCoins(shop.coins || 0, local.coins) && typeof game.applyRemoteShop === 'function') {
+    game.applyRemoteShop(Number(local.coins));
+  }
 }
 
 function installApi(client: SpacetimeClient): WeltraumApi {
   const api: WeltraumApi = {
-    i18n: { t, getLanguage, setLanguage, toggleLanguage, onLanguageChange },
+    i18n: { t, getLanguage, setLanguage, toggleLanguage, onLanguageChange, getCatalog },
     spacetime: client,
     coop,
     syncStatus: client.getStatus(),
@@ -111,6 +165,7 @@ function installApi(client: SpacetimeClient): WeltraumApi {
     },
     onLevelComplete: async (result) => {
       showGameSync('saving');
+      syncFromGame(client);
       const out = await client.completeLevelResult({
         level: result.level,
         stars: result.stars,
@@ -127,6 +182,23 @@ function installApi(client: SpacetimeClient): WeltraumApi {
     onPurchaseUpgrade: (upgradeId, price) => client.purchaseUpgrade(upgradeId, BigInt(price)),
     onSecretCode: (code) => client.applySecretCode(code),
     canStartLevel: (level) => client.requestLevelData(level),
+    account: {
+      isConfigured: () => isAuthConfigured(),
+      isSignedIn: () => client.isSignedIn() || !!loadAuthUser(),
+      shortId: () => client.shortPlayerId(),
+      status: () => client.getStatus(),
+      guestLabel: () => (client.isSignedIn() ? t('account.signedIn') : t('account.guest')),
+      signIn: async () => {
+        if (!isAuthConfigured()) {
+          throw new Error('auth_not_configured');
+        }
+        await startSignIn(snapshotFromGame());
+      },
+      signOut: () => {
+        clearAuthUser();
+        window.location.reload();
+      },
+    },
   };
   return api;
 }
@@ -165,9 +237,25 @@ async function init(): Promise<void> {
   api.onSyncStatusChange(() => undefined);
   attachCoopStandIn();
 
+  try {
+    const signed = await completeSignInIfNeeded();
+    if (signed) {
+      console.log('[Weltraum] SpacetimeAuth sign-in complete');
+    }
+  } catch (err) {
+    console.warn('[Weltraum] SpacetimeAuth callback failed', err);
+  }
+
   const connected = await initSpacetime();
   if (connected) {
     console.log('[Weltraum] SpacetimeDB connected', client.getIdentityHex());
+    const snap = loadAnonSnapshot();
+    if (snap && loadAuthUser()) {
+      client.importProgress(snap);
+      clearAnonSnapshot();
+    }
+    await client.reconcileWithServer();
+    applyHigherServerCoins(client);
     showGameSync('saved');
   } else {
     console.log('[Weltraum] Running in offline mode (local cache)');
@@ -175,6 +263,7 @@ async function init(): Promise<void> {
   }
 }
 
+void getAuthConfig();
 init();
 
 export { t, getLanguage, setLanguage, toggleLanguage };

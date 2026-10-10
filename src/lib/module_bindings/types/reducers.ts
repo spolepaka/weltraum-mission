@@ -6,9 +6,11 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AddCoinsReducer from "../add_coins_reducer";
 import AddOwnedShipReducer from "../add_owned_ship_reducer";
 import ApplySecretCodeReducer from "../apply_secret_code_reducer";
 import CompleteLevelResultReducer from "../complete_level_result_reducer";
+import ImportProgressReducer from "../import_progress_reducer";
 import EquipShipReducer from "../equip_ship_reducer";
 import PurchaseShipReducer from "../purchase_ship_reducer";
 import PurchaseUpgradeReducer from "../purchase_upgrade_reducer";
@@ -22,7 +24,9 @@ import SyncProgressReducer from "../sync_progress_reducer";
 import UnlockAchievementReducer from "../unlock_achievement_reducer";
 import UpdateSettingsReducer from "../update_settings_reducer";
 
+export type AddCoinsParams = __Infer<typeof AddCoinsReducer>;
 export type AddOwnedShipParams = __Infer<typeof AddOwnedShipReducer>;
+export type ImportProgressParams = __Infer<typeof ImportProgressReducer>;
 export type ApplySecretCodeParams = __Infer<typeof ApplySecretCodeReducer>;
 export type CompleteLevelResultParams = __Infer<typeof CompleteLevelResultReducer>;
 export type EquipShipParams = __Infer<typeof EquipShipReducer>;

@@ -207,6 +207,49 @@ describe('Real E2E: built game + SpacetimeDB', { timeout: 45000 }, () => {
     await context.close();
   });
 
+  it('level coins persist after map return and reload', async () => {
+    const { context, page } = await openFreshPage();
+    const before = await page.evaluate(() => {
+      const w = window as unknown as { __spaceGame?: { shop: () => { coins: number } } };
+      return w.__spaceGame!.shop().coins;
+    });
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __spaceGame?: {
+          addCoins: (n: number) => void;
+          forceFinish: (opts?: { skipCelebrate?: boolean }) => void;
+        };
+      };
+      w.__spaceGame!.addCoins(25);
+      w.__spaceGame!.forceFinish({ skipCelebrate: true });
+    });
+    await page.waitForFunction(() => !document.getElementById('winScreen')?.classList.contains('hidden'), { timeout: 8000 });
+    const afterWin = await page.evaluate(() => {
+      const w = window as unknown as { __spaceGame?: { shop: () => { coins: number } } };
+      return w.__spaceGame!.shop().coins;
+    });
+    expect(afterWin).toBeGreaterThan(before);
+    await page.locator('#winNext').click();
+    await page.waitForTimeout(300);
+    const onMap = await page.evaluate(() => {
+      const w = window as unknown as { __spaceGame?: { shop: () => { coins: number } } };
+      return w.__spaceGame!.shop().coins;
+    });
+    expect(onMap).toBe(afterWin);
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => {
+      const w = window as unknown as { __spaceGame?: { shop: () => { coins: number } } };
+      return !!w.__spaceGame?.shop;
+    }, { timeout: 20000 });
+    const afterReload = await page.evaluate(() => {
+      const w = window as unknown as { __spaceGame?: { shop: () => { coins: number } } };
+      return w.__spaceGame!.shop().coins;
+    });
+    expect(afterReload).toBeGreaterThanOrEqual(afterWin);
+    await context.close();
+  });
+
   it('host approval stand-in: pending join, approve, kick', async () => {
     const { context, page } = await openFreshPage();
     const result = await page.evaluate(() => {

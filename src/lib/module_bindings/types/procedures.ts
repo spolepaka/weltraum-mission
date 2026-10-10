@@ -7,7 +7,10 @@ import { type Infer as __Infer } from "spacetimedb";
 
 // Import all procedure arg schemas
 import * as GetLevelDataProcedure from "../get_level_data_procedure";
+import * as GetMyProgressProcedure from "../get_my_progress_procedure";
 
 export type GetLevelDataArgs = __Infer<typeof GetLevelDataProcedure.params>;
 export type GetLevelDataResult = __Infer<typeof GetLevelDataProcedure.returnType>;
+export type GetMyProgressArgs = __Infer<typeof GetMyProgressProcedure.params>;
+export type GetMyProgressResult = __Infer<typeof GetMyProgressProcedure.returnType>;
 

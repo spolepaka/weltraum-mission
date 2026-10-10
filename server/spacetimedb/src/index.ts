@@ -265,24 +265,24 @@ export const syncProgress = spacetimedb.reducer(
     const serverUnlocked = progress.unlockedLevel;
     
     if (newUnlocked < serverUnlocked) {
-      throw new Error('Cannot reduce unlocked level');
-    }
-    if (newUnlocked > serverUnlocked + 1) {
+      // Keep the higher server unlock; do not reject a stale client.
+    } else if (newUnlocked > serverUnlocked + 1 && newUnlocked !== MAX_LEVEL) {
       throw new Error('Cannot skip levels');
+    } else {
+      ctx.db.playerProgress.identity.update({
+        ...progress,
+        unlockedLevel: newUnlocked,
+      });
     }
-    
-    ctx.db.playerProgress.identity.update({
-      ...progress,
-      unlockedLevel: newUnlocked,
-    });
     
     const shop = ctx.db.playerShop.identity.find(identity);
     if (shop) {
-      const clampedCoins = data.coins > BigInt(MAX_COINS) ? BigInt(MAX_COINS) : data.coins;
+      // Coins are not set here. Rewards use completeLevelResult / addCoins;
+      // spending uses purchaseShip / purchaseUpgrade. A stale SET would
+      // overwrite a just-earned level bonus or a just-spent purchase.
       const equip = validateShip(data.equippedShip) ? data.equippedShip : shop.equippedShip;
       ctx.db.playerShop.identity.update({
         ...shop,
-        coins: clampedCoins,
         equippedShip: equip,
       });
     }
@@ -381,7 +381,7 @@ export const completeLevelResult = spacetimedb.reducer(
       throw new Error('Coins exceed maximum for this level');
     }
     
-    const minTime = BigInt(10000);
+    const minTime = BigInt(3000);
     const maxTime = BigInt(600000);
     if (result.timeMs < minTime || result.timeMs > maxTime) {
       throw new Error('Invalid completion time');
@@ -815,5 +815,145 @@ export const resetProgress = spacetimedb.reducer(
     }
     
     console.info(`Progress reset for player: ${identity}`);
+  }
+);
+
+export const addCoins = spacetimedb.reducer(
+  { amount: t.u64() },
+  (ctx, { amount }) => {
+    const identity = ctx.sender;
+    if (amount <= BigInt(0)) return;
+    const shop = ctx.db.playerShop.identity.find(identity);
+    if (!shop) throw new Error('Shop data not found');
+    const next = shop.coins + amount;
+    const clamped = next > BigInt(MAX_COINS) ? BigInt(MAX_COINS) : next;
+    ctx.db.playerShop.identity.update({ ...shop, coins: clamped });
+  }
+);
+
+export const importProgress = spacetimedb.reducer(
+  {
+    unlockedLevel: t.u32(),
+    coins: t.u64(),
+    equippedShip: t.string(),
+    ownedShipsCsv: t.string(),
+    upgradesJson: t.string(),
+    starsJson: t.string(),
+    language: t.string(),
+  },
+  (ctx, data) => {
+    const identity = ctx.sender;
+    const progress = ctx.db.playerProgress.identity.find(identity);
+    if (!progress) throw new Error('Progress not found');
+
+    const incomingUnlock = clamp(data.unlockedLevel, 1, MAX_LEVEL);
+    if (incomingUnlock > progress.unlockedLevel) {
+      ctx.db.playerProgress.identity.update({
+        ...progress,
+        unlockedLevel: incomingUnlock,
+      });
+    }
+
+    const shop = ctx.db.playerShop.identity.find(identity);
+    if (shop) {
+      const incoming = data.coins > BigInt(MAX_COINS) ? BigInt(MAX_COINS) : data.coins;
+      const coins = incoming > shop.coins ? incoming : shop.coins;
+      const equip = validateShip(data.equippedShip) ? data.equippedShip : shop.equippedShip;
+      ctx.db.playerShop.identity.update({ ...shop, coins, equippedShip: equip });
+    }
+
+    const ships = data.ownedShipsCsv.split(',').map(s => s.trim()).filter(Boolean);
+    for (const shipId of ships) {
+      if (!validateShip(shipId)) continue;
+      let owned = false;
+      for (const s of ctx.db.ownedShip.identity.filter(identity)) {
+        if (s.shipId === shipId) { owned = true; break; }
+      }
+      if (!owned) ctx.db.ownedShip.insert({ identity, shipId });
+    }
+
+    try {
+      const ups = JSON.parse(data.upgradesJson) as Record<string, number>;
+      for (const [upgradeId, level] of Object.entries(ups || {})) {
+        if (!VALID_UPGRADE_IDS.has(upgradeId)) continue;
+        const maxLevel = upgradeId === 'heart' ? 1 : MAX_UPGRADE_LEVEL;
+        const clampedLevel = clamp(Number(level) || 0, 0, maxLevel);
+        let existing: { identity: typeof identity; upgradeId: string; level: number } | null = null;
+        for (const u of ctx.db.playerUpgrades.identity.filter(identity)) {
+          if (u.upgradeId === upgradeId) { existing = u; break; }
+        }
+        if (existing) {
+          if (clampedLevel > existing.level) {
+            ctx.db.playerUpgrades.delete(existing);
+            ctx.db.playerUpgrades.insert({ identity, upgradeId, level: clampedLevel });
+          }
+        } else {
+          ctx.db.playerUpgrades.insert({ identity, upgradeId, level: clampedLevel });
+        }
+      }
+    } catch {
+      // ignore malformed upgrades
+    }
+
+    try {
+      const stars = JSON.parse(data.starsJson) as Record<string, number>;
+      for (const [levelStr, starVal] of Object.entries(stars || {})) {
+        const level = parseInt(levelStr, 10);
+        const starN = Math.max(0, Math.min(3, Number(starVal) || 0));
+        if (!validateLevel(level) || starN <= 0) continue;
+        let existing: { identity: typeof identity; level: number; stars: number; bestScore: bigint } | null = null;
+        for (const s of ctx.db.levelStars.identity.filter(identity)) {
+          if (s.level === level) { existing = s; break; }
+        }
+        if (existing) {
+          if (starN > existing.stars) {
+            ctx.db.levelStars.delete(existing);
+            ctx.db.levelStars.insert({ identity, level, stars: starN, bestScore: existing.bestScore });
+          }
+        } else {
+          ctx.db.levelStars.insert({ identity, level, stars: starN, bestScore: BigInt(0) });
+        }
+      }
+    } catch {
+      // ignore malformed stars
+    }
+
+    if (data.language === 'en' || data.language === 'de') {
+      const player = ctx.db.player.identity.find(identity);
+      if (player) ctx.db.player.identity.update({ ...player, language: data.language });
+    }
+  }
+);
+
+export const getMyProgress = spacetimedb.procedure(
+  {},
+  t.option(t.object('MyProgressResult', {
+    unlockedLevel: t.u32(),
+    coins: t.u64(),
+    equippedShip: t.string(),
+    ownedShipsCsv: t.string(),
+    language: t.string(),
+    totalScore: t.u64(),
+  })),
+  (ctx) => {
+    return ctx.withTx(txCtx => {
+      const identity = ctx.sender;
+      const progress = txCtx.db.playerProgress.identity.find(identity);
+      const shop = txCtx.db.playerShop.identity.find(identity);
+      const player = txCtx.db.player.identity.find(identity);
+      if (!progress || !shop) return undefined;
+      const ships: string[] = [];
+      for (const s of txCtx.db.ownedShip.identity.filter(identity)) {
+        ships.push(s.shipId);
+      }
+      return {
+        unlockedLevel: progress.unlockedLevel,
+        coins: shop.coins,
+        equippedShip: shop.equippedShip,
+        ownedShipsCsv: ships.join(','),
+        language: player?.language || 'en',
+        totalScore: progress.totalScore,
+      };
+    });
   }
 );

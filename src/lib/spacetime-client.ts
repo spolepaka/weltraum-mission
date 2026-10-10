@@ -9,6 +9,8 @@ import {
 } from './module_bindings';
 import type { Identity } from 'spacetimedb';
 import { validateLevelResult, type LevelResultInput } from './validation';
+import { mergeCoins, coinDeltaToPush } from './coin-ledger';
+import { loadAuthUser, type ProgressSnapshot } from './spacetime-auth';
 
 export type SyncStatus = 'connected' | 'connecting' | 'disconnected' | 'syncing' | 'error' | 'offline';
 
@@ -28,6 +30,7 @@ export interface PlayerData {
     ghostMode: boolean;
   };
   language: string;
+  signedIn?: boolean;
 }
 
 interface SpacetimeConfig {
@@ -257,6 +260,7 @@ class SpacetimeClient {
 
             this.setupSubscriptions(conn);
             this.flushPendingReducerCalls();
+            void this.reconcileWithServer();
             this.flushConnectWaiters(true);
           })
           .onConnectError((_ctx, error) => {
@@ -275,8 +279,10 @@ class SpacetimeClient {
             }
           });
 
-        if (this.identityToken) {
-          builder.withToken(this.identityToken);
+        const oidc = loadAuthUser();
+        const token = oidc?.idToken || this.identityToken;
+        if (token) {
+          builder.withToken(token);
         }
 
         this.connection = builder.build();
@@ -432,8 +438,8 @@ class SpacetimeClient {
       unlockedLevel: 1,
       totalScore: BigInt(0),
       coins: BigInt(0),
-      equippedShip: 'default',
-      ownedShips: ['default'],
+      equippedShip: 'starter',
+      ownedShips: ['starter'],
       upgrades: {},
       stars: {},
       achievements: [],
@@ -509,7 +515,8 @@ class SpacetimeClient {
         data.stars[result.level] = { stars: result.stars, bestScore: result.score };
       }
       data.totalScore += result.score;
-      data.coins += result.coinsEarned;
+      // Coins stay with the game shop (already includes collected + bonus).
+      // Adding coinsEarned here double-counted and later overwrote the shop.
       if (result.level >= data.unlockedLevel) {
         data.unlockedLevel = result.level + 1;
       }
@@ -736,6 +743,101 @@ class SpacetimeClient {
     this.queueOrCallReducer(() => {
       this.connection?.reducers.addOwnedShip({ shipId });
     });
+  }
+
+  addCoins(amount: bigint): void {
+    if (amount <= 0n) return;
+    const data = this.getLocalData();
+    data.coins = data.coins + amount;
+    this.saveLocalData(data);
+    this.queueOrCallReducer(() => {
+      this.connection?.reducers.addCoins({ amount: BigInt(amount) });
+    });
+  }
+
+  importProgress(snapshot: ProgressSnapshot): void {
+    const data = this.getLocalData();
+    data.unlockedLevel = Math.max(data.unlockedLevel, snapshot.unlockedLevel || 1);
+    data.coins = mergeCoins(data.coins, snapshot.coins);
+    data.equippedShip = snapshot.equippedShip || data.equippedShip;
+    data.ownedShips = Array.from(new Set([...(data.ownedShips || []), ...(snapshot.ownedShips || [])]));
+    data.upgrades = { ...data.upgrades, ...snapshot.upgrades };
+    data.language = snapshot.language || data.language;
+    this.saveLocalData(data);
+
+    this.queueOrCallReducer(() => {
+      this.connection?.reducers.importProgress({
+        unlockedLevel: snapshot.unlockedLevel,
+        coins: BigInt(snapshot.coins),
+        equippedShip: snapshot.equippedShip || 'starter',
+        ownedShipsCsv: (snapshot.ownedShips || ['starter']).join(','),
+        upgradesJson: JSON.stringify(snapshot.upgrades || {}),
+        starsJson: JSON.stringify(snapshot.stars || {}),
+        language: snapshot.language || 'en',
+      });
+    });
+  }
+
+  async fetchMyProgress(): Promise<{
+    unlockedLevel: number;
+    coins: bigint;
+    equippedShip: string;
+    ownedShips: string[];
+    language: string;
+    totalScore: bigint;
+  } | null> {
+    if (!this.connection || !this.isConnected()) return null;
+    try {
+      const result = await this.connection.procedures.getMyProgress({});
+      if (!result) return null;
+      return {
+        unlockedLevel: result.unlockedLevel,
+        coins: BigInt(result.coins),
+        equippedShip: result.equippedShip,
+        ownedShips: result.ownedShipsCsv ? result.ownedShipsCsv.split(',').filter(Boolean) : ['starter'],
+        language: result.language,
+        totalScore: BigInt(result.totalScore),
+      };
+    } catch (error) {
+      console.warn('[SpacetimeDB] getMyProgress failed:', error);
+      return null;
+    }
+  }
+
+  async reconcileWithServer(): Promise<void> {
+    const remote = await this.fetchMyProgress();
+    if (!remote) return;
+    const local = this.getLocalData();
+    const mergedCoins = mergeCoins(local.coins, remote.coins);
+    const delta = coinDeltaToPush(local.coins, remote.coins);
+    local.coins = mergedCoins;
+    local.unlockedLevel = Math.max(local.unlockedLevel, remote.unlockedLevel);
+    if (remote.equippedShip) local.equippedShip = local.equippedShip || remote.equippedShip;
+    local.ownedShips = Array.from(new Set([...(local.ownedShips || []), ...remote.ownedShips]));
+    this.saveLocalData(local);
+    if (delta > 0n) {
+      this.queueOrCallReducer(() => {
+        this.connection?.reducers.addCoins({ amount: delta });
+      });
+    }
+    this.notifyDataListeners();
+  }
+
+  isSignedIn(): boolean {
+    return !!loadAuthUser();
+  }
+
+  shortPlayerId(): string {
+    const hex = this.getIdentityHex();
+    if (!hex) return '----';
+    return hex.replace(/^0x/i, '').slice(0, 8).toUpperCase();
+  }
+
+  async reconnectWithToken(token: string): Promise<boolean> {
+    this.saveIdentityToken(token);
+    this.disconnect();
+    this.reconnectAttempts = 0;
+    return this.connect();
   }
 
   setUpgradeLevel(upgradeId: string, level: number): void {
