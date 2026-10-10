@@ -85,6 +85,8 @@ async function scanLanguage(page: Page, lang: 'en' | 'de'): Promise<{ hits: stri
       const parts: string[] = [];
       document.querySelectorAll('body *').forEach(el => {
         if (!(el instanceof HTMLElement)) return;
+        if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'NOSCRIPT') return;
+        if (el.closest('script, style, noscript')) return;
         if (el.classList.contains('hidden')) return;
         if (el.closest('.hidden')) return;
         const t = el.childNodes.length === 1 && el.childNodes[0].nodeType === Node.TEXT_NODE ? (el.textContent || '').trim() : '';
