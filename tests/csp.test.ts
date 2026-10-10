@@ -37,6 +37,8 @@ describe('production Firebase Auth CSP', () => {
     expect(connect).toContain('https://securetoken.googleapis.com');
     expect(connect).toContain('https://www.googleapis.com');
     expect(connect).toContain('https://apis.google.com');
+    expect(connect).toContain('https://*.peerjs.com');
+    expect(connect).toContain('wss://*.peerjs.com');
     expect(connect).not.toContain('http://localhost');
   });
 

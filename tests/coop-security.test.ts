@@ -29,7 +29,15 @@ describe('Co-op Security', () => {
   });
 
   describe('Join Approval', () => {
-    it('should require host approval by default', () => {
+    it('auto-admits by default (room code is the secret)', () => {
+      const result = requestJoin('peer1');
+      expect(result).toBe(true);
+      expect(isApproved('peer1')).toBe(true);
+      expect(getPendingRequests()).toHaveLength(0);
+    });
+
+    it('should require host approval when ask-to-join is on', () => {
+      setHostApprovalRequired(true);
       const result = requestJoin('peer1');
       expect(result).toBe(false);
       expect(getPendingRequests()).toHaveLength(1);
@@ -44,6 +52,7 @@ describe('Co-op Security', () => {
     });
 
     it('should allow join after approval', () => {
+      setHostApprovalRequired(true);
       requestJoin('peer1');
       expect(isApproved('peer1')).toBe(false);
       
@@ -52,6 +61,7 @@ describe('Co-op Security', () => {
     });
 
     it('should reject join after rejection', () => {
+      setHostApprovalRequired(true);
       requestJoin('peer1');
       rejectJoin('peer1');
       
@@ -61,6 +71,7 @@ describe('Co-op Security', () => {
     });
 
     it('should prevent duplicate pending requests', () => {
+      setHostApprovalRequired(true);
       requestJoin('peer1');
       const check = checkJoinAllowed('peer1');
       expect(check.allowed).toBe(false);

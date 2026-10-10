@@ -206,6 +206,12 @@ export interface Translations {
     linked: string;
     linkFailed: string;
     anonymousPlay: string;
+    displayName: string;
+    changeName: string;
+    nameHint: string;
+    reroll: string;
+    doNotTrack: string;
+    replayTutorial: string;
   };
   game: {
     neuBanner: string;

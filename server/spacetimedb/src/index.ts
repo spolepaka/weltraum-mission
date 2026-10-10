@@ -5,6 +5,8 @@
 
 import { schema, table, t } from 'spacetimedb/server';
 import { assertTrustedCaller, authSnapshotFromCtx } from './auth-trust';
+import { buildLevelPayload } from './level-catalog';
+import { nameKey, validateDisplayName, type NameKind } from './display-names';
 
 /** Account-linked only. Do not call from guest gameplay — local hosts trap on JWT lookup. */
 function assertTrusted(ctx: { senderAuth?: { hasJWT: boolean; isInternal?: boolean; jwt?: { issuer?: string } | null } }): void {
@@ -127,11 +129,64 @@ const spacetimedb = schema({
   ),
   
   levelData: table(
-    { public: true },
+    { public: false },
     {
       level: t.u32().primaryKey(),
       minUnlockedLevel: t.u32(),
       dataJson: t.string(),
+    }
+  ),
+
+  playerProfile: table(
+    { public: false },
+    {
+      identity: t.identity().primaryKey(),
+      displayName: t.string(),
+      nameKind: t.string(),
+    }
+  ),
+
+  claimedName: table(
+    { public: false },
+    {
+      nameKey: t.string().primaryKey(),
+      identity: t.identity(),
+    }
+  ),
+
+  playerPrefs: table(
+    { public: false },
+    {
+      identity: t.identity().primaryKey(),
+      difficulty: t.string().default('normal'),
+      doNotTrack: t.bool().default(false),
+    }
+  ),
+
+  weeklyScore: table(
+    { public: true },
+    {
+      id: t.u64().autoInc().primaryKey(),
+      weekKey: t.string().index('btree'),
+      identity: t.identity(),
+      displayName: t.string(),
+      score: t.u64(),
+      mode: t.string(),
+    }
+  ),
+
+  analyticsCounter: table(
+    { public: false },
+    {
+      key: t.string().primaryKey(),
+      count: t.u64(),
+    }
+  ),
+
+  analyticsUnique: table(
+    { public: false },
+    {
+      stamp: t.string().primaryKey(),
     }
   ),
   
@@ -175,14 +230,32 @@ function validateAchievement(achId: string): boolean {
   return VALID_ACHIEVEMENTS.has(achId);
 }
 
-function seedLevelCatalog(ctx: { db: { levelData: { level: { find: (n: number) => unknown }; insert: (row: { level: number; minUnlockedLevel: number; dataJson: string }) => void } } }): void {
+function isStubLevelJson(dataJson: string): boolean {
+  return !dataJson || dataJson.length < 80 || dataJson.indexOf('"feats"') < 0;
+}
+
+function seedLevelCatalog(ctx: {
+  db: {
+    levelData: {
+      level: {
+        find: (n: number) => { level: number; minUnlockedLevel: number; dataJson: string } | undefined;
+        update: (row: { level: number; minUnlockedLevel: number; dataJson: string }) => void;
+      };
+      insert: (row: { level: number; minUnlockedLevel: number; dataJson: string }) => void;
+    };
+  };
+}): void {
   for (let i = 1; i <= MAX_LEVEL; i++) {
-    if (!ctx.db.levelData.level.find(i)) {
+    const dataJson = JSON.stringify(buildLevelPayload(i));
+    const existing = ctx.db.levelData.level.find(i);
+    if (!existing) {
       ctx.db.levelData.insert({
         level: i,
         minUnlockedLevel: i,
-        dataJson: JSON.stringify({ level: i, name: 'Level ' + i }),
+        dataJson,
       });
+    } else if (isStubLevelJson(existing.dataJson)) {
+      ctx.db.levelData.level.update({ ...existing, dataJson });
     }
   }
 }
@@ -364,6 +437,7 @@ export const completeLevelResult = spacetimedb.reducer(
     coinsEarned: t.u64(),
     timeMs: t.u64(),
     heartsLeft: t.u32(),
+    mode: t.string(),
   },
   (ctx, result) => {
     const identity = ctx.sender;
@@ -388,7 +462,9 @@ export const completeLevelResult = spacetimedb.reducer(
       throw new Error('Score exceeds maximum for this level');
     }
     
-    const maxCoins = BigInt(result.level * 5000);
+    const mode = result.mode === 'easy' || result.mode === 'veteran' ? result.mode : 'normal';
+    const modeMult = mode === 'veteran' ? 1.5 : mode === 'easy' ? 0.75 : 1;
+    const maxCoins = BigInt(Math.ceil(result.level * 5000 * modeMult));
     if (result.coinsEarned > maxCoins) {
       throw new Error('Coins exceed maximum for this level');
     }
@@ -663,6 +739,9 @@ export const applySecretCode = spacetimedb.reducer(
     const identity = ctx.sender;
     const upperCode = code.toUpperCase().replace(/\s+/g, '');
     
+    // Test unlock: ALLELEVEL raises this identity's unlockedLevel to 100.
+    // getLevelData then allows every level for that identity only (same anti-cheat
+    // gate as normal play — other players stay locked). Use only in tests / owner QA.
     if (upperCode === 'ALLELEVEL' || upperCode === 'ALLELEVELS') {
       const progress = ctx.db.playerProgress.identity.find(identity);
       if (progress) {
@@ -934,6 +1013,197 @@ export const importProgress = spacetimedb.reducer(
     if (data.language === 'en' || data.language === 'de') {
       const player = ctx.db.player.identity.find(identity);
       if (player) ctx.db.player.identity.update({ ...player, language: data.language });
+    }
+  }
+);
+
+function bumpAnalytics(
+  ctx: {
+    db: {
+      analyticsCounter: {
+        key: { find: (k: string) => { key: string; count: bigint } | undefined; update: (row: { key: string; count: bigint }) => void };
+        insert: (row: { key: string; count: bigint }) => void;
+      };
+      analyticsUnique: {
+        stamp: { find: (k: string) => { stamp: string } | undefined };
+        insert: (row: { stamp: string }) => void;
+      };
+    };
+  },
+  key: string,
+  stamp: string | null,
+): void {
+  if (stamp) {
+    if (ctx.db.analyticsUnique.stamp.find(stamp)) return;
+    ctx.db.analyticsUnique.insert({ stamp });
+  }
+  const row = ctx.db.analyticsCounter.key.find(key);
+  if (row) ctx.db.analyticsCounter.key.update({ ...row, count: row.count + BigInt(1) });
+  else ctx.db.analyticsCounter.insert({ key, count: BigInt(1) });
+}
+
+export const setPlayerPrefs = spacetimedb.reducer(
+  { difficulty: t.string(), doNotTrack: t.bool() },
+  (ctx, { difficulty, doNotTrack }) => {
+    const identity = ctx.sender;
+    const mode = difficulty === 'easy' || difficulty === 'veteran' ? difficulty : 'normal';
+    const existing = ctx.db.playerPrefs.identity.find(identity);
+    if (existing) {
+      ctx.db.playerPrefs.identity.update({ ...existing, difficulty: mode, doNotTrack });
+    } else {
+      ctx.db.playerPrefs.insert({ identity, difficulty: mode, doNotTrack });
+    }
+  }
+);
+
+export const trackAnalytics = spacetimedb.reducer(
+  { kind: t.string(), level: t.u32(), mode: t.string() },
+  (ctx, { kind, level, mode }) => {
+    const identity = ctx.sender;
+    const prefs = ctx.db.playerPrefs.identity.find(identity);
+    if (prefs?.doNotTrack) return;
+    const allowed = new Set([
+      'session_start', 'level_start', 'level_win', 'level_loss', 'level_quit',
+      'shop_open', 'shop_purchase', 'tip_shown', 'tip_clicked',
+      'room_created', 'room_joined', 'sign_in',
+    ]);
+    if (!allowed.has(kind)) return;
+    const safeMode = mode === 'easy' || mode === 'veteran' ? mode : 'normal';
+    bumpAnalytics(ctx, `kind:${kind}`, null);
+    bumpAnalytics(ctx, `kind:${kind}:${safeMode}`, null);
+    if (kind === 'level_win' || kind === 'level_start' || kind === 'level_loss') {
+      bumpAnalytics(ctx, `level:${kind}:${level}`, null);
+    }
+    let funnel: string | null = null;
+    if (kind === 'session_start') funnel = 'session_start';
+    if (kind === 'level_win' && level === 3) funnel = 'level3_win';
+    if (kind === 'shop_open') funnel = 'shop_open';
+    if (kind === 'shop_purchase') funnel = 'shop_purchase';
+    if (kind === 'room_created' || kind === 'room_joined') funnel = 'multiplayer';
+    if (funnel) bumpAnalytics(ctx, `funnel:${funnel}`, `funnel:${funnel}:${identity}`);
+  }
+);
+
+export const submitWeeklyScore = spacetimedb.reducer(
+  { weekKey: t.string(), score: t.u64(), mode: t.string(), displayName: t.string() },
+  (ctx, { weekKey, score, mode, displayName }) => {
+    const identity = ctx.sender;
+    if (!/^\d{4}-W\d{2}$/.test(weekKey)) throw new Error('Invalid week');
+    if (score > BigInt(10_000_000)) throw new Error('Score exceeds maximum');
+    const safeMode = mode === 'easy' || mode === 'veteran' ? mode : 'normal';
+    const checked = validateDisplayName(displayName, displayName.match(/ \\d{1,3}$/) ? 'generated' : 'custom');
+    const name = checked.ok ? checked.name : 'Pilot';
+    let existing: { id: bigint; weekKey: string; identity: typeof identity; displayName: string; score: bigint; mode: string } | null = null;
+    for (const row of ctx.db.weeklyScore.weekKey.filter(weekKey)) {
+      if (String(row.identity) === String(identity)) {
+        existing = row;
+        break;
+      }
+    }
+    if (existing) {
+      if (score > existing.score) {
+        ctx.db.weeklyScore.delete(existing);
+        ctx.db.weeklyScore.insert({ id: BigInt(0), weekKey, identity, displayName: name, score, mode: safeMode });
+      }
+    } else {
+      ctx.db.weeklyScore.insert({ id: BigInt(0), weekKey, identity, displayName: name, score, mode: safeMode });
+    }
+  }
+);
+
+export const getWeeklyBoard = spacetimedb.procedure(
+  { weekKey: t.string() },
+  t.option(t.object('WeeklyBoardResult', {
+    weekKey: t.string(),
+    rowsJson: t.string(),
+  })),
+  (ctx, { weekKey }) => {
+    return ctx.withTx(txCtx => {
+      const rows: Array<{ name: string; score: string; mode: string; me: boolean }> = [];
+      const identity = ctx.sender;
+      for (const row of txCtx.db.weeklyScore.weekKey.filter(weekKey)) {
+        rows.push({
+          name: row.displayName,
+          score: String(row.score),
+          mode: row.mode,
+          me: String(row.identity) === String(identity),
+        });
+      }
+      rows.sort((a, b) => Number(b.score) - Number(a.score));
+      return { weekKey, rowsJson: JSON.stringify(rows.slice(0, 20)) };
+    });
+  }
+);
+
+export const getAnalyticsFunnel = spacetimedb.procedure(
+  {},
+  t.option(t.object('AnalyticsFunnelResult', {
+    dataJson: t.string(),
+  })),
+  (ctx) => {
+    return ctx.withTx(txCtx => {
+      const out: Record<string, string> = {};
+      for (const row of txCtx.db.analyticsCounter.iter()) {
+        out[row.key] = String(row.count);
+      }
+      return { dataJson: JSON.stringify(out) };
+    });
+  }
+);
+
+export const setDisplayName = spacetimedb.reducer(
+  { name: t.string(), kind: t.string() },
+  (ctx, { name, kind }) => {
+    const identity = ctx.sender;
+    const nameKind = (kind === 'custom' ? 'custom' : 'generated') as NameKind;
+    const auth = authSnapshotFromCtx(ctx);
+    if (nameKind === 'custom' && !auth.hasJWT) {
+      throw new Error('Custom names require a signed-in parent account');
+    }
+    const checked = validateDisplayName(name, nameKind);
+    if (!checked.ok) {
+      throw new Error(`Invalid display name: ${checked.reason}`);
+    }
+
+    let finalName = checked.name;
+    const key = nameKey(finalName);
+    const existingClaim = ctx.db.claimedName.nameKey.find(key);
+    if (existingClaim && String(existingClaim.identity) !== String(identity)) {
+      let found = false;
+      for (let i = 10; i <= 99; i++) {
+        const candidate = `${checked.name.replace(/\s+\d{1,3}$/, '').slice(0, 12)} ${i}`.slice(0, 16);
+        const ckey = nameKey(candidate);
+        const taken = ctx.db.claimedName.nameKey.find(ckey);
+        if (!taken || String(taken.identity) === String(identity)) {
+          finalName = candidate;
+          found = true;
+          break;
+        }
+      }
+      if (!found) throw new Error('Invalid display name: taken');
+    }
+
+    const profile = ctx.db.playerProfile.identity.find(identity);
+    if (profile) {
+      const oldKey = nameKey(profile.displayName);
+      if (oldKey !== nameKey(finalName)) {
+        const oldClaim = ctx.db.claimedName.nameKey.find(oldKey);
+        if (oldClaim && String(oldClaim.identity) === String(identity)) {
+          ctx.db.claimedName.delete(oldClaim);
+        }
+      }
+      ctx.db.playerProfile.identity.update({
+        ...profile,
+        displayName: finalName,
+        nameKind,
+      });
+    } else {
+      ctx.db.playerProfile.insert({ identity, displayName: finalName, nameKind });
+    }
+
+    const finalKey = nameKey(finalName);
+    if (!ctx.db.claimedName.nameKey.find(finalKey)) {
+      ctx.db.claimedName.insert({ nameKey: finalKey, identity });
     }
   }
 );

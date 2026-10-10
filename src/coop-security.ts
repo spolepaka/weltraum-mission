@@ -24,7 +24,7 @@ export interface CoopSecurityState {
 const DEFAULT_STATE: Omit<CoopSecurityState, 'joinRequests' | 'joinAttempts' | 'approvedPeers' | 'kickedPeers'> = {
   maxPlayers: 5,
   currentPlayers: 1,
-  hostApprovalRequired: true,
+  hostApprovalRequired: false,
   joinRateLimit: 3,
   joinRateWindow: 60000,
 };

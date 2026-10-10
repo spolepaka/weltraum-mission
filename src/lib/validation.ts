@@ -16,6 +16,7 @@ export interface LevelResultInput {
   coinsEarned: bigint;
   timeMs: bigint;
   heartsLeft: number;
+  mode?: string;
 }
 
 export type ValidationResult =
@@ -39,7 +40,8 @@ export function validateLevelResult(
   if (result.score < 0n || result.score > maxScore) {
     return { ok: false, reason: 'score_exceeds_max' };
   }
-  const maxCoins = BigInt(result.level * MAX_COINS_PER_LEVEL);
+  const modeMult = result.mode === 'veteran' ? 1.5 : result.mode === 'easy' ? 0.75 : 1;
+  const maxCoins = BigInt(Math.ceil(result.level * MAX_COINS_PER_LEVEL * modeMult));
   if (result.coinsEarned < 0n || result.coinsEarned > maxCoins) {
     return { ok: false, reason: 'coins_exceed_max' };
   }

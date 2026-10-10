@@ -98,7 +98,13 @@ async function main() {
 
   if (await portOpen(4173)) {
     console.log('[e2e] stopping leftover preview on :4173');
-    try { await run('fuser', ['-k', '4173/tcp']); } catch { /* ignore */ }
+    try { await run('fuser', ['-k', '4173/tcp']); } catch {
+      await new Promise((resolve) => {
+        const child = spawn('bash', ['-lc', 'lsof -ti tcp:4173 | xargs -r kill'], { stdio: 'ignore', cwd: ROOT });
+        child.on('exit', () => resolve());
+        child.on('error', () => resolve());
+      });
+    }
     await waitForPortClosed(4173);
   }
   console.log('[e2e] starting vite preview on :4173');
@@ -118,8 +124,8 @@ async function main() {
   if (!html.includes('https://maincloud.spacetimedb.com') || !html.includes('wss://maincloud.spacetimedb.com')) {
     throw new Error('Production HTML missing Maincloud connect-src hosts');
   }
-  if (!html.includes('identitytoolkit.googleapis.com') || !html.includes('securetoken.googleapis.com') || !html.includes('apis.google.com') || !html.includes('accounts.google.com') || !html.includes('www.gstatic.com') || !html.includes('www.googleapis.com')) {
-    throw new Error('Production HTML missing Firebase / Google CSP hosts');
+  if (!html.includes('identitytoolkit.googleapis.com') || !html.includes('securetoken.googleapis.com') || !html.includes('apis.google.com') || !html.includes('accounts.google.com') || !html.includes('www.gstatic.com') || !html.includes('www.googleapis.com') || !html.includes('*.peerjs.com')) {
+    throw new Error('Production HTML missing Firebase / Google / PeerJS CSP hosts');
   }
   if (!/script-src[^;]*https:\/\/apis\.google\.com/.test(html) || !/script-src[^;]*https:\/\/www\.gstatic\.com/.test(html)) {
     throw new Error('Production HTML script-src missing Firebase gapi / gstatic hosts');
@@ -144,7 +150,7 @@ async function main() {
   }
 
   console.log('[e2e] running Playwright suite');
-  await run('npx', ['vitest', 'run', 'tests/e2e-real.test.ts', 'tests/play-ipad.test.ts'], { env });
+  await run('npx', ['vitest', 'run', 'tests/e2e-real.test.ts', 'tests/play-ipad.test.ts', 'tests/lazy-load.test.ts', 'tests/online-multiplayer.test.ts', 'tests/onboarding-e2e.test.ts'], { env });
 
   if (previewProc) previewProc.kill('SIGTERM');
   console.log('[e2e] real suite passed');
