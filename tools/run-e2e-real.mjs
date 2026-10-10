@@ -100,7 +100,7 @@ async function main() {
     console.log('[e2e] stopping leftover preview on :4173');
     try { await run('fuser', ['-k', '4173/tcp']); } catch {
       await new Promise((resolve) => {
-        const child = spawn('bash', ['-lc', `ss -lptn 'sport = :4173' | sed -n 's/.*pid=\\([0-9]*\\).*/\\1/p' | sort -u | xargs -r kill`], { stdio: 'ignore', cwd: ROOT });
+        const child = spawn('bash', ['-lc', 'lsof -ti :4173 | xargs -r kill'], { stdio: 'ignore', cwd: ROOT });
         child.on('exit', () => resolve());
         child.on('error', () => resolve());
       });

@@ -83,7 +83,7 @@ async function killPort(port) {
     // fuser is optional
   }
   await new Promise((resolve) => {
-    const child = spawn('bash', ['-lc', `ss -lptn "sport = :${port}" | sed -n 's/.*pid=\\([0-9]*\\).*/\\1/p' | sort -u | xargs -r kill`], {
+    const child = spawn('bash', ['-lc', `lsof -ti :${port} | xargs -r kill`], {
       stdio: 'ignore',
       cwd: ROOT,
     });
