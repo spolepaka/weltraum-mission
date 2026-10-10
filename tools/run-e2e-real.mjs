@@ -84,7 +84,17 @@ async function main() {
   }
 
   console.log('[e2e] building production game');
-  await run('npm', ['run', 'build'], LOCAL ? { env: { ...process.env, E2E_LOCAL: '1' } } : undefined);
+  const buildEnv = { ...process.env };
+  if (LOCAL) {
+    buildEnv.E2E_LOCAL = '1';
+    // Guest play is the default for local e2e; do not bake a leftover Firebase config.
+    delete buildEnv.VITE_FIREBASE_API_KEY;
+    delete buildEnv.VITE_FIREBASE_AUTH_DOMAIN;
+    delete buildEnv.VITE_FIREBASE_PROJECT_ID;
+    delete buildEnv.VITE_FIREBASE_APP_ID;
+    delete buildEnv.VITE_FIREBASE_AUTH_EMULATOR;
+  }
+  await run('npm', ['run', 'build'], LOCAL ? { env: buildEnv } : undefined);
 
   if (await portOpen(4173)) {
     console.log('[e2e] stopping leftover preview on :4173');
