@@ -83,7 +83,7 @@ async function killPort(port) {
     // fuser is optional
   }
   await new Promise((resolve) => {
-    const child = spawn('bash', ['-lc', `lsof -ti :${port} | xargs -r kill`], {
+    const child = spawn('bash', ['-lc', `lsof -ti tcp:${port} | xargs -r kill`], {
       stdio: 'ignore',
       cwd: ROOT,
     });
