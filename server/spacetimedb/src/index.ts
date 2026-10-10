@@ -234,11 +234,13 @@ function isStubLevelJson(dataJson: string): boolean {
   return !dataJson || dataJson.length < 80 || dataJson.indexOf('"feats"') < 0;
 }
 
+type MaybeRow<T> = T | null | undefined;
+
 function seedLevelCatalog(ctx: {
   db: {
     levelData: {
       level: {
-        find: (n: number) => { level: number; minUnlockedLevel: number; dataJson: string } | undefined;
+        find: (n: number) => MaybeRow<{ level: number; minUnlockedLevel: number; dataJson: string }>;
         update: (row: { level: number; minUnlockedLevel: number; dataJson: string }) => void;
       };
       insert: (row: { level: number; minUnlockedLevel: number; dataJson: string }) => void;
@@ -1021,11 +1023,11 @@ function bumpAnalytics(
   ctx: {
     db: {
       analyticsCounter: {
-        key: { find: (k: string) => { key: string; count: bigint } | undefined; update: (row: { key: string; count: bigint }) => void };
+        key: { find: (k: string) => MaybeRow<{ key: string; count: bigint }>; update: (row: { key: string; count: bigint }) => void };
         insert: (row: { key: string; count: bigint }) => void;
       };
       analyticsUnique: {
-        stamp: { find: (k: string) => { stamp: string } | undefined };
+        stamp: { find: (k: string) => MaybeRow<{ stamp: string }> };
         insert: (row: { stamp: string }) => void;
       };
     };
