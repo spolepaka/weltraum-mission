@@ -220,8 +220,11 @@ export function getState(): Readonly<CoopSecurityState> {
   return state;
 }
 
+/** Same alphabet the PeerJS lobby uses (no 0/1/I/O/B/G/S). */
+export const ROOM_CODE_CHARS = 'ACDEFHJKMNPRTUVWXY34679';
+
 export function generateSecureRoomCode(length = 5): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const chars = ROOM_CODE_CHARS;
   let code = '';
   const array = new Uint32Array(length);
   crypto.getRandomValues(array);
@@ -233,5 +236,5 @@ export function generateSecureRoomCode(length = 5): string {
 
 export function validateRoomCode(code: string): boolean {
   const cleanCode = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return cleanCode.length >= 4 && cleanCode.length <= 6 && /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]+$/.test(cleanCode);
+  return cleanCode.length >= 4 && cleanCode.length <= 6 && cleanCode.split('').every(ch => ROOM_CODE_CHARS.includes(ch));
 }

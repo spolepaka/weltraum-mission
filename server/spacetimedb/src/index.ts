@@ -163,13 +163,27 @@ function validateAchievement(achId: string): boolean {
   return VALID_ACHIEVEMENTS.has(achId);
 }
 
+function seedLevelCatalog(ctx: { db: { levelData: { level: { find: (n: number) => unknown }; insert: (row: { level: number; minUnlockedLevel: number; dataJson: string }) => void } } }): void {
+  for (let i = 1; i <= MAX_LEVEL; i++) {
+    if (!ctx.db.levelData.level.find(i)) {
+      ctx.db.levelData.insert({
+        level: i,
+        minUnlockedLevel: i,
+        dataJson: JSON.stringify({ level: i, name: 'Level ' + i }),
+      });
+    }
+  }
+}
+
 export const init = spacetimedb.init(ctx => {
   ctx.db.serverConfig.insert({ key: 'version', value: '1.0.0' });
   ctx.db.serverConfig.insert({ key: 'maxLevel', value: String(MAX_LEVEL) });
+  seedLevelCatalog(ctx);
   console.info('Weltraum-Mission module initialized');
 });
 
 export const onConnect = spacetimedb.clientConnected(ctx => {
+  seedLevelCatalog(ctx);
   const identity = ctx.sender;
   const now = ctx.timestamp;
   

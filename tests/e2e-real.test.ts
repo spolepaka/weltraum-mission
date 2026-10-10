@@ -1,349 +1,244 @@
 /**
- * Real End-to-End Tests
- * Tests the full game flow against a running local SpacetimeDB server
- * 
- * Prerequisites:
- * - Local SpacetimeDB server running: `spacetime start --in-memory`
- * - Module published: `spacetime publish --server http://localhost:3000 weltraum-dev`
- * - Dev server running: `npm run dev`
- * 
- * Run with: npx vitest run tests/e2e-real.test.ts
+ * Real E2E against a local SpacetimeDB server and the built game.
+ * Started by `npm run test:e2e:real` (do not skip).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { chromium, Browser, Page } from 'playwright';
-import { spawn, ChildProcess, exec } from 'child_process';
-import { promisify } from 'util';
+import { chromium, Browser, Page, BrowserContext } from 'playwright';
 
-const execAsync = promisify(exec);
-
-const DEV_SERVER_URL = 'http://localhost:5173';
-const STDB_URL = 'http://localhost:3000';
-const TEST_TIMEOUT = 30000;
+const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:4173';
+const STDB_QS = 'stdb_host=localhost:3000&stdb_module=weltraum-dev&stdb_ssl=false';
+const GAME_URL = `${BASE_URL}/?${STDB_QS}`;
 
 let browser: Browser;
-let devServer: ChildProcess | null = null;
-let devServerReady = false;
 
-async function checkSpacetimeDBRunning(): Promise<boolean> {
-  try {
-    const { stdout } = await execAsync(`spacetime list --server ${STDB_URL} 2>/dev/null`);
-    return stdout.includes('weltraum-dev');
-  } catch {
-    return false;
-  }
+async function openFreshPage(): Promise<{ context: BrowserContext; page: Page }> {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  page.on('console', msg => {
+    if (msg.type() === 'error') console.log('PAGE_ERR', msg.text());
+  });
+  await page.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForFunction(() => {
+    const w = window as unknown as {
+      __spaceGame?: { forceFinish?: () => void };
+      __weltraum?: { spacetime?: { isConnected: () => boolean } };
+    };
+    return !!(w.__spaceGame && w.__weltraum && w.__weltraum.spacetime && w.__weltraum.spacetime.isConnected());
+  }, { timeout: 20000 });
+  return { context, page };
 }
 
-async function waitForDevServer(url: string, maxWait = 30000): Promise<boolean> {
-  const start = Date.now();
-  while (Date.now() - start < maxWait) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return true;
-    } catch {
-      // Server not ready yet
-    }
-    await new Promise(r => setTimeout(r, 500));
-  }
-  return false;
-}
-
-describe.skip('Real E2E: SpacetimeDB Integration', { timeout: TEST_TIMEOUT }, () => {
+describe('Real E2E: built game + local SpacetimeDB', () => {
   beforeAll(async () => {
-    // Check if SpacetimeDB is running
-    const stdbRunning = await checkSpacetimeDBRunning();
-    if (!stdbRunning) {
-      console.warn('SpacetimeDB server not running or weltraum-dev not published. Skipping real E2E tests.');
-      return;
-    }
-
-    // Start dev server
-    devServer = spawn('npm', ['run', 'dev'], {
-      cwd: process.cwd(),
-      env: { ...process.env, STDB_HOST: 'localhost:3000', STDB_MODULE: 'weltraum-dev' },
-      stdio: 'pipe',
-    });
-
-    devServerReady = await waitForDevServer(DEV_SERVER_URL);
-    if (!devServerReady) {
-      console.warn('Dev server failed to start');
-      return;
-    }
-
-    // Start browser
     browser = await chromium.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
-  });
+  }, 30000);
 
   afterAll(async () => {
-    if (browser) {
-      await browser.close();
-    }
-    if (devServer) {
-      devServer.kill();
-    }
+    if (browser) await browser.close();
   });
 
-  it('should connect anonymously and receive identity token', async () => {
-    if (!devServerReady || !browser) {
-      console.log('Skipping: prerequisites not met');
-      return;
-    }
-
-    const page: Page = await browser.newPage();
-    
-    // Navigate to the game with local SpacetimeDB config
-    await page.goto(`${DEV_SERVER_URL}?stdb_host=localhost:3000&stdb_module=weltraum-dev&stdb_ssl=false`);
-    
-    // Wait for SpacetimeDB connection
-    const connected = await page.waitForFunction(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { isConnected(): boolean } } };
-      return w.__weltraum?.spacetime?.isConnected?.() === true;
-    }, { timeout: 10000 }).catch(() => false);
-
-    expect(connected).toBe(true);
-
-    // Check that identity token was stored
-    const token = await page.evaluate(() => {
-      return localStorage.getItem('spaceMissionIdentityToken');
+  it('new anonymous player connects and stores an identity token', async () => {
+    const { context, page } = await openFreshPage();
+    const token = await page.evaluate(() => localStorage.getItem('spaceMissionIdentityToken'));
+    const identity = await page.evaluate(() => {
+      const w = window as unknown as { __weltraum?: { spacetime?: { getIdentityHex: () => string | null } } };
+      return w.__weltraum?.spacetime?.getIdentityHex() ?? null;
     });
-
     expect(token).toBeTruthy();
     expect(typeof token).toBe('string');
     expect(token!.length).toBeGreaterThan(10);
-
-    await page.close();
+    expect(identity).toBeTruthy();
+    expect(identity!.length).toBeGreaterThan(8);
+    await context.close();
   });
 
-  it('should persist identity across page reloads', async () => {
-    if (!devServerReady || !browser) {
-      console.log('Skipping: prerequisites not met');
-      return;
-    }
-
-    const page = await browser.newPage();
-    
-    // First visit
-    await page.goto(`${DEV_SERVER_URL}?stdb_host=localhost:3000&stdb_module=weltraum-dev&stdb_ssl=false`);
-    
-    await page.waitForFunction(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { isConnected(): boolean } } };
-      return w.__weltraum?.spacetime?.isConnected?.() === true;
-    }, { timeout: 10000 }).catch(() => null);
-
-    const firstToken = await page.evaluate(() => localStorage.getItem('spaceMissionIdentityToken'));
-    const firstIdentity = await page.evaluate(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { getIdentityHex(): string | null } } };
-      return w.__weltraum?.spacetime?.getIdentityHex?.();
+  it('completes level 1 via the real game flow and shows Progress saved', async () => {
+    const { context, page } = await openFreshPage();
+    await page.evaluate(() => {
+      const w = window as unknown as { __spaceGame?: { forceFinish: () => void } };
+      w.__spaceGame!.forceFinish();
     });
-
-    // Reload the page
-    await page.reload();
-    
     await page.waitForFunction(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { isConnected(): boolean } } };
-      return w.__weltraum?.spacetime?.isConnected?.() === true;
-    }, { timeout: 10000 }).catch(() => null);
-
-    const secondToken = await page.evaluate(() => localStorage.getItem('spaceMissionIdentityToken'));
-    const secondIdentity = await page.evaluate(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { getIdentityHex(): string | null } } };
-      return w.__weltraum?.spacetime?.getIdentityHex?.();
+      const el = document.getElementById('syncStatus');
+      return !!(el && /Progress saved/i.test(el.textContent || ''));
+    }, { timeout: 15000 });
+    const progress = await page.evaluate(() => {
+      const w = window as unknown as { __spaceGame?: { progress: () => { unlocked: number } } };
+      return w.__spaceGame!.progress();
     });
-
-    // Same token and identity should be used
-    expect(secondToken).toBe(firstToken);
-    expect(secondIdentity).toBe(firstIdentity);
-
-    await page.close();
+    expect(progress.unlocked).toBeGreaterThanOrEqual(2);
+    await context.close();
   });
 
-  it('should complete level and have progress saved', async () => {
-    if (!devServerReady || !browser) {
-      console.log('Skipping: prerequisites not met');
-      return;
-    }
-
-    const page = await browser.newPage();
-    
-    await page.goto(`${DEV_SERVER_URL}?stdb_host=localhost:3000&stdb_module=weltraum-dev&stdb_ssl=false`);
-    
+  it('reload keeps the same identity and unlocked progress', async () => {
+    const { context, page } = await openFreshPage();
+    await page.evaluate(() => {
+      const w = window as unknown as { __spaceGame?: { forceFinish: () => void } };
+      w.__spaceGame!.forceFinish();
+    });
     await page.waitForFunction(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { isConnected(): boolean } } };
-      return w.__weltraum?.spacetime?.isConnected?.() === true;
-    }, { timeout: 10000 }).catch(() => null);
+      const el = document.getElementById('syncStatus');
+      return !!(el && /Progress saved/i.test(el.textContent || ''));
+    }, { timeout: 15000 });
 
-    // Simulate completing level 1
+    const before = await page.evaluate(() => {
+      const w = window as unknown as {
+        __weltraum?: { spacetime?: { getIdentityHex: () => string | null } };
+        __spaceGame?: { progress: () => { unlocked: number } };
+      };
+      return {
+        token: localStorage.getItem('spaceMissionIdentityToken'),
+        identity: w.__weltraum!.spacetime!.getIdentityHex(),
+        unlocked: w.__spaceGame!.progress().unlocked,
+      };
+    });
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => {
+      const w = window as unknown as { __weltraum?: { spacetime?: { isConnected: () => boolean } } };
+      return w.__weltraum?.spacetime?.isConnected() === true;
+    }, { timeout: 20000 });
+
+    const after = await page.evaluate(() => {
+      const w = window as unknown as {
+        __weltraum?: { spacetime?: { getIdentityHex: () => string | null } };
+        __spaceGame?: { progress: () => { unlocked: number } };
+      };
+      return {
+        token: localStorage.getItem('spaceMissionIdentityToken'),
+        identity: w.__weltraum!.spacetime!.getIdentityHex(),
+        unlocked: w.__spaceGame!.progress().unlocked,
+      };
+    });
+
+    expect(after.token).toBe(before.token);
+    expect(after.identity).toBe(before.identity);
+    expect(after.unlocked).toBe(before.unlocked);
+    expect(after.unlocked).toBeGreaterThanOrEqual(2);
+    await context.close();
+  });
+
+  it('refuses to start a locked level', async () => {
+    const { context, page } = await openFreshPage();
     const result = await page.evaluate(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { completeLevelResult(r: unknown): void; getLocalData(): { stars: Record<number, { stars: number }> } } } };
-      if (!w.__weltraum?.spacetime) return null;
-      
-      w.__weltraum.spacetime.completeLevelResult({
-        level: 1,
-        stars: 3,
-        score: BigInt(5000),
-        coinsEarned: BigInt(100),
-        timeMs: BigInt(30000),
-        heartsLeft: 3,
-      });
-      
-      return w.__weltraum.spacetime.getLocalData();
+      const w = window as unknown as { __spaceGame?: { tryStartLevel: (n: number) => boolean; progress: () => { unlocked: number } } };
+      return {
+        started: w.__spaceGame!.tryStartLevel(10),
+        unlocked: w.__spaceGame!.progress().unlocked,
+      };
     });
-
-    expect(result).toBeTruthy();
-    expect(result?.stars?.[1]?.stars).toBe(3);
-
-    await page.close();
+    expect(result.unlocked).toBe(1);
+    expect(result.started).toBe(false);
+    await context.close();
   });
 
-  it('should reject forged level completion with absurd values', async () => {
-    if (!devServerReady || !browser) {
-      console.log('Skipping: prerequisites not met');
-      return;
-    }
-
-    const page = await browser.newPage();
-    
-    await page.goto(`${DEV_SERVER_URL}?stdb_host=localhost:3000&stdb_module=weltraum-dev&stdb_ssl=false`);
-    
-    await page.waitForFunction(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { isConnected(): boolean } } };
-      return w.__weltraum?.spacetime?.isConnected?.() === true;
-    }, { timeout: 10000 }).catch(() => null);
-
-    // Try to submit forged result with absurd values
-    // The server should clamp or reject these
-    await page.evaluate(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { getLocalData(): { unlockedLevel: number } } } };
-      return w.__weltraum?.spacetime?.getLocalData();
-    });
-
-    await page.evaluate(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { completeLevelResult(r: unknown): void } } };
-      if (!w.__weltraum?.spacetime) return;
-      
-      // Try to complete level 99 when only level 1-2 should be unlocked
-      w.__weltraum.spacetime.completeLevelResult({
-        level: 99, // Way beyond what should be unlocked
+  it('rejects a forged level result (absurd score/coins/time)', async () => {
+    const { context, page } = await openFreshPage();
+    const result = await page.evaluate(async () => {
+      const w = window as unknown as {
+        __weltraum?: {
+          spacetime?: {
+            completeLevelResult: (r: {
+              level: number; stars: number; score: bigint; coinsEarned: bigint; timeMs: bigint; heartsLeft: number;
+            }) => Promise<{ ok: boolean; reason?: string }>;
+            getLocalData: () => { unlockedLevel: number; coins: bigint };
+            lastError: string | null;
+          };
+        };
+      };
+      const out = await w.__weltraum!.spacetime!.completeLevelResult({
+        level: 99,
         stars: 3,
-        score: BigInt(99999999), // Absurdly high
+        score: BigInt(99999999),
         coinsEarned: BigInt(99999999),
-        timeMs: BigInt(1000), // Too fast
+        timeMs: BigInt(1000),
         heartsLeft: 3,
       });
+      const data = w.__weltraum!.spacetime!.getLocalData();
+      return {
+        ok: out.ok,
+        reason: out.reason || w.__weltraum!.spacetime!.lastError,
+        unlocked: data.unlockedLevel,
+        coins: data.coins.toString(),
+      };
     });
-
-    // Wait a bit for the reducer to be processed
-    await page.waitForTimeout(1000);
-
-    const afterData = await page.evaluate(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { getLocalData(): { unlockedLevel: number; stars: Record<number, unknown> } } } };
-      return w.__weltraum?.spacetime?.getLocalData();
-    });
-
-    // Server should reject level 99 completion since it's locked
-    // The local data might have it temporarily but server validation should prevent abuse
-    // For now we just check that the forged attempt was made
-    expect(afterData).toBeTruthy();
-
-    await page.close();
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBeTruthy();
+    expect(result.unlocked).toBe(1);
+    expect(result.coins).toBe('0');
+    await context.close();
   });
 
-  it('should refuse to start a locked level', async () => {
-    if (!devServerReady || !browser) {
-      console.log('Skipping: prerequisites not met');
-      return;
-    }
-
-    const page = await browser.newPage();
-    
-    // Clear localStorage to start fresh
-    await page.goto(`${DEV_SERVER_URL}?stdb_host=localhost:3000&stdb_module=weltraum-dev&stdb_ssl=false`);
-    
-    await page.evaluate(() => {
-      localStorage.removeItem('spaceMissionIdentityToken');
-      localStorage.removeItem('spaceMissionCachedData');
+  it('getLevelData refuses locked levels and returns data for level 1', async () => {
+    const { context, page } = await openFreshPage();
+    const result = await page.evaluate(async () => {
+      const w = window as unknown as {
+        __weltraum?: {
+          spacetime?: {
+            fetchLevelData: (n: number) => Promise<{ level: number; dataJson: string } | null>;
+            lastError: string | null;
+          };
+        };
+      };
+      const locked = await w.__weltraum!.spacetime!.fetchLevelData(10);
+      const open = await w.__weltraum!.spacetime!.fetchLevelData(1);
+      return {
+        locked,
+        open,
+        lastError: w.__weltraum!.spacetime!.lastError,
+      };
     });
-    
-    await page.reload();
-    
-    await page.waitForFunction(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { isConnected(): boolean } } };
-      return w.__weltraum?.spacetime?.isConnected?.() === true;
-    }, { timeout: 10000 }).catch(() => null);
+    expect(result.locked).toBeNull();
+    expect(result.open).toBeTruthy();
+    expect(result.open!.level).toBe(1);
+    await context.close();
+  });
 
-    // Try to request level data for a locked level
-    const canStartLevel10 = await page.evaluate(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { requestLevelData(l: number): boolean } } };
-      if (!w.__weltraum?.spacetime) return null;
-      return w.__weltraum.spacetime.requestLevelData(10);
+  it('host approval stand-in: pending join, approve, kick', async () => {
+    const { context, page } = await openFreshPage();
+    const result = await page.evaluate(() => {
+      const w = window as unknown as {
+        __spaceGame?: {
+          coop?: {
+            reset: () => void;
+            requestJoin: (id: string) => boolean;
+            pending: () => Array<{ peerId: string; status: string }>;
+            approve: (id: string) => boolean;
+            kick: (id: string) => void;
+            isApproved: (id: string) => boolean;
+            isKicked: (id: string) => boolean;
+          };
+        };
+        __weltraum?: { coop?: { resetCoopSecurity: () => void } };
+      };
+      if (w.__weltraum?.coop?.resetCoopSecurity) w.__weltraum.coop.resetCoopSecurity();
+      const coop = w.__spaceGame!.coop!;
+      const first = coop.requestJoin('guest-standin');
+      const pending = coop.pending();
+      const approved = coop.approve('guest-standin');
+      const isApproved = coop.isApproved('guest-standin');
+      coop.kick('guest-standin');
+      return {
+        firstImmediate: first,
+        pendingCount: pending.length,
+        pendingId: pending[0] && pending[0].peerId,
+        approved,
+        isApproved,
+        kicked: coop.isKicked('guest-standin'),
+        rejoin: coop.requestJoin('guest-standin'),
+      };
     });
-
-    // Client-side check should refuse
-    expect(canStartLevel10).toBe(false);
-
-    // Level 1 should be allowed for a new player
-    const canStartLevel1 = await page.evaluate(() => {
-      const w = window as unknown as { __weltraum?: { spacetime?: { requestLevelData(l: number): boolean } } };
-      if (!w.__weltraum?.spacetime) return null;
-      return w.__weltraum.spacetime.requestLevelData(1);
-    });
-
-    expect(canStartLevel1).toBe(true);
-
-    await page.close();
-  });
-});
-
-// Simpler tests that don't require the full E2E setup
-describe('E2E Unit Tests (no server required)', () => {
-  it('validates level bounds', () => {
-    const isValidLevel = (level: number) => Number.isInteger(level) && level >= 1 && level <= 100;
-    
-    expect(isValidLevel(1)).toBe(true);
-    expect(isValidLevel(50)).toBe(true);
-    expect(isValidLevel(100)).toBe(true);
-    expect(isValidLevel(0)).toBe(false);
-    expect(isValidLevel(101)).toBe(false);
-    expect(isValidLevel(-1)).toBe(false);
-    expect(isValidLevel(1.5)).toBe(false);
-  });
-
-  it('validates score bounds per level', () => {
-    const validateScore = (level: number, score: bigint) => {
-      const maxScore = BigInt(level * 100000);
-      return score >= 0n && score <= maxScore;
-    };
-    
-    expect(validateScore(1, BigInt(50000))).toBe(true);
-    expect(validateScore(1, BigInt(100000))).toBe(true);
-    expect(validateScore(1, BigInt(150000))).toBe(false); // Over max for level 1
-    expect(validateScore(10, BigInt(500000))).toBe(true);
-    expect(validateScore(10, BigInt(1000000))).toBe(true);
-  });
-
-  it('validates coins earned bounds per level', () => {
-    const validateCoins = (level: number, coins: bigint) => {
-      const maxCoins = BigInt(level * 5000);
-      return coins >= 0n && coins <= maxCoins;
-    };
-    
-    expect(validateCoins(1, BigInt(2500))).toBe(true);
-    expect(validateCoins(1, BigInt(5000))).toBe(true);
-    expect(validateCoins(1, BigInt(6000))).toBe(false);
-    expect(validateCoins(5, BigInt(25000))).toBe(true);
-  });
-
-  it('validates time bounds', () => {
-    const validateTime = (timeMs: bigint) => {
-      return timeMs >= 10000n && timeMs <= 600000n;
-    };
-    
-    expect(validateTime(BigInt(30000))).toBe(true);  // 30s
-    expect(validateTime(BigInt(300000))).toBe(true); // 5min
-    expect(validateTime(BigInt(5000))).toBe(false);  // Too fast
-    expect(validateTime(BigInt(700000))).toBe(false); // Too slow
+    expect(result.firstImmediate).toBe(false);
+    expect(result.pendingCount).toBe(1);
+    expect(result.pendingId).toBe('guest-standin');
+    expect(result.approved).toBe(true);
+    expect(result.isApproved).toBe(true);
+    expect(result.kicked).toBe(true);
+    expect(result.rejoin).toBe(false);
+    await context.close();
   });
 });

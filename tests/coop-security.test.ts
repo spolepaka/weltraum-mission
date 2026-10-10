@@ -164,16 +164,16 @@ describe('Co-op Security', () => {
     });
 
     it('should validate room codes correctly', () => {
-      expect(validateRoomCode('ABCDE')).toBe(true);
-      expect(validateRoomCode('12345')).toBe(false); // Contains 0, 1
-      expect(validateRoomCode('HELLO')).toBe(false); // Contains O
-      expect(validateRoomCode('AB')).toBe(false); // Too short
-      expect(validateRoomCode('ABCDEFGH')).toBe(false); // Too long
+      expect(validateRoomCode('ACDEF')).toBe(true);
+      expect(validateRoomCode('12345')).toBe(false);
+      expect(validateRoomCode('HELLO')).toBe(false);
+      expect(validateRoomCode('AB')).toBe(false);
+      expect(validateRoomCode('ABCDEFGH')).toBe(false);
     });
 
     it('should clean and validate codes', () => {
-      expect(validateRoomCode('abc-de')).toBe(true);
-      expect(validateRoomCode('  ABCDE  ')).toBe(true);
+      expect(validateRoomCode('ac-def')).toBe(true);
+      expect(validateRoomCode('  ACDEF  ')).toBe(true);
     });
 
     it('should use cryptographically secure random', () => {

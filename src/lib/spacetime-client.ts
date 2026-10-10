@@ -8,6 +8,7 @@ import {
   type SubscriptionHandle,
 } from './module_bindings';
 import type { Identity } from 'spacetimedb';
+import { validateLevelResult, type LevelResultInput } from './validation';
 
 export type SyncStatus = 'connected' | 'connecting' | 'disconnected' | 'syncing' | 'error' | 'offline';
 
@@ -65,6 +66,8 @@ class SpacetimeClient {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private connectWaiters: Array<(ok: boolean) => void> = [];
+  lastError: string | null = null;
 
   constructor(config: Partial<SpacetimeConfig> = {}) {
     this.config = this.resolveConfig(config);
@@ -172,54 +175,91 @@ class SpacetimeClient {
     return `${protocol}://${this.config.host}`;
   }
 
+  private flushConnectWaiters(ok: boolean): void {
+    const waiters = this.connectWaiters.splice(0);
+    waiters.forEach(fn => fn(ok));
+  }
+
   async connect(): Promise<boolean> {
     if (this.connection && this.status === 'connected') {
       return true;
     }
 
+    if (this.connection && (this.status === 'connecting' || this.status === 'disconnected')) {
+      return new Promise(resolve => this.connectWaiters.push(resolve));
+    }
+
     this.setStatus('connecting');
 
-    try {
-      const builder = DbConnection.builder()
-        .withUri(this.getWsUrl())
-        .withDatabaseName(this.config.moduleName)
-        .withCompression('gzip')
-        .onConnect((conn, identity, token) => {
-          console.log('[SpacetimeDB] Connected with identity:', identity.toHexString());
-          this.identity = identity;
-          this.saveIdentityToken(token);
-          this.reconnectAttempts = 0;
-          this.setStatus('connected');
+    return new Promise(resolve => {
+      this.connectWaiters.push(resolve);
 
-          this.setupSubscriptions(conn);
-          this.flushPendingReducerCalls();
-        })
-        .onConnectError((_ctx, error) => {
-          console.error('[SpacetimeDB] Connection error:', error);
-          this.setStatus('error');
-          this.scheduleReconnect();
-        })
-        .onDisconnect((_ctx, error) => {
-          console.log('[SpacetimeDB] Disconnected', error ? `with error: ${error.message}` : '');
-          this.setStatus('disconnected');
-          this.connection = null;
-          this.subscriptionHandle = null;
-          if (!this.isReconnecting) {
+      try {
+        const builder = DbConnection.builder()
+          .withUri(this.getWsUrl())
+          .withDatabaseName(this.config.moduleName)
+          .withCompression('gzip')
+          .onConnect((conn, identity, token) => {
+            console.log('[SpacetimeDB] Connected with identity:', identity.toHexString());
+            this.identity = identity;
+            this.saveIdentityToken(token);
+            this.reconnectAttempts = 0;
+            this.setStatus('connected');
+
+            this.setupSubscriptions(conn);
+            this.flushPendingReducerCalls();
+            this.flushConnectWaiters(true);
+          })
+          .onConnectError((_ctx, error) => {
+            console.error('[SpacetimeDB] Connection error:', error);
+            this.setStatus('error');
+            this.flushConnectWaiters(false);
             this.scheduleReconnect();
-          }
-        });
+          })
+          .onDisconnect((_ctx, error) => {
+            console.log('[SpacetimeDB] Disconnected', error ? `with error: ${error.message}` : '');
+            this.setStatus('disconnected');
+            this.connection = null;
+            this.subscriptionHandle = null;
+            if (!this.isReconnecting) {
+              this.scheduleReconnect();
+            }
+          });
 
-      if (this.identityToken) {
-        builder.withToken(this.identityToken);
+        if (this.identityToken) {
+          builder.withToken(this.identityToken);
+        }
+
+        this.connection = builder.build();
+      } catch (error) {
+        console.error('[SpacetimeDB] Failed to build connection:', error);
+        this.setStatus('error');
+        this.flushConnectWaiters(false);
       }
+    });
+  }
 
-      this.connection = builder.build();
-      return true;
-    } catch (error) {
-      console.error('[SpacetimeDB] Failed to build connection:', error);
-      this.setStatus('error');
-      return false;
+  async waitUntilConnected(timeoutMs = 15000): Promise<boolean> {
+    if (this.isConnected()) return true;
+    const started = Date.now();
+    if (!this.connection) {
+      const ok = await this.connect();
+      if (ok) return true;
     }
+    return new Promise(resolve => {
+      const check = () => {
+        if (this.isConnected()) {
+          resolve(true);
+          return;
+        }
+        if (Date.now() - started > timeoutMs) {
+          resolve(false);
+          return;
+        }
+        setTimeout(check, 100);
+      };
+      check();
+    });
   }
 
   private setupSubscriptions(conn: DbConnection): void {
@@ -301,12 +341,20 @@ class SpacetimeClient {
     }
   }
 
-  private queueOrCallReducer(fn: () => void): void {
+  private queueOrCallReducer(fn: () => void | Promise<void>): Promise<void> {
     if (this.isConnected() && this.connection) {
-      fn();
-    } else {
-      this.pendingReducerCalls.push(async () => fn());
+      return Promise.resolve(fn());
     }
+    return new Promise((resolve, reject) => {
+      this.pendingReducerCalls.push(async () => {
+        try {
+          await fn();
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
   }
 
   loadLocalData(): PlayerData | null {
@@ -396,31 +444,36 @@ class SpacetimeClient {
     });
   }
 
-  completeLevelResult(result: {
-    level: number;
-    stars: number;
-    score: bigint;
-    coinsEarned: bigint;
-    timeMs: bigint;
-    heartsLeft: number;
-  }): void {
+  async completeLevelResult(result: LevelResultInput): Promise<{ ok: boolean; reason?: string }> {
     console.log('[SpacetimeDB] completeLevelResult:', result);
+    this.lastError = null;
 
     const data = this.getLocalData();
-    const existingStars = data.stars[result.level];
-    if (!existingStars || result.stars > existingStars.stars || 
-        (result.stars === existingStars.stars && result.score > existingStars.bestScore)) {
-      data.stars[result.level] = { stars: result.stars, bestScore: result.score };
+    const localCheck = validateLevelResult(result, data.unlockedLevel);
+    if (!localCheck.ok) {
+      this.lastError = localCheck.reason;
+      console.warn('[SpacetimeDB] completeLevelResult rejected locally:', localCheck.reason);
+    } else {
+      const existingStars = data.stars[result.level];
+      if (!existingStars || result.stars > existingStars.stars ||
+          (result.stars === existingStars.stars && result.score > existingStars.bestScore)) {
+        data.stars[result.level] = { stars: result.stars, bestScore: result.score };
+      }
+      data.totalScore += result.score;
+      data.coins += result.coinsEarned;
+      if (result.level >= data.unlockedLevel) {
+        data.unlockedLevel = result.level + 1;
+      }
+      this.saveLocalData(data);
     }
-    data.totalScore += result.score;
-    data.coins += result.coinsEarned;
-    if (result.level >= data.unlockedLevel) {
-      data.unlockedLevel = result.level + 1;
-    }
-    this.saveLocalData(data);
 
-    this.queueOrCallReducer(() => {
-      this.connection?.reducers.completeLevelResult({
+    if (!this.connection) {
+      return localCheck.ok ? { ok: true } : { ok: false, reason: localCheck.reason };
+    }
+
+    this.setStatus('syncing');
+    try {
+      await this.connection.reducers.completeLevelResult({
         level: result.level,
         stars: result.stars,
         score: BigInt(result.score),
@@ -428,7 +481,15 @@ class SpacetimeClient {
         timeMs: BigInt(result.timeMs),
         heartsLeft: result.heartsLeft,
       });
-    });
+      this.setStatus('connected');
+      return localCheck.ok ? { ok: true } : { ok: false, reason: localCheck.reason };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.lastError = reason;
+      this.setStatus('connected');
+      console.warn('[SpacetimeDB] completeLevelResult rejected by server:', reason);
+      return { ok: false, reason };
+    }
   }
 
   requestLevelData(level: number): boolean {
@@ -436,6 +497,7 @@ class SpacetimeClient {
     const data = this.getLocalData();
     if (level > data.unlockedLevel) {
       console.warn('[SpacetimeDB] Level not unlocked:', level, 'max:', data.unlockedLevel);
+      this.lastError = 'level_locked';
       return false;
     }
 
@@ -447,15 +509,14 @@ class SpacetimeClient {
 
   async fetchLevelData(level: number): Promise<{ level: number; dataJson: string } | null> {
     console.log('[SpacetimeDB] fetchLevelData (procedure):', level);
-    
-    const data = this.getLocalData();
-    if (level > data.unlockedLevel) {
-      console.warn('[SpacetimeDB] Level not unlocked:', level, 'max:', data.unlockedLevel);
-      return null;
-    }
+    this.lastError = null;
 
-    if (!this.connection) {
-      console.warn('[SpacetimeDB] Not connected');
+    if (!this.connection || !this.isConnected()) {
+      const data = this.getLocalData();
+      if (level > data.unlockedLevel) {
+        this.lastError = 'level_locked';
+        return null;
+      }
       return null;
     }
 
@@ -464,8 +525,10 @@ class SpacetimeClient {
       if (result) {
         return { level: result.level, dataJson: result.dataJson };
       }
+      this.lastError = 'level_locked_or_missing';
       return null;
     } catch (error) {
+      this.lastError = error instanceof Error ? error.message : String(error);
       console.error('[SpacetimeDB] fetchLevelData error:', error);
       return null;
     }
