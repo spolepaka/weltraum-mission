@@ -68,33 +68,44 @@ async function completeWelcome(page: Page, tag: string): Promise<void> {
   await page.waitForFunction(() => document.getElementById('welcomeScreen')?.classList.contains('hidden'), { timeout: 5000 });
 }
 
+async function waitStep(page: Page, step: string): Promise<void> {
+  await page.waitForFunction((id) => (window as GameWin).__spaceGame?.trainStep?.() === id, step, { timeout: 12000 });
+}
+
 async function playTraining(page: Page, tag: string): Promise<void> {
+  await waitStep(page, 'moveLeft');
   await waitPrompt(page, /LEFT|LINKS/i);
   await shot(page, `onboard_train_left_${tag}`);
   await page.locator('#leftBtn').click({ force: true });
+  await waitStep(page, 'moveRight');
   await waitPrompt(page, /RIGHT|RECHTS/i);
   await shot(page, `onboard_train_right_${tag}`);
   await page.locator('#rightBtn').click({ force: true });
+  await waitStep(page, 'shootRock');
   await waitPrompt(page, /asteroid|Asteroid|Fire|Feuer/i);
   await shot(page, `onboard_train_shoot_${tag}`);
-  for (let i = 0; i < 12; i++) {
-    await page.evaluate(() => (window as GameWin).__spaceGame?.fire?.());
-    await page.waitForTimeout(80);
-  }
-  await waitPrompt(page, /coin|Münze/i);
-  await shot(page, `onboard_train_coin_${tag}`);
-  await page.waitForTimeout(900);
-  await waitPrompt(page, /power-up|Extra/i);
-  await shot(page, `onboard_train_power_${tag}`);
-  await page.waitForTimeout(900);
-  await waitPrompt(page, /away|aus|Steer|Weich/i);
-  await shot(page, `onboard_train_dodge_${tag}`);
-  await page.waitForTimeout(2500);
-  await waitPrompt(page, /trainer|Trainer|tiny|Mini/i);
-  await shot(page, `onboard_train_boss_${tag}`);
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 16; i++) {
     await page.evaluate(() => (window as GameWin).__spaceGame?.fire?.());
     await page.waitForTimeout(70);
+  }
+  await waitStep(page, 'collectCoin');
+  await waitPrompt(page, /coin|Münze/i);
+  await shot(page, `onboard_train_coin_${tag}`);
+  await page.waitForTimeout(1200);
+  await waitStep(page, 'grabPower');
+  await waitPrompt(page, /power-up|Extra/i);
+  await shot(page, `onboard_train_power_${tag}`);
+  await page.waitForTimeout(1200);
+  await waitStep(page, 'avoidHazard');
+  await waitPrompt(page, /away|aus|Steer|Weich/i);
+  await shot(page, `onboard_train_dodge_${tag}`);
+  await page.waitForTimeout(2800);
+  await waitStep(page, 'miniBoss');
+  await waitPrompt(page, /trainer|Trainer|tiny|Mini/i);
+  await shot(page, `onboard_train_boss_${tag}`);
+  for (let i = 0; i < 50; i++) {
+    await page.evaluate(() => (window as GameWin).__spaceGame?.fire?.());
+    await page.waitForTimeout(60);
   }
 }
 

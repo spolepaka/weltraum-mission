@@ -732,7 +732,7 @@
 
   // Feste Level: normale Level dauern LEVEL_TIME Sekunden, Boss-Level (3, 6, … 18) enden, wenn der Boss besiegt ist
   var LEVEL_TIME = 35, MAX_LEVEL = 100, levelTime = 0, finishTimer = 0, bossSpawned = false;
-  function isBossLevel(L) { return L % 3 === 0 || L === 100; }
+  function isBossLevel(L) { return L > 0 && (L % 3 === 0 || L === 100); }
   // ---------- Sektoren / Galaxien (je eigenes Aussehen) ----------
   var SECTORS = [
     { from: 1, to: 18, name: "Heimat-Galaxie", icon: "🏠", bg: ["#050816", "#1a0f3d"], neb: ["rgba(150,60,200,0.18)", "rgba(40,120,220,0.15)"], map: "#0d0a2e", pl: ["#9fd0ff", "#283c8c"], tint: null, pre: "", col: "#8fb0ff", sig: [] },
@@ -2222,7 +2222,7 @@
     // Feste Level-Zeit; im Boss-Level kommt der Boss nach 8 s, das Level endet nach seinem Sieg
     if (state === "play") {
       time += dt; levelTime += dt;
-      if (isBossLevel(level)) {
+      if (isBossLevel(level) && !trainOn) {
         if (!bossSpawned && levelTime > 8) { bossSpawned = true; spawnBoss(); }
         if (bossSpawned && !boss && swallows.length === 0 && finishTimer === 0 && celebrateT <= 0 && !celebrateKind) {
           startBossCelebrate();
@@ -5374,11 +5374,15 @@
     $("welcomeScreen").classList.add("hidden");
     startGame(0, { training: true });
   }
-  function bootOnboarding() {
-    hydrateOnboard();
+  function bootOnboarding(tries) {
     var api = onboardApi();
-    var st = api ? api.loadOnboard() : { welcomeDone: true, trainingDone: true, mapTourDone: true };
-    var phase = api ? api.phaseOf(st) : "done";
+    if (!api) {
+      if ((tries || 0) < 50) setTimeout(function () { bootOnboarding((tries || 0) + 1); }, 40);
+      return;
+    }
+    hydrateOnboard();
+    var st = api.loadOnboard();
+    var phase = api.phaseOf(st);
     if (phase === "welcome") { showWelcome(); return; }
     if (phase === "training") { startGame(0, { training: true }); return; }
     if (phase === "mapTour") { startMapTour(); return; }
@@ -6147,8 +6151,8 @@
     if (p2k && (e.key === "a" || e.key === "A")) { if (!kb2.left) { kb2.left = true; kb2.lastDir = -1; kb2.t = ++steerSeq; } e.preventDefault(); }
     else if (p2k && (e.key === "d" || e.key === "D")) { if (!kb2.right) { kb2.right = true; kb2.lastDir = 1; kb2.t = ++steerSeq; } e.preventDefault(); }
     else if (p2k && (e.key === "w" || e.key === "W")) { e.preventDefault(); audio(); kb2.fire = true; fireP2(); }
-    else if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") { if (!kb.left) { kb.left = true; kb.lastDir = -1; kb.t = ++steerSeq; } e.preventDefault(); }
-    else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") { if (!kb.right) { kb.right = true; kb.lastDir = 1; kb.t = ++steerSeq; } e.preventDefault(); }
+    else if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") { if (!kb.left) { kb.left = true; kb.lastDir = -1; kb.t = ++steerSeq; } if (trainOn) trainMovedL = true; e.preventDefault(); }
+    else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") { if (!kb.right) { kb.right = true; kb.lastDir = 1; kb.t = ++steerSeq; } if (trainOn) trainMovedR = true; e.preventDefault(); }
     else if (e.key === " " || e.code === "Space" || e.key === "ArrowUp") {
       e.preventDefault();
       if (state === "play") { audio(); kb.fire = true; fire(); }
@@ -6182,7 +6186,9 @@
   [padL, padR].forEach(function (el) {
     el.addEventListener("pointerdown", function (e) {
       e.preventDefault(); e.stopPropagation(); audio();
-      steerFingers[e.pointerId] = { dir: el === padR ? 1 : -1, t: ++steerSeq, pl: 1 };
+      var tdir = el === padR ? 1 : -1;
+      if (trainOn) { if (tdir < 0) trainMovedL = true; else trainMovedR = true; }
+      steerFingers[e.pointerId] = { dir: tdir, t: ++steerSeq, pl: 1 };
       try { el.setPointerCapture(e.pointerId); } catch (x) {}
       refreshPadLook();
     });
