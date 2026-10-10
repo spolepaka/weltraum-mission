@@ -5282,9 +5282,9 @@
     if (step === "shootRock") {
       var rk = makeRock(ship.x, Math.max(80, ship.y - 180), 34, false); rk.vx = 0; rk.vy = 36; rocks.push(rk);
     } else if (step === "collectCoin") {
-      coinsArr.push({ x: ship.x, y: ship.y - 48, vx: 0, vy: 70, t: 0, v: 10, r: 13 });
+      coinsArr.push({ x: ship.x, y: ship.y - 64, vx: 0, vy: 30, t: 0, v: 10, r: 14 });
     } else if (step === "grabPower") {
-      powers.push({ x: ship.x, y: ship.y - 52, type: "magnet", vy: 70, t: 0 });
+      powers.push({ x: ship.x, y: ship.y - 64, type: "magnet", vy: 30, t: 0 });
     } else if (step === "avoidHazard") {
       var hz = makeRock(ship.x + 140, -30, 30, false); hz.vx = 0; hz.vy = 70; hz.trainDodge = true; rocks.push(hz);
     } else if (step === "miniBoss") {

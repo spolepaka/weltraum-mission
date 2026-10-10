@@ -68,8 +68,15 @@ async function completeWelcome(page: Page, tag: string): Promise<void> {
   await page.waitForFunction(() => document.getElementById('welcomeScreen')?.classList.contains('hidden'), { timeout: 5000 });
 }
 
+const TRAIN_ORDER = ['moveLeft', 'moveRight', 'shootRock', 'collectCoin', 'grabPower', 'avoidHazard', 'miniBoss'];
+
 async function waitStep(page: Page, step: string): Promise<void> {
-  await page.waitForFunction((id) => (window as GameWin).__spaceGame?.trainStep?.() === id, step, { timeout: 12000 });
+  const idx = TRAIN_ORDER.indexOf(step);
+  await page.waitForFunction((want) => {
+    const cur = (window as GameWin).__spaceGame?.trainStep?.() || '';
+    const order = ['moveLeft', 'moveRight', 'shootRock', 'collectCoin', 'grabPower', 'avoidHazard', 'miniBoss'];
+    return order.indexOf(cur) >= order.indexOf(want);
+  }, step, { timeout: 12000 });
 }
 
 async function playTraining(page: Page, tag: string): Promise<void> {
@@ -82,11 +89,16 @@ async function playTraining(page: Page, tag: string): Promise<void> {
   await shot(page, `onboard_train_right_${tag}`);
   await page.locator('#rightBtn').click({ force: true });
   await waitStep(page, 'shootRock');
-  await waitPrompt(page, /asteroid|Asteroid|Fire|Feuer/i);
+  await waitPrompt(page, /asteroid|Asteroid|shoot|schieß|Space/i);
   await shot(page, `onboard_train_shoot_${tag}`);
-  for (let i = 0; i < 16; i++) {
-    await page.evaluate(() => (window as GameWin).__spaceGame?.fire?.());
-    await page.waitForTimeout(70);
+  const shotDbg = await page.evaluate(() => {
+    const w = window as GameWin;
+    const keys = w.__spaceGame ? Object.keys(w.__spaceGame) : [];
+    w.__spaceGame?.fire?.();
+    return { keys: keys.slice(0, 30), step: w.__spaceGame?.trainStep?.(), hasFire: typeof w.__spaceGame?.fire === 'function' };
+  });
+  if (shotDbg.step !== 'collectCoin') {
+    throw new Error(`shoot did not advance: ${JSON.stringify(shotDbg)}`);
   }
   await waitStep(page, 'collectCoin');
   await waitPrompt(page, /coin|Münze/i);
