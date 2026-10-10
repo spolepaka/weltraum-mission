@@ -43,6 +43,10 @@ import {
   type NameKind,
 } from './lib/display-names';
 import * as tips from './lib/tips';
+import * as onboard from './lib/onboarding';
+import { loadDifficulty, saveDifficulty, parseDifficulty, type Difficulty } from './lib/difficulty';
+import { isoWeekKey, weeklyChallenge } from './lib/weekly';
+import { loadDoNotTrack, saveDoNotTrack, type AnalyticsKind } from './lib/analytics';
 
 export interface WeltraumApi {
   i18n: {
@@ -86,6 +90,23 @@ export interface WeltraumApi {
     save: (name: string, kind: NameKind) => { ok: true; name: string } | { ok: false; reason: string };
   };
   tips: typeof tips;
+  onboard: typeof onboard;
+  difficulty: {
+    current: () => Difficulty;
+    set: (mode: Difficulty) => void;
+  };
+  weekly: {
+    key: () => string;
+    challenge: () => { weekKey: string; level: number; seed: number };
+    submit: (score: number) => void;
+    board: () => Promise<Array<{ name: string; score: string; mode: string; me: boolean }>>;
+  };
+  analytics: {
+    track: (kind: AnalyticsKind, level?: number) => void;
+    dnt: () => boolean;
+    setDnt: (on: boolean) => void;
+    funnel: () => Promise<Record<string, string>>;
+  };
   account: {
     isConfigured: () => boolean;
     isSignedIn: () => boolean;
@@ -208,6 +229,7 @@ async function connectFirebaseIdentity(client: SpacetimeClient, firstSignIn: boo
   }
   await client.reconnectWithToken(user.idToken);
   bindTokenWatch(client);
+  if (!loadDoNotTrack()) client.trackAnalytics('sign_in', 0, loadDifficulty());
   if (firstSignIn) {
     importedOnce = false;
     await mergeAfterSignIn(client);
@@ -251,6 +273,7 @@ function installApi(client: SpacetimeClient): WeltraumApi {
         coinsEarned: toBigInt(result.coinsEarned),
         timeMs: toBigInt(result.timeMs),
         heartsLeft: result.heartsLeft,
+        mode: loadDifficulty(),
       });
       showGameSync(out.ok ? 'saved' : 'error');
       return out;
@@ -281,6 +304,37 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       },
     },
     tips,
+    onboard,
+    difficulty: {
+      current: () => loadDifficulty(),
+      set: (mode) => {
+        const next = parseDifficulty(mode);
+        saveDifficulty(next);
+        client.setPlayerPrefs(next, loadDoNotTrack());
+        if (!loadDoNotTrack()) client.trackAnalytics('session_start', 0, next);
+      },
+    },
+    weekly: {
+      key: () => isoWeekKey(),
+      challenge: () => weeklyChallenge(),
+      submit: (score) => {
+        const name = loadDisplayName()?.name || 'Pilot';
+        client.submitWeeklyScore(isoWeekKey(), score, loadDifficulty(), name);
+      },
+      board: () => client.fetchWeeklyBoard(isoWeekKey()),
+    },
+    analytics: {
+      track: (kind, level = 0) => {
+        if (loadDoNotTrack()) return;
+        client.trackAnalytics(kind, level, loadDifficulty());
+      },
+      dnt: () => loadDoNotTrack(),
+      setDnt: (on) => {
+        saveDoNotTrack(on);
+        client.setPlayerPrefs(loadDifficulty(), on);
+      },
+      funnel: () => client.fetchAnalyticsFunnel(),
+    },
     account: {
       isConfigured: () => isAuthConfigured(),
       isSignedIn: () => client.isSignedIn() || !!loadAuthUser(),
@@ -388,6 +442,7 @@ async function init(): Promise<void> {
   window.__weltraum = api;
   api.onSyncStatusChange(() => undefined);
   attachCoopStandIn();
+  if (!loadDoNotTrack()) client.trackAnalytics('session_start', 0, loadDifficulty());
 
   let signed = null as Awaited<ReturnType<typeof completeRedirectIfNeeded>>;
   try {

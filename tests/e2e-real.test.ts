@@ -24,11 +24,15 @@ async function openFreshPage(): Promise<{ context: BrowserContext; page: Page }>
   await page.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForFunction(() => {
     const w = window as unknown as {
-      __spaceGame?: { forceFinish?: () => void };
+      __spaceGame?: { forceFinish?: () => void; finishOnboard?: () => void };
       __weltraum?: { spacetime?: { isConnected: () => boolean } };
     };
     return !!(w.__spaceGame && w.__weltraum && w.__weltraum.spacetime && w.__weltraum.spacetime.isConnected());
   }, { timeout: 20000 });
+  await page.evaluate(() => {
+    const w = window as unknown as { __spaceGame?: { finishOnboard?: () => void } };
+    w.__spaceGame?.finishOnboard?.();
+  });
   return { context, page };
 }
 

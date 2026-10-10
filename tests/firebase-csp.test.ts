@@ -17,6 +17,14 @@ async function openInstrumented(): Promise<{ context: BrowserContext; page: Page
     const w = window as Window & { __cspViolations?: CspHit[]; __consoleErrors?: string[] };
     w.__cspViolations = [];
     w.__consoleErrors = [];
+    try {
+      localStorage.setItem('spaceMissionOnboardV1', JSON.stringify({
+        welcomeDone: true, trainingDone: true, mapTourDone: true, skipped: true, jitShown: {},
+      }));
+      localStorage.setItem('spaceMissionDisplayName', JSON.stringify({ name: 'Cosmic Fox 42', kind: 'generated' }));
+    } catch {
+      // ignore
+    }
     document.addEventListener('securitypolicyviolation', (ev) => {
       w.__cspViolations!.push({
         blockedURI: ev.blockedURI,
@@ -36,6 +44,19 @@ async function openInstrumented(): Promise<{ context: BrowserContext; page: Page
   (page as Page & { __consoleErrors?: string[] }).__consoleErrors = consoleErrors;
   await page.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForFunction(() => !!(window as Window & { __weltraum?: unknown }).__weltraum, { timeout: 20000 });
+  await page.waitForFunction(() => {
+    const w = window as Window & { __spaceGame?: { finishOnboard?: () => void } };
+    return !!w.__spaceGame;
+  }, { timeout: 20000 });
+  await page.evaluate(() => {
+    const w = window as Window & {
+      __spaceGame?: { finishOnboard?: () => void; acceptName?: () => void; namePickVisible?: () => boolean };
+    };
+    if (w.__spaceGame?.namePickVisible?.()) w.__spaceGame.acceptName?.();
+    w.__spaceGame?.finishOnboard?.();
+    document.getElementById('welcomeScreen')?.classList.add('hidden');
+    document.getElementById('namePickScreen')?.classList.add('hidden');
+  });
   await page.waitForTimeout(200);
   return { context, page };
 }

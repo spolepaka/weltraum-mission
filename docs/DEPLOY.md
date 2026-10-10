@@ -48,6 +48,10 @@ Apple Sign-In is wired (`OAuthProvider('apple.com')`) but **off** unless `VITE_F
 
 **This lazy-load / username / level-catalog batch also changes the module** (`levelData` is private and seeded with real payloads; `playerProfile` / `claimedName` / `setDisplayName`; ALLELEVEL still unlocks that identity only). Republish `weltraum-mission` before relying on gated `getLevelData` or server name checks in production. Do not publish from this agent.
 
+Difficulty / weekly / analytics add `playerPrefs`, `weeklyScore`, `analyticsCounter`, `analyticsUnique`, plus `mode` on `completeLevelResult`. **Republish again** after that batch. Coin caps scale with Easy (0.75×) / Veteran (1.5×). Analytics are first-party counters only (no cookies, no PII); honor Account → Do not track.
+
+Onboarding (welcome → Training flight → map tour) is stored in `spaceMissionOnboardV1` and copied onto local progress (`progress.onboard`) so a reload does not replay it. Account → Replay tutorial and the map **Training** button start the interactive flight again. Training never loses hearts. The secret code **ALLELEVEL** is unchanged (identity-only unlock to 100).
+
 ### Firebase project (already created)
 
 - Project id: `weltraum-mission`

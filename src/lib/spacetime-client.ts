@@ -329,10 +329,6 @@ class SpacetimeClient {
   }
 
   private setupSubscriptions(conn: DbConnection): void {
-    conn.db.levelData.onInsert((_ctx, row) => {
-      console.log('[SpacetimeDB] Level data received:', row.level);
-    });
-
     this.subscriptionHandle = conn.subscriptionBuilder()
       .onApplied(() => {
         console.log('[SpacetimeDB] Subscription applied');
@@ -342,7 +338,6 @@ class SpacetimeClient {
         console.error('[SpacetimeDB] Subscription error:', ctx.event);
       })
       .subscribe([
-        'SELECT * FROM level_data',
         'SELECT * FROM server_config',
       ]);
   }
@@ -540,13 +535,17 @@ class SpacetimeClient {
 
     this.setStatus('syncing');
     try {
-      await this.connection.reducers.completeLevelResult({
+      const complete = this.connection.reducers.completeLevelResult as unknown as (a: {
+        level: number; stars: number; score: bigint; coinsEarned: bigint; timeMs: bigint; heartsLeft: number; mode: string;
+      }) => Promise<void>;
+      await complete({
         level: result.level,
         stars: result.stars,
         score: BigInt(result.score),
         coinsEarned: BigInt(result.coinsEarned),
         timeMs: BigInt(result.timeMs),
         heartsLeft: result.heartsLeft,
+        mode: result.mode || 'normal',
       });
       this.setStatus('connected');
       return localCheck.ok ? { ok: true } : { ok: false, reason: localCheck.reason };
@@ -667,6 +666,49 @@ class SpacetimeClient {
       this.connection?.reducers.purchaseUpgrade({ upgradeId, price: BigInt(price) });
     });
     return true;
+  }
+
+  setPlayerPrefs(difficulty: string, doNotTrack: boolean): void {
+    this.queueOrCallReducer(() => {
+      const reducers = this.connection?.reducers as { setPlayerPrefs?: (a: { difficulty: string; doNotTrack: boolean }) => void } | undefined;
+      reducers?.setPlayerPrefs?.({ difficulty, doNotTrack });
+    });
+  }
+
+  trackAnalytics(kind: string, level = 0, mode = 'normal'): void {
+    this.queueOrCallReducer(() => {
+      const reducers = this.connection?.reducers as { trackAnalytics?: (a: { kind: string; level: number; mode: string }) => void } | undefined;
+      reducers?.trackAnalytics?.({ kind, level, mode });
+    });
+  }
+
+  submitWeeklyScore(weekKey: string, score: number, mode: string, displayName: string): void {
+    this.queueOrCallReducer(() => {
+      const reducers = this.connection?.reducers as { submitWeeklyScore?: (a: { weekKey: string; score: bigint; mode: string; displayName: string }) => void } | undefined;
+      reducers?.submitWeeklyScore?.({ weekKey, score: BigInt(Math.max(0, Math.floor(score))), mode, displayName });
+    });
+  }
+
+  async fetchWeeklyBoard(weekKey: string): Promise<Array<{ name: string; score: string; mode: string; me: boolean }>> {
+    try {
+      const procedures = this.connection?.procedures as { getWeeklyBoard?: (a: { weekKey: string }) => Promise<{ weekKey: string; rowsJson: string } | undefined> } | undefined;
+      const result = await procedures?.getWeeklyBoard?.({ weekKey });
+      if (!result?.rowsJson) return [];
+      return JSON.parse(result.rowsJson) as Array<{ name: string; score: string; mode: string; me: boolean }>;
+    } catch {
+      return [];
+    }
+  }
+
+  async fetchAnalyticsFunnel(): Promise<Record<string, string>> {
+    try {
+      const procedures = this.connection?.procedures as { getAnalyticsFunnel?: () => Promise<{ dataJson: string } | undefined> } | undefined;
+      const result = await procedures?.getAnalyticsFunnel?.();
+      if (!result?.dataJson) return {};
+      return JSON.parse(result.dataJson) as Record<string, string>;
+    } catch {
+      return {};
+    }
   }
 
   setDisplayName(name: string, kind: 'generated' | 'custom'): boolean {

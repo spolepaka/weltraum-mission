@@ -16,7 +16,8 @@ const PORTRAIT = { width: 768, height: 1024 };
 const HUD_SCREENS = [
   'shopScreen', 'missionScreen', 'achScreen', 'statsScreen',
   'onlineScreen', 'accountScreen', 'helpScreen', 'pauseScreen',
-  'confirmScreen', 'onboardScreen', 'namePickScreen',
+  'confirmScreen', 'onboardScreen', 'namePickScreen', 'weeklyScreen',
+  'welcomeScreen',
 ];
 
 type GameWin = Window & {
@@ -60,6 +61,10 @@ async function openPage(size: { width: number; height: number }): Promise<{ cont
     return !!(w.__spaceGame && typeof w.__spaceGame.forceFinish === 'function');
   }, { timeout: 20000 });
   await page.waitForTimeout(200);
+  await page.evaluate(() => {
+    const w = window as GameWin;
+    w.__spaceGame?.finishOnboard?.();
+  });
   return { context, page };
 }
 
@@ -298,6 +303,80 @@ describe.each([
     await page.waitForTimeout(80);
     const after = await page.evaluate(() => (window as GameWin).__spaceGame?.coachVisible?.());
     expect(after).toBe(false);
+    await context.close();
+  });
+});
+
+const IPHONE_LANDSCAPE = { width: 844, height: 390 };
+
+function boxesOverlap(
+  a: { id: string; left: number; right: number; top: number; bottom: number },
+  b: { id: string; left: number; right: number; top: number; bottom: number },
+  slop = 1,
+): boolean {
+  return a.right > b.left + slop && b.right > a.left + slop && a.bottom > b.top + slop && b.bottom > a.top + slop;
+}
+
+async function visibleMapButtons(page: Page): Promise<Array<{ id: string; left: number; right: number; top: number; bottom: number }>> {
+  return page.evaluate(() => {
+    const ids = [
+      'helpBtn', 'modeBar', 'weeklyBtn', 'missionBtn', 'onlineBtn', 'achBtn', 'langBtn',
+      'twoPBtn', 'ghostBtn', 'statsBtn', 'accountBtn',
+      'resetBtn', 'trainBtn', 'shopBtn', 'muteBtn', 'fsBtn',
+    ];
+    return ids.map((id) => {
+      const el = document.getElementById(id);
+      if (!el || el.classList.contains('hidden') || el.closest('.hidden')) return null;
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return null;
+      const style = getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return null;
+      return { id, left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    }).filter((b): b is { id: string; left: number; right: number; top: number; bottom: number } => !!b);
+  });
+}
+
+describe.each([
+  ['1024x768', LANDSCAPE],
+  ['768x1024', PORTRAIT],
+  ['844x390', IPHONE_LANDSCAPE],
+] as const)('map button overlap %s', { timeout: 30000 }, (label, size) => {
+  it(`keeps visible map buttons from intersecting on first launch (${label})`, async () => {
+    const context = await browser.newContext({
+      viewport: size,
+      deviceScaleFactor: 2,
+      hasTouch: true,
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    await page.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForFunction(() => !!(window as GameWin).__spaceGame, { timeout: 20000 });
+    await page.waitForSelector('#mapHud:not(.hidden)', { timeout: 8000 });
+    await page.waitForTimeout(250);
+    const boxes = await visibleMapButtons(page);
+    expect(boxes.length).toBeGreaterThan(8);
+    const hits: string[] = [];
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        if (boxesOverlap(boxes[i], boxes[j])) hits.push(`${boxes[i].id} ∩ ${boxes[j].id}`);
+      }
+    }
+    expect(hits, `overlaps at ${label}: ${hits.join(', ')}`).toEqual([]);
+    await context.close();
+  });
+
+  it(`keeps visible map buttons from intersecting after onboarding (${label})`, async () => {
+    const { context, page } = await openPage(size);
+    await page.waitForSelector('#mapHud:not(.hidden)', { timeout: 8000 });
+    await page.waitForTimeout(200);
+    const boxes = await visibleMapButtons(page);
+    const hits: string[] = [];
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        if (boxesOverlap(boxes[i], boxes[j])) hits.push(`${boxes[i].id} ∩ ${boxes[j].id}`);
+      }
+    }
+    expect(hits, `overlaps at ${label}: ${hits.join(', ')}`).toEqual([]);
     await context.close();
   });
 });

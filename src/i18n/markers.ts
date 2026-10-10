@@ -40,6 +40,13 @@ export const EN_ONLY_MARKERS = [
   'Visit the Shop',
   'Got it',
   'Ask before letting people in',
+  'Weekly challenge',
+  'Do not track play stats',
+  "Let's fly!",
+  'Welcome, pilot!',
+  'Replay tutorial',
+  'Training flight',
+  'Skip training',
 ] as const;
 
 export const DE_ONLY_MARKERS = [
@@ -77,6 +84,13 @@ export const DE_ONLY_MARKERS = [
   'Schau im Shop',
   'Verstanden',
   'Erst fragen, bevor jemand reinkommt',
+  'Wochen-Challenge',
+  'Spielstatistik nicht erfassen',
+  'Losfliegen!',
+  'Willkommen, Pilot!',
+  'Tutorial nochmal',
+  'Trainingsflug',
+  'Training überspringen',
 ] as const;
 
 export function markersForOtherLanguage(lang: Language): readonly string[] {
