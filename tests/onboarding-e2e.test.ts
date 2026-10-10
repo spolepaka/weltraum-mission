@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import { mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync } from 'node:fs';
 import { EN_ONLY_MARKERS } from '../src/i18n/markers';
 
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:4173';
 const STDB_QS = process.env.E2E_STDB_QS ?? '';
 const GAME_URL = STDB_QS ? `${BASE_URL}/?${STDB_QS}` : `${BASE_URL}/`;
 const ART = '/opt/cursor/artifacts';
+const DOCS = new URL('../docs/onboarding', import.meta.url).pathname;
 
 type GameWin = Window & {
   __spaceGame?: {
@@ -45,7 +46,10 @@ async function openFresh(size: { width: number; height: number }): Promise<{ con
 
 async function shot(page: Page, name: string): Promise<void> {
   mkdirSync(ART, { recursive: true });
-  await page.screenshot({ path: `${ART}/${name}.png`, fullPage: true });
+  mkdirSync(DOCS, { recursive: true });
+  const dest = `${ART}/${name}.png`;
+  await page.screenshot({ path: dest, fullPage: true });
+  copyFileSync(dest, `${DOCS}/${name}.png`);
 }
 
 async function waitPrompt(page: Page, re: RegExp, timeout = 8000): Promise<string> {

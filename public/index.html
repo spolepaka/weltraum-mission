@@ -49,8 +49,8 @@
   #muteBtn, #fsBtn { position: absolute; top: calc(56px + env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); z-index: 7; width: 52px; height: 52px; border-radius: 50%; border: 2px solid #8fb0ff; background: rgba(40,60,140,.7); font-size: 26px; cursor: pointer; touch-action: manipulation; }
   #msg.boss { white-space: nowrap; max-width: none; display: block; background: rgba(120,40,160,.92); border: 3px solid #ffd54a; font-size: min(40px, 6.5vw); color: #ffd54a; }
   #fsBtn { right: calc(max(14px, env(safe-area-inset-right)) + 62px); color: #fff; font-size: 24px; }
-  #achBtn { top: calc(214px + env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); font-size: 17px; font-weight: bold; background: rgba(110,80,10,.85); border-color: #ffd54a; }
-  #statsBtn { top: calc(214px + env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); font-size: 16px; background: rgba(30,80,120,.85); border-color: #7dc8ff; }
+  #achBtn { font-size: 17px; font-weight: bold; background: rgba(110,80,10,.85); border-color: #ffd54a; }
+  #statsBtn { font-size: 16px; background: rgba(30,80,120,.85); border-color: #7dc8ff; }
   #achBtn.ready { animation: glowb 1s infinite alternate; }
   .achPanel { max-width: 720px !important; }
   #achGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; text-align: left; }
@@ -90,11 +90,31 @@
     background: rgba(20,30,70,.75); border: 2px solid #7dffea; border-radius: 16px; padding: 6px 16px; font-size: 18px; }
   .mapBtn { position: absolute; pointer-events: auto; zoom: var(--s); border-radius: 18px; border: 2px solid #8fb0ff; background: rgba(40,60,140,.75); color: #fff; font-size: 16px; padding: 8px 12px; cursor: pointer; font-family: inherit; }
   #resetBtn { bottom: calc(14px + env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); font-size: 14px; background: rgba(90,30,50,.75); border-color: #ff9a9a; }
-  #helpBtn { top: calc(56px + env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); font-size: 22px; width: 52px; height: 52px; border-radius: 50%; padding: 0; }
-  #modeBar { top: calc(118px + env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); display: flex; gap: 4px; padding: 4px; }
+  #helpBtn { font-size: 22px; width: 52px; height: 52px; border-radius: 50%; padding: 0; flex: 0 0 auto; }
+  #mapColL, #mapColR {
+    position: absolute; display: flex; flex-direction: column; gap: 8px; pointer-events: none; z-index: 4;
+    max-height: calc(100% - 148px); overflow: visible;
+  }
+  #mapColL { top: calc(56px + env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); align-items: flex-start; }
+  #mapColR { top: calc(116px + env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); align-items: flex-end; }
+  #mapColLTop { display: flex; align-items: center; gap: 6px; pointer-events: none; flex: 0 0 auto; }
+  #mapColL .mapBtn, #mapColR .mapBtn, #mapColLTop .mapBtn { position: relative; top: auto; left: auto; right: auto; pointer-events: auto; }
+  #modeBar { display: flex; gap: 4px; padding: 4px; }
   #modeBar button { font-size: 12px; padding: 4px 8px; border-radius: 10px; border: 2px solid #8fb0ff; background: rgba(40,60,140,.75); color: #fff; }
   #modeBar button.on { background: #ffd54a; color: #3a1a00; border-color: #fff3b0; }
-  #weeklyBtn { top: calc(168px + env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); font-size: 14px; }
+  #weeklyBtn { font-size: 14px; }
+  @media (max-height: 500px) {
+    #mapColL { top: calc(44px + env(safe-area-inset-top)); gap: 4px; max-height: calc(100% - 120px); }
+    #mapColR { top: calc(56px + env(safe-area-inset-top)); gap: 4px; max-height: calc(100% - 110px); }
+    #muteBtn, #fsBtn { top: calc(8px + env(safe-area-inset-top)); width: 40px; height: 40px; font-size: 20px; }
+    #fsBtn { right: calc(max(14px, env(safe-area-inset-right)) + 48px); }
+    #pauseBtn { top: calc(8px + env(safe-area-inset-top)); right: calc(max(14px, env(safe-area-inset-right)) + 96px); width: 40px; height: 40px; }
+    .mapBtn { font-size: 13px; padding: 5px 8px; }
+    #helpBtn { width: 40px; height: 40px; font-size: 18px; }
+    #modeBar button { font-size: 11px; padding: 3px 6px; }
+    #accountBtn { max-width: 132px; font-size: 12px; }
+    #trainBtn { bottom: calc(56px + env(safe-area-inset-bottom)); font-size: 13px; padding: 6px 8px; }
+  }
   .btnRow { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
   .big.alt { background: #8fb0ff; box-shadow: 0 5px 0 #4a5ea8; }
   #winStars { font-size: 46px; letter-spacing: 6px; margin: 4px 0; }
@@ -167,10 +187,10 @@
   .uprow button.max { background: #4a5a8a; color: #dfe6ff; box-shadow: none; }
   #shopClose { display: block; margin: 14px auto 0; }
   #shopScreen { z-index: 8; }
-  #missionBtn { top: calc(118px + env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); font-size: 17px; font-weight: bold; background: rgba(30,90,70,.8); border-color: #7dffa8; }
+  #missionBtn { font-size: 17px; font-weight: bold; background: rgba(30,90,70,.8); border-color: #7dffa8; }
   #missionBtn.ready { animation: glowb 1s infinite alternate; } @keyframes glowb { from { box-shadow: 0 0 4px #ffd54a; } to { box-shadow: 0 0 22px #ffd54a; } }
-  #twoPBtn { top: calc(118px + env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); font-size: 16px; }
-  #ghostBtn { top: calc(166px + env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); font-size: 16px; }
+  #twoPBtn { font-size: 16px; }
+  #ghostBtn { font-size: 16px; }
   .mapBtn.on { background: rgba(160,60,140,.85); border-color: #ff9ae0; }
   #controls .p2pad { display: flex; gap: 12px; }
   #controls .p2pad button { border-color: #ff9ae0; background: rgba(160,50,130,.55); }
@@ -186,7 +206,7 @@
   .mbar { height: 12px; background: rgba(255,255,255,.12); border-radius: 7px; overflow: hidden; margin: 6px 0 4px; } .mbar i { display: block; height: 100%; background: linear-gradient(90deg, #7dffa8, #ffd54a); }
   .mrow .mp { font-size: 14px; color: #aab4e8; }
   .mrow button { float: right; font-family: inherit; font-size: 16px; font-weight: bold; border: none; border-radius: 16px; padding: 6px 14px; background: #ffd54a; color: #2a1660; cursor: pointer; box-shadow: 0 3px 0 #b8901a; margin-top: -4px; }
-  #onlineBtn { top: calc(166px + env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); font-size: 17px; font-weight: bold; background: rgba(30,60,130,.85); border-color: #7dc8ff; }
+  #onlineBtn { font-size: 17px; font-weight: bold; background: rgba(30,60,130,.85); border-color: #7dc8ff; }
   #onlineScreen .panel { max-width: 560px; }
   #onCodeShow { font-size: 54px; font-weight: bold; letter-spacing: 10px; color: #ffd54a; text-shadow: 0 0 18px rgba(255,213,74,.6); margin: 4px 0; font-family: "Courier New", monospace; }
   #onCode { font-size: 36px; width: 220px; text-align: center; letter-spacing: 8px; text-transform: uppercase; border-radius: 14px; border: 3px solid #7dc8ff; background: #0b1238; color: #ffd54a; padding: 6px; font-family: "Courier New", monospace; }
@@ -200,7 +220,7 @@
   #secretBox { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 6px; font-size: 20px; }
   #secretIn { -webkit-user-select: text; user-select: text; font-size: 18px; font-family: inherit; padding: 6px 10px; border-radius: 12px; border: 2px solid #7dffea; background: rgba(0,0,0,.5); color: #fff; width: 170px; text-transform: uppercase; }
   #secretOk { font-family: inherit; font-size: 16px; font-weight: bold; padding: 7px 14px; border-radius: 12px; border: none; background: #7dffea; color: #12204a; cursor: pointer; }
-  #accountBtn { top: calc(262px + env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); font-size: 14px; font-weight: bold; background: rgba(40,90,70,.9); border-color: #7dffa8; max-width: 168px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #accountBtn { font-size: 14px; font-weight: bold; background: rgba(40,90,70,.9); border-color: #7dffa8; max-width: 168px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #accountBtn .accMeta { display: block; font-size: 11px; font-weight: normal; opacity: .9; }
   #accountScreen .panel { max-width: 460px; text-align: left; }
   #accountScreen .accRow { display: flex; justify-content: space-between; gap: 12px; margin: 8px 0; font-size: 18px; }
@@ -248,25 +268,31 @@
 <div id="mapHud" class="hidden">
   <div id="mapTitle"><h1 id="gameTitle">🚀 Space Mission</h1><div class="sub"><span id="lblTotalScore">Total Score</span>: <b id="totalScore">0</b> &nbsp;·&nbsp; <span id="lblRecord">Record</span>: <b id="bestStart">0</b> &nbsp;·&nbsp; 🪙 <b id="mapCoins">0</b></div></div>
   <div id="mapHint">👆 Tap on a planet!</div>
-  <button id="helpBtn" class="mapBtn" aria-label="Help">❓</button>
-  <div id="modeBar" class="mapBtn">
-    <button data-mode="easy" id="modeEasy">Easy</button>
-    <button data-mode="normal" id="modeNormal" class="on">Normal</button>
-    <button data-mode="veteran" id="modeVeteran">Veteran</button>
+  <div id="mapColL">
+    <div id="mapColLTop">
+      <button id="helpBtn" class="mapBtn" aria-label="Help">❓</button>
+      <div id="modeBar" class="mapBtn">
+        <button data-mode="easy" id="modeEasy">Easy</button>
+        <button data-mode="normal" id="modeNormal" class="on">Normal</button>
+        <button data-mode="veteran" id="modeVeteran">Veteran</button>
+      </div>
+    </div>
+    <button id="weeklyBtn" class="mapBtn">🏆 Weekly</button>
+    <button id="missionBtn" class="mapBtn">🎯 Missions</button>
+    <button id="onlineBtn" class="mapBtn">🌍 Online</button>
+    <button id="achBtn" class="mapBtn">🏆 Achievements</button>
+    <button id="langBtn" class="mapBtn" style="font-size:15px;background:rgba(60,80,140,.85);border-color:#a0c0ff;" aria-label="Language">🌐 DE</button>
   </div>
-  <button id="weeklyBtn" class="mapBtn">🏆 Weekly</button>
+  <div id="mapColR">
+    <button id="twoPBtn" class="mapBtn">👫 2 Player: OFF</button>
+    <button id="ghostBtn" class="mapBtn">👻 Ghost: ON</button>
+    <button id="statsBtn" class="mapBtn">📊 Records</button>
+    <button id="accountBtn" class="mapBtn" aria-label="Account">👤 <span id="accountBtnLabel">Account</span><span class="accMeta" id="accountBtnMeta">guest · ----</span></button>
+  </div>
   <button id="resetBtn" class="mapBtn">↺ Restart</button>
   <button id="trainBtn" class="mapBtn">🎓 Training</button>
   <button id="shopBtn" class="mapBtn">🛒 Shop<span id="shopBadge">!</span></button>
-  <button id="missionBtn" class="mapBtn">🎯 Missions</button>
-  <button id="onlineBtn" class="mapBtn">🌍 Online</button>
-  <button id="langBtn" class="mapBtn" style="top:calc(262px + env(safe-area-inset-top));left:max(14px,env(safe-area-inset-left));font-size:15px;background:rgba(60,80,140,.85);border-color:#a0c0ff;" aria-label="Language">🌐 DE</button>
-  <button id="accountBtn" class="mapBtn" aria-label="Account">👤 <span id="accountBtnLabel">Account</span><span class="accMeta" id="accountBtnMeta">guest · ----</span></button>
   <div id="syncStatus" style="position:absolute;bottom:calc(14px + env(safe-area-inset-bottom));left:calc(max(14px,env(safe-area-inset-left)) + 110px);font-size:13px;padding:5px 10px;border-radius:10px;background:rgba(125,255,168,.9);color:#1a4a2a;opacity:0;transition:opacity .3s;pointer-events:none;zoom:var(--s);">✓ Saved</div>
-  <button id="twoPBtn" class="mapBtn">👫 2 Player: OFF</button>
-  <button id="ghostBtn" class="mapBtn">👻 Ghost: ON</button>
-  <button id="achBtn" class="mapBtn">🏆 Achievements</button>
-  <button id="statsBtn" class="mapBtn">📊 Records</button>
 </div>
 
 <div id="accountScreen" class="screen hidden">

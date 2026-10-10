@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { coinCapForLevel, DIFFICULTY_TUNING, parseDifficulty, survivalIndex } from '../src/lib/difficulty';
+import { typicalLoadoutByL6 } from '../src/lib/typical-loadout';
 import { isoWeekKey, weeklyChallenge } from '../src/lib/weekly';
 import { funnelKey } from '../src/lib/analytics';
 import { validateLevelResult } from '../src/lib/validation';
@@ -18,6 +19,13 @@ describe('difficulty modes', () => {
     expect(normal).toBeGreaterThan(veteran * 1.3);
     expect(DIFFICULTY_TUNING.veteran.coinMult).toBeGreaterThan(DIFFICULTY_TUNING.easy.coinMult);
     expect(DIFFICULTY_TUNING.easy.extraHearts).toBeGreaterThan(DIFFICULTY_TUNING.veteran.extraHearts);
+  });
+
+  it('gives a typical L1–L5 shopper a paid ship and combat upgrades by L6', () => {
+    const load = typicalLoadoutByL6('normal');
+    expect(load.coins).toBeGreaterThan(2000);
+    expect(load.ship).not.toBe('starter');
+    expect(load.up.heart + load.up.dmg + load.up.rate).toBeGreaterThan(0);
   });
 
   it('raises the coin cap for Veteran and lowers it for Easy', () => {
