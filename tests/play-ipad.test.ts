@@ -16,7 +16,7 @@ const PORTRAIT = { width: 768, height: 1024 };
 const HUD_SCREENS = [
   'shopScreen', 'missionScreen', 'achScreen', 'statsScreen',
   'onlineScreen', 'accountScreen', 'helpScreen', 'pauseScreen',
-  'confirmScreen', 'onboardScreen', 'namePickScreen',
+  'confirmScreen', 'onboardScreen', 'namePickScreen', 'weeklyScreen',
 ];
 
 type GameWin = Window & {

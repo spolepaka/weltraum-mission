@@ -91,6 +91,10 @@
   .mapBtn { position: absolute; pointer-events: auto; zoom: var(--s); border-radius: 18px; border: 2px solid #8fb0ff; background: rgba(40,60,140,.75); color: #fff; font-size: 16px; padding: 8px 12px; cursor: pointer; font-family: inherit; }
   #resetBtn { bottom: calc(14px + env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); font-size: 14px; background: rgba(90,30,50,.75); border-color: #ff9a9a; }
   #helpBtn { top: calc(56px + env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); font-size: 22px; width: 52px; height: 52px; border-radius: 50%; padding: 0; }
+  #modeBar { top: calc(118px + env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); display: flex; gap: 4px; padding: 4px; }
+  #modeBar button { font-size: 12px; padding: 4px 8px; border-radius: 10px; border: 2px solid #8fb0ff; background: rgba(40,60,140,.75); color: #fff; }
+  #modeBar button.on { background: #ffd54a; color: #3a1a00; border-color: #fff3b0; }
+  #weeklyBtn { top: calc(168px + env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); font-size: 14px; }
   .btnRow { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
   .big.alt { background: #8fb0ff; box-shadow: 0 5px 0 #4a5ea8; }
   #winStars { font-size: 46px; letter-spacing: 6px; margin: 4px 0; }
@@ -233,6 +237,12 @@
   <div id="mapTitle"><h1 id="gameTitle">🚀 Space Mission</h1><div class="sub"><span id="lblTotalScore">Total Score</span>: <b id="totalScore">0</b> &nbsp;·&nbsp; <span id="lblRecord">Record</span>: <b id="bestStart">0</b> &nbsp;·&nbsp; 🪙 <b id="mapCoins">0</b></div></div>
   <div id="mapHint">👆 Tap on a planet!</div>
   <button id="helpBtn" class="mapBtn" aria-label="Help">❓</button>
+  <div id="modeBar" class="mapBtn">
+    <button data-mode="easy" id="modeEasy">Easy</button>
+    <button data-mode="normal" id="modeNormal" class="on">Normal</button>
+    <button data-mode="veteran" id="modeVeteran">Veteran</button>
+  </div>
+  <button id="weeklyBtn" class="mapBtn">🏆 Weekly</button>
   <button id="resetBtn" class="mapBtn">↺ Restart</button>
   <button id="shopBtn" class="mapBtn">🛒 Shop<span id="shopBadge">!</span></button>
   <button id="missionBtn" class="mapBtn">🎯 Missions</button>
@@ -270,6 +280,9 @@
       <button class="big" id="accountNameSave">Change name</button>
       <p class="small" id="accountNameHint"></p>
     </div>
+    <label class="small" style="display:flex;gap:8px;align-items:center;margin:10px 0">
+      <input type="checkbox" id="accountDnt"> <span id="accountDntLabel">Do not track play stats</span>
+    </label>
     <button class="big alt hidden" id="accountSignOut">Sign out</button>
     <button class="big alt" id="accountClose">Close</button>
   </div>
@@ -364,6 +377,23 @@
     <h1 id="onboardTitle">Fly and shoot</h1>
     <p id="onboardBody"></p>
     <div class="btnRow"><button class="big" id="onboardNext">Next</button><button class="big alt" id="onboardSkip">Skip</button></div>
+  </div>
+</div>
+<div id="weeklyScreen" class="screen hidden">
+  <div class="panel" style="max-width:480px">
+    <h1 id="weeklyTitle">Weekly challenge</h1>
+    <p id="weeklyIntro" class="small"></p>
+    <p id="weeklyLevel" style="font-size:22px;color:#ffd54a"></p>
+    <div id="weeklyBoard"></div>
+    <div class="btnRow"><button class="big" id="weeklyPlay">Play this week</button></div>
+    <button class="big alt" id="weeklyClose">Back to Map</button>
+  </div>
+</div>
+<div id="adminScreen" class="screen hidden">
+  <div class="panel" style="max-width:480px;text-align:left">
+    <h1 id="adminTitle">Play funnel</h1>
+    <pre id="adminFunnel" style="white-space:pre-wrap;font-size:14px"></pre>
+    <button class="big alt" id="adminClose">Close</button>
   </div>
 </div>
 <div id="namePickScreen" class="screen hidden">
@@ -624,7 +654,21 @@
     zigDirty = true;
   }
   function shipBottom() { return 120 + safeBottom; }
-  function speedScale() { return H / 800 + 0.25; }
+  function currentMode() {
+    var api = window.__weltraum && window.__weltraum.difficulty;
+    return (api && api.current && api.current()) || "normal";
+  }
+  function modeTune() {
+    var m = currentMode();
+    if (m === "easy") return { enemySpeed: 0.78, spawnRate: 0.72, bossHp: 0.72, extraHearts: 1, coinMult: 0.75, bossAtk: 0.8 };
+    if (m === "veteran") return { enemySpeed: 1.28, spawnRate: 1.32, bossHp: 1.35, extraHearts: -1, coinMult: 1.5, bossAtk: 1.25 };
+    return { enemySpeed: 1, spawnRate: 1, bossHp: 1, extraHearts: 0, coinMult: 1, bossAtk: 1 };
+  }
+  function speedScale() { return (H / 800 + 0.25) * modeTune().enemySpeed; }
+  function trackPlay(kind, L) {
+    var a = window.__weltraum && window.__weltraum.analytics;
+    if (a && a.track) a.track(kind, L || 0);
+  }
 
   // Parallax-Sternenhimmel: 3 Ebenen
   var layers = [];
@@ -704,8 +748,9 @@
     if (shop.equipped === "kaiserbrecher" && L === 100) curStats = Object.assign({}, curStats, { dmg: curStats.dmg * 1.6 }); // gebaut, um den Kaiser zu brechen
     if (shop.equipped === "uni" && L >= 13 && L <= 17) curStats = Object.assign({}, curStats, { regen: 20, orbitK: 0.6 });
     TRIPLE_TIME = 10 * curStats.dur; LASER_TIME = 6 * curStats.dur; MAGNET_TIME = 10 * curStats.dur;
-    MAXLIVES = curStats.hearts; regenT = curStats.regen; // Herzen nie über das Maximum des Schiffs
-    score = 0; lives = curStats.hearts; time = 0; level = L; hits = 0; collected = 0; bossesBeaten = 0; lastBossLevel = 0;
+    MAXLIVES = Math.max(1, curStats.hearts + modeTune().extraHearts); regenT = curStats.regen; // Herzen nie über das Maximum des Schiffs
+    score = 0; lives = MAXLIVES; time = 0; level = L;
+    trackPlay("level_start", L); hits = 0; collected = 0; bossesBeaten = 0; lastBossLevel = 0;
     levelTime = 0; finishTimer = 0; bossSpawned = false; level = L; LEVEL_TIME = L >= 61 ? 40 : L >= 19 ? 38 : 35; resetFeatures(); combo = 0; comboT = 0; planSurprise();
     if (twoPOn && !net.role) recAdd("twoP"); if (netOnline()) recAdd("online");
     bullets = []; rocks = []; ufos = []; bombs = []; stars = []; powers = []; particles = []; boss = null;
@@ -785,9 +830,13 @@
     progress.best[L] = Math.max(progress.best[L] || 0, score);
     if (L + 1 <= MAX_LEVEL && progress.unlocked < L + 1) { progress.unlocked = L + 1; newlyUnlocked = L + 1; }
     progress.failed = 0;
-    var bonus = (10 + L * 3 + stars * 8 + (isBossLevel(L) ? 40 + L * 8 : 0)) * 10; // 10x Münzen
+    var bonus = Math.round((10 + L * 3 + stars * 8 + (isBossLevel(L) ? 40 + L * 8 : 0)) * 10 * modeTune().coinMult);
+    coinsRun = Math.round((coinsRun || 0) * modeTune().coinMult);
     shop.coins += bonus; saveShop(); recAdd("coinsV", bonus);
     completePayload.coinsEarned = bonus + (coinsRun || 0);
+    trackPlay("level_win", L);
+    var wk = window.__weltraum && window.__weltraum.weekly;
+    if (wk && wk.challenge && wk.challenge().level === L) wk.submit(score);
     saveProgress();
     if (window.__weltraum && window.__weltraum.onLevelComplete) {
       window.__weltraum.onLevelComplete(completePayload);
@@ -866,7 +915,7 @@
   }
   var BOSS_TYPES = { 3: ["saucer", 28, 90, "UFO-MUTTERSCHIFF"], 6: ["robo", 58, 80, "ROBO-SCHLACHTSCHIFF"], 9: ["twins", 72, 70, "ZWILLINGS-UFOs"], 12: ["golem", 250, 64, "ASTEROIDEN-BASIS"], 15: ["crystal", 400, 85, "KRISTALL-KREUZER"], 18: ["emperor", 880, 60, "ROBO-WELTRAUM-KAISER"] };
   function spawnBoss() {
-    var spec = bossSpec(level), bt = [spec.type, Math.round(spec.hp * (level >= 19 ? heat() * (TUNE_BOSS[level] || 1) : 1) * (typeof teamScale === "function" ? teamScale() : 1)), spec.speed, spec.name];
+    var spec = bossSpec(level), bt = [spec.type, Math.round(spec.hp * (level >= 19 ? heat() * (TUNE_BOSS[level] || 1) : 1) * (typeof teamScale === "function" ? teamScale() : 1) * modeTune().bossHp), spec.speed, spec.name];
     var esz = Math.min(W * 0.5, H * 0.62, 500), ek = esz / 360;
     boss = { type: bt[0], name: bt[3], mods: spec.mods, tint: spec.tint, final: !!spec.final, sector: !!spec.sector, atk: level >= 19 ? Math.min(2.2, (1 + (level - 18) * 0.006) * (0.55 + 0.45 * heat()) * Math.sqrt(TUNE_BOSS[level] || 1) * (TUNE_ATK[level] || 1)) : 1, modK: TUNE_MOD[level] || 1, holeImmune: level >= 18, modT: {}, x: W / 2, y: bt[0] === "emperor" ? -140 * ek : -80, targetY: bt[0] === "emperor" ? 132 + 120 * ek : 210, k: ek, sz: esz,
       shield: null, shieldCd: 6, droneT: 3, powerT: 9, immuneT: 0, blocks: 0, vx: bt[2] * (Math.random() < 0.5 ? -1 : 1), hp: bt[1], maxHp: bt[1],
@@ -1035,6 +1084,7 @@
   function gameOver(reason) {
     state = "over"; sucked = null; holeWobble = 0; recAdd("losses"); combo = 0;
     noteLevelLoss(level);
+    trackPlay("level_loss", level);
     $("overTitle").textContent = reason === "hole" ? tr("game.holeDeath") + " 🕳️" : tr("game.missionEnded");
     ["hud", "wordBox", "controls", "power"].forEach(function (id) { $(id).classList.add("hidden"); });
     hideMsg();
@@ -2126,7 +2176,7 @@
 
     // Spawnen (während des Bosskampfs weniger Asteroiden)
     if (state === "play") {
-      spawnTimer -= dt;
+      spawnTimer -= dt * modeTune().spawnRate;
       if (spawnTimer <= 0) { spawnRock(); spawnTimer = spawnEvery() * rnd(0.7, 1.3) * (boss ? 2.2 * ((boss.modK || 1) > 1 ? 2 : 1) : 1) / teamSpawn(); }
       starTimer -= dt;
       if (starTimer <= 0) { stars.push({ x: rnd(30, W - 30), y: -20, vy: rockSpeed() * 0.7, rot: 0 }); starTimer = rnd(7, 12); }
@@ -3600,6 +3650,7 @@
     c.on("error", function () { if (net.conn === c) netLost(); });
   }
   function hostRoom(tries) {
+    trackPlay("room_created");
     netTeardown(); net.role = "host"; net.lvl = Math.min(progress.unlocked, net.lvl || 1);
     onShow("room"); $("onCodeShow").textContent = "· · · · ·"; onStatus("⏳ " + tr("tips.creatingRoom"));
     loadPeer(function (ok) {
@@ -3642,6 +3693,7 @@
     });
   }
   function joinRoom(code) {
+    trackPlay("room_joined");
     netTeardown(); net.role = "guest";
     onStatus("🔗 " + tr("tips.connecting", { code: code }));
     loadPeer(function (ok) {
@@ -4789,6 +4841,7 @@
     audio(); shopOpen = true; shopSel = shop.equipped; shopParts = [];
     $("shopScreen").classList.remove("hidden"); $("shopToast").textContent = ""; $("secretBox").classList.add("hidden");
     renderShop();
+    trackPlay("shop_open");
   }
   function closeShop() { shopOpen = false; $("shopScreen").classList.add("hidden"); updateMapHud(); }
   function setupCanvas(cv, w, h) {
@@ -4887,6 +4940,7 @@
     shop.coins -= d.price; shop.owned.push(shopSel); saveShop();
     shop.equipped = shopSel; saveShop(); curStats = shipStats();
     if (window.__weltraum && window.__weltraum.onPurchaseShip) window.__weltraum.onPurchaseShip(shopSel, d.price);
+    trackPlay("shop_purchase");
     shopToast("🎉 " + tr("tips.bought", { name: shipNameOf(d) }), "good"); celebrate(); renderShop();
     flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]'));
   }
@@ -5008,7 +5062,7 @@
   function mapBaseY() { return H - 150 - safeBottom; }
   function maxScroll() { return Math.max(0, (MAX_LEVEL_C - 1) * mapSpacing() - (mapBaseY() - 190)); }
   // Platz zwischen den Knopf-Spalten links/rechts (damit kein Knopf einen Planeten verdeckt)
-  var MAP_LCOL = ["helpBtn", "missionBtn", "onlineBtn", "achBtn", "langBtn"], MAP_RCOL = ["twoPBtn", "ghostBtn", "statsBtn", "accountBtn", "fsBtn", "muteBtn"], zigK = 1, zigDirty = true;
+  var MAP_LCOL = ["helpBtn", "modeBar", "weeklyBtn", "missionBtn", "onlineBtn", "achBtn", "langBtn"], MAP_RCOL = ["twoPBtn", "ghostBtn", "statsBtn", "accountBtn", "fsBtn", "muteBtn"], zigK = 1, zigDirty = true;
   function measureZig() {
     zigDirty = false; var l = 0, r = W;
     MAP_LCOL.forEach(function (id) { var e = $(id); if (e && e.offsetParent) { var b = e.getBoundingClientRect(); if (b.width) l = Math.max(l, b.right / S); } });
@@ -5125,6 +5179,7 @@
     };
     api.markTipShown(st, id);
     showCoach(id, copy[id] || "");
+    trackPlay("tip_shown");
   }
   var onboardStep = 0;
   function maybeOnboard(st) {
@@ -6046,6 +6101,9 @@
     onboardVisible: function () { return !$("onboardScreen").classList.contains("hidden"); },
     namePickVisible: function () { return !$("namePickScreen").classList.contains("hidden"); },
     shopBadgeOn: function () { return $("shopBtn").classList.contains("hasDeal"); },
+    mode: function () { return currentMode(); },
+    setMode: function (m) { var api = window.__weltraum && window.__weltraum.difficulty; if (api) api.set(m); refreshModeBar(); return currentMode(); },
+    weeklyLevel: function () { var w = window.__weltraum && window.__weltraum.weekly; return w && w.challenge ? w.challenge() : null; },
     displayName: function () { var n = window.__weltraum && window.__weltraum.names && window.__weltraum.names.current(); return n && n.name; },
     forceFinish: function (opts) {
       hideCelebrate(); celebrateT = 0; celebrateKind = null;
@@ -6209,6 +6267,14 @@
     setTxt("accountNameLabel", tr("account.displayName"));
     setTxt("accountNameSave", tr("account.changeName"));
     setTxt("accountNameHint", tr("account.nameHint"));
+    setTxt("accountDntLabel", tr("account.doNotTrack"));
+    setTxt("modeEasy", tr("tips.modeEasy"));
+    setTxt("modeNormal", tr("tips.modeNormal"));
+    setTxt("modeVeteran", tr("tips.modeVeteran"));
+    setTxt("weeklyBtn", "🏆 " + tr("tips.weekly"));
+    if (typeof refreshModeBar === "function") refreshModeBar();
+    var dnt = window.__weltraum && window.__weltraum.analytics;
+    if (dnt && $("accountDnt")) $("accountDnt").checked = !!dnt.dnt();
     setTxt("onAskLabel", tr("tips.askToJoin"));
     setTxt("coachGotIt", tr("tips.gotIt"));
     setTxt("joinToastKick", tr("tips.kick"));
@@ -6341,7 +6407,70 @@
     var api = tipsApi();
     if (api && id) api.dismissTip(api.loadTips(), id);
     hideCoach();
+    trackPlay("tip_clicked");
   });
+  function refreshModeBar() {
+    var mode = currentMode();
+    ["easy", "normal", "veteran"].forEach(function (m) {
+      var b = $("mode" + m.charAt(0).toUpperCase() + m.slice(1));
+      if (b) b.classList.toggle("on", mode === m);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#modeBar [data-mode]"), function (btn) {
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var api = window.__weltraum && window.__weltraum.difficulty;
+      if (api) api.set(btn.getAttribute("data-mode"));
+      refreshModeBar();
+    });
+  });
+  function openWeekly() {
+    var w = window.__weltraum && window.__weltraum.weekly;
+    var ch = w && w.challenge ? w.challenge() : { level: 4, weekKey: "" };
+    $("weeklyTitle").textContent = tr("tips.weekly");
+    $("weeklyIntro").textContent = tr("tips.weeklyIntro");
+    $("weeklyLevel").textContent = "Level " + ch.level + " · " + ch.weekKey;
+    $("weeklyPlay").textContent = tr("tips.weeklyPlay");
+    $("weeklyClose").textContent = tr("backToMap");
+    $("weeklyBoard").textContent = tr("tips.weeklyEmpty");
+    $("weeklyScreen").classList.remove("hidden");
+    if (w && w.board) {
+      w.board().then(function (rows) {
+        if (!rows || !rows.length) return;
+        $("weeklyBoard").innerHTML = rows.map(function (r, i) {
+          return "<div>" + (i + 1) + ". " + r.name + " · " + r.score + (r.me ? " ←" : "") + "</div>";
+        }).join("");
+      });
+    }
+  }
+  $("weeklyBtn").addEventListener("click", function (e) { e.stopPropagation(); openWeekly(); });
+  $("weeklyClose").addEventListener("click", function () { $("weeklyScreen").classList.add("hidden"); });
+  $("weeklyPlay").addEventListener("click", function () {
+    var w = window.__weltraum && window.__weltraum.weekly;
+    var ch = w && w.challenge ? w.challenge() : { level: 4 };
+    $("weeklyScreen").classList.add("hidden");
+    if (progress.unlocked < ch.level) {
+      showMsg("🔒 " + tr("game.beatFirst", { level: progress.unlocked }), "bad", 1.8);
+      return;
+    }
+    tryStartLevel(ch.level);
+  });
+  $("accountDnt").addEventListener("change", function () {
+    var a = window.__weltraum && window.__weltraum.analytics;
+    if (a) a.setDnt($("accountDnt").checked);
+  });
+  if (/[?&]admin=1/.test(location.search)) {
+    setTimeout(function () {
+      var a = window.__weltraum && window.__weltraum.analytics;
+      if (!a || !a.funnel) return;
+      a.funnel().then(function (data) {
+        $("adminTitle").textContent = tr("tips.adminFunnel");
+        $("adminFunnel").textContent = JSON.stringify(data, null, 2);
+        $("adminScreen").classList.remove("hidden");
+      });
+    }, 800);
+  }
+  $("adminClose").addEventListener("click", function () { $("adminScreen").classList.add("hidden"); });
   $("onboardNext").addEventListener("click", function () {
     if (onboardStep >= 2) { finishOnboard(); return; }
     onboardStep++; renderOnboard();

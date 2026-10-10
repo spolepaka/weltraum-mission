@@ -227,6 +227,7 @@ export const de: Translations = {
     changeName: 'Name ändern',
     nameHint: 'Eltern dürfen einen eigenen Namen (3–16 Zeichen) wählen. Gäste bekommen einen Weltraum-Namen.',
     reroll: 'Neuer Name',
+    doNotTrack: 'Spielstatistik nicht erfassen',
   },
   game: {
     neuBanner: 'NEU',
@@ -643,5 +644,15 @@ export const de: Translations = {
     badName: 'Dieser Name geht nicht. Nimm einen anderen Weltraum-Namen.',
     nameTaken: 'Den Namen gibt es schon. Wir haben eine Zahl dazugesetzt.',
     customNameHint: 'Nur Buchstaben und Zahlen, 3–16 Zeichen.',
+    modeEasy: 'Leicht',
+    modeNormal: 'Normal',
+    modeVeteran: 'Veteran',
+    weekly: 'Wochen-Challenge',
+    weeklyIntro: 'Alle fliegen diese Woche dasselbe Level. Nur die Top-20-Namen.',
+    weeklyPlay: 'Diese Woche spielen',
+    weeklyBoard: 'Piloten dieser Woche',
+    weeklyEmpty: 'Noch keine Punkte. Sei der Erste!',
+    yourRank: 'Dein Rang: {n}',
+    adminFunnel: 'Spiel-Trichter (ohne Namen)',
   },
 };

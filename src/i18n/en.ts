@@ -227,6 +227,7 @@ export const en: Translations = {
     changeName: 'Change name',
     nameHint: 'Parents can pick a custom name (3–16 letters). Guests use a space name.',
     reroll: 'New name',
+    doNotTrack: 'Do not track play stats',
   },
   game: {
     neuBanner: 'NEW',
@@ -643,5 +644,15 @@ export const en: Translations = {
     badName: 'That name is not allowed. Try another space name.',
     nameTaken: 'Someone already uses that name. We added a number.',
     customNameHint: 'Letters and numbers only, 3–16 characters.',
+    modeEasy: 'Easy',
+    modeNormal: 'Normal',
+    modeVeteran: 'Veteran',
+    weekly: 'Weekly challenge',
+    weeklyIntro: 'Everyone flies the same seeded level this week. Top 20 names only.',
+    weeklyPlay: 'Play this week',
+    weeklyBoard: 'This week\'s pilots',
+    weeklyEmpty: 'No scores yet. Be the first!',
+    yourRank: 'Your rank: {n}',
+    adminFunnel: 'Play funnel (no names)',
   },
 };

@@ -153,6 +153,42 @@ const spacetimedb = schema({
       identity: t.identity(),
     }
   ),
+
+  playerPrefs: table(
+    { public: false },
+    {
+      identity: t.identity().primaryKey(),
+      difficulty: t.string().default('normal'),
+      doNotTrack: t.bool().default(false),
+    }
+  ),
+
+  weeklyScore: table(
+    { public: true },
+    {
+      id: t.u64().autoInc().primaryKey(),
+      weekKey: t.string().index('btree'),
+      identity: t.identity(),
+      displayName: t.string(),
+      score: t.u64(),
+      mode: t.string(),
+    }
+  ),
+
+  analyticsCounter: table(
+    { public: false },
+    {
+      key: t.string().primaryKey(),
+      count: t.u64(),
+    }
+  ),
+
+  analyticsUnique: table(
+    { public: false },
+    {
+      stamp: t.string().primaryKey(),
+    }
+  ),
   
   errorReport: table(
     { public: false },
@@ -401,6 +437,7 @@ export const completeLevelResult = spacetimedb.reducer(
     coinsEarned: t.u64(),
     timeMs: t.u64(),
     heartsLeft: t.u32(),
+    mode: t.string(),
   },
   (ctx, result) => {
     const identity = ctx.sender;
@@ -425,7 +462,9 @@ export const completeLevelResult = spacetimedb.reducer(
       throw new Error('Score exceeds maximum for this level');
     }
     
-    const maxCoins = BigInt(result.level * 5000);
+    const mode = result.mode === 'easy' || result.mode === 'veteran' ? result.mode : 'normal';
+    const modeMult = mode === 'veteran' ? 1.5 : mode === 'easy' ? 0.75 : 1;
+    const maxCoins = BigInt(Math.ceil(result.level * 5000 * modeMult));
     if (result.coinsEarned > maxCoins) {
       throw new Error('Coins exceed maximum for this level');
     }
@@ -975,6 +1014,140 @@ export const importProgress = spacetimedb.reducer(
       const player = ctx.db.player.identity.find(identity);
       if (player) ctx.db.player.identity.update({ ...player, language: data.language });
     }
+  }
+);
+
+function bumpAnalytics(
+  ctx: {
+    db: {
+      analyticsCounter: {
+        key: { find: (k: string) => { key: string; count: bigint } | undefined; update: (row: { key: string; count: bigint }) => void };
+        insert: (row: { key: string; count: bigint }) => void;
+      };
+      analyticsUnique: {
+        stamp: { find: (k: string) => { stamp: string } | undefined };
+        insert: (row: { stamp: string }) => void;
+      };
+    };
+  },
+  key: string,
+  stamp: string | null,
+): void {
+  if (stamp) {
+    if (ctx.db.analyticsUnique.stamp.find(stamp)) return;
+    ctx.db.analyticsUnique.insert({ stamp });
+  }
+  const row = ctx.db.analyticsCounter.key.find(key);
+  if (row) ctx.db.analyticsCounter.key.update({ ...row, count: row.count + BigInt(1) });
+  else ctx.db.analyticsCounter.insert({ key, count: BigInt(1) });
+}
+
+export const setPlayerPrefs = spacetimedb.reducer(
+  { difficulty: t.string(), doNotTrack: t.bool() },
+  (ctx, { difficulty, doNotTrack }) => {
+    const identity = ctx.sender;
+    const mode = difficulty === 'easy' || difficulty === 'veteran' ? difficulty : 'normal';
+    const existing = ctx.db.playerPrefs.identity.find(identity);
+    if (existing) {
+      ctx.db.playerPrefs.identity.update({ ...existing, difficulty: mode, doNotTrack });
+    } else {
+      ctx.db.playerPrefs.insert({ identity, difficulty: mode, doNotTrack });
+    }
+  }
+);
+
+export const trackAnalytics = spacetimedb.reducer(
+  { kind: t.string(), level: t.u32(), mode: t.string() },
+  (ctx, { kind, level, mode }) => {
+    const identity = ctx.sender;
+    const prefs = ctx.db.playerPrefs.identity.find(identity);
+    if (prefs?.doNotTrack) return;
+    const allowed = new Set([
+      'session_start', 'level_start', 'level_win', 'level_loss', 'level_quit',
+      'shop_open', 'shop_purchase', 'tip_shown', 'tip_clicked',
+      'room_created', 'room_joined', 'sign_in',
+    ]);
+    if (!allowed.has(kind)) return;
+    const safeMode = mode === 'easy' || mode === 'veteran' ? mode : 'normal';
+    bumpAnalytics(ctx, `kind:${kind}`, null);
+    bumpAnalytics(ctx, `kind:${kind}:${safeMode}`, null);
+    if (kind === 'level_win' || kind === 'level_start' || kind === 'level_loss') {
+      bumpAnalytics(ctx, `level:${kind}:${level}`, null);
+    }
+    let funnel: string | null = null;
+    if (kind === 'session_start') funnel = 'session_start';
+    if (kind === 'level_win' && level === 3) funnel = 'level3_win';
+    if (kind === 'shop_open') funnel = 'shop_open';
+    if (kind === 'shop_purchase') funnel = 'shop_purchase';
+    if (kind === 'room_created' || kind === 'room_joined') funnel = 'multiplayer';
+    if (funnel) bumpAnalytics(ctx, `funnel:${funnel}`, `funnel:${funnel}:${identity}`);
+  }
+);
+
+export const submitWeeklyScore = spacetimedb.reducer(
+  { weekKey: t.string(), score: t.u64(), mode: t.string(), displayName: t.string() },
+  (ctx, { weekKey, score, mode, displayName }) => {
+    const identity = ctx.sender;
+    if (!/^\d{4}-W\d{2}$/.test(weekKey)) throw new Error('Invalid week');
+    if (score > BigInt(10_000_000)) throw new Error('Score exceeds maximum');
+    const safeMode = mode === 'easy' || mode === 'veteran' ? mode : 'normal';
+    const checked = validateDisplayName(displayName, displayName.match(/ \\d{1,3}$/) ? 'generated' : 'custom');
+    const name = checked.ok ? checked.name : 'Pilot';
+    let existing: { id: bigint; weekKey: string; identity: typeof identity; displayName: string; score: bigint; mode: string } | null = null;
+    for (const row of ctx.db.weeklyScore.weekKey.filter(weekKey)) {
+      if (String(row.identity) === String(identity)) {
+        existing = row;
+        break;
+      }
+    }
+    if (existing) {
+      if (score > existing.score) {
+        ctx.db.weeklyScore.delete(existing);
+        ctx.db.weeklyScore.insert({ id: BigInt(0), weekKey, identity, displayName: name, score, mode: safeMode });
+      }
+    } else {
+      ctx.db.weeklyScore.insert({ id: BigInt(0), weekKey, identity, displayName: name, score, mode: safeMode });
+    }
+  }
+);
+
+export const getWeeklyBoard = spacetimedb.procedure(
+  { weekKey: t.string() },
+  t.option(t.object('WeeklyBoardResult', {
+    weekKey: t.string(),
+    rowsJson: t.string(),
+  })),
+  (ctx, { weekKey }) => {
+    return ctx.withTx(txCtx => {
+      const rows: Array<{ name: string; score: string; mode: string; me: boolean }> = [];
+      const identity = ctx.sender;
+      for (const row of txCtx.db.weeklyScore.weekKey.filter(weekKey)) {
+        rows.push({
+          name: row.displayName,
+          score: String(row.score),
+          mode: row.mode,
+          me: String(row.identity) === String(identity),
+        });
+      }
+      rows.sort((a, b) => Number(b.score) - Number(a.score));
+      return { weekKey, rowsJson: JSON.stringify(rows.slice(0, 20)) };
+    });
+  }
+);
+
+export const getAnalyticsFunnel = spacetimedb.procedure(
+  {},
+  t.option(t.object('AnalyticsFunnelResult', {
+    dataJson: t.string(),
+  })),
+  (ctx) => {
+    return ctx.withTx(txCtx => {
+      const out: Record<string, string> = {};
+      for (const row of txCtx.db.analyticsCounter.iter()) {
+        out[row.key] = String(row.count);
+      }
+      return { dataJson: JSON.stringify(out) };
+    });
   }
 );
 

@@ -48,6 +48,8 @@ Apple Sign-In is wired (`OAuthProvider('apple.com')`) but **off** unless `VITE_F
 
 **This lazy-load / username / level-catalog batch also changes the module** (`levelData` is private and seeded with real payloads; `playerProfile` / `claimedName` / `setDisplayName`; ALLELEVEL still unlocks that identity only). Republish `weltraum-mission` before relying on gated `getLevelData` or server name checks in production. Do not publish from this agent.
 
+Difficulty / weekly / analytics add `playerPrefs`, `weeklyScore`, `analyticsCounter`, `analyticsUnique`, plus `mode` on `completeLevelResult`. **Republish again** after that batch. Coin caps scale with Easy (0.75×) / Veteran (1.5×). Analytics are first-party counters only (no cookies, no PII); honor Account → Do not track.
+
 ### Firebase project (already created)
 
 - Project id: `weltraum-mission`

@@ -210,6 +210,7 @@ export interface Translations {
     changeName: string;
     nameHint: string;
     reroll: string;
+    doNotTrack: string;
   };
   game: {
     neuBanner: string;
