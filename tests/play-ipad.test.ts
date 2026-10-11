@@ -46,6 +46,9 @@ type GameWin = Window & {
     showHostRoster?: () => string;
     skipTraining?: () => void;
     startLevel?: (n: number) => void;
+    mapBossOverPlanet?: (L?: number) => { toBoss: number; toPlanet: number; closerToBoss: boolean; icon: boolean };
+    unlockTo?: (n: number) => void;
+    centerMap?: (i: number) => void;
   };
   __fillTextLog?: string[];
   __clearFillTextLog?: () => void;
@@ -291,6 +294,26 @@ describe.each([
     await page.waitForTimeout(200);
     const mapCoins = await page.evaluate(() => (window as GameWin).__spaceGame!.shop().coins);
     expect(mapCoins).toBe(after);
+    await context.close();
+  });
+
+  it(`keeps boss portraits visible on top of their map planets (${label})`, async () => {
+    const { context, page } = await openPage(size);
+    await page.evaluate(() => {
+      const w = window as GameWin;
+      w.__spaceGame?.unlockTo?.(12);
+      w.__spaceGame?.centerMap?.(2);
+    });
+    await page.waitForTimeout(80);
+    const check = await page.evaluate(() => {
+      const w = window as GameWin;
+      return [3, 6, 9, 12].map((L) => ({ L, ...(w.__spaceGame?.mapBossOverPlanet?.(L) || { toBoss: 0, toPlanet: 0, closerToBoss: false, icon: false }) }));
+    });
+    for (const row of check) {
+      expect(row.icon, `boss icon missing for L${row.L}`).toBe(true);
+      expect(row.closerToBoss, `L${row.L} draw is closer to a covering planet (${row.toBoss} vs ${row.toPlanet})`).toBe(true);
+    }
+    await page.screenshot({ path: `/tmp/map-boss-${label}.png`, fullPage: true });
     await context.close();
   });
 

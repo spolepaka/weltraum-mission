@@ -9,7 +9,7 @@ import { buildLevelPayload } from './level-catalog';
 import { nameKey, uniquifyDisplayName, validateDisplayName, type NameKind } from './display-names';
 import { plausibleLegacyUnlock } from './legacy-import';
 import { maxCoinsForLevel } from './economy';
-import { emailFromJwtPayload, isAdminEmail } from './admin';
+import { bindAdminCtx, inspectSenderAuth, isAdminEmail, isAdminUid } from './admin';
 
 /** Account-linked only. Do not call from guest gameplay — local hosts trap on JWT lookup. */
 function assertTrusted(ctx: { senderAuth?: { hasJWT: boolean; isInternal?: boolean; jwt?: { issuer?: string } | null } }): void {
@@ -283,28 +283,36 @@ function validateAchievement(achId: string): boolean {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyCtx = any;
 
-function readJwtEmail(ctx: AnyCtx): { email: string; sub: string } {
+function readJwtEmail(ctx: AnyCtx): { email: string; sub: string; issuer: string; hasJwt: boolean; emailVerified: boolean; rawEmail: string } {
   try {
-    const jwt = ctx.senderAuth?.jwt;
-    if (!jwt || !isFirebaseIssuer(jwt.issuer)) return { email: '', sub: '' };
+    const probe = inspectSenderAuth(ctx.senderAuth);
+    const trusted = !probe.issuer || isFirebaseIssuer(probe.issuer);
     return {
-      email: emailFromJwtPayload(jwt.fullPayload),
-      sub: String(jwt.subject || ''),
+      email: trusted ? probe.email : '',
+      rawEmail: probe.rawEmail,
+      sub: probe.sub,
+      issuer: probe.issuer,
+      hasJwt: probe.hasJwt,
+      emailVerified: probe.emailVerified,
     };
   } catch {
-    return { email: '', sub: '' };
+    return { email: '', rawEmail: '', sub: '', issuer: '', hasJwt: false, emailVerified: false };
   }
 }
 
 function assertAdmin(ctx: AnyCtx): void {
-  const { email } = readJwtEmail(ctx);
-  if (!isAdminEmail(email)) {
-    throw new Error('Admin only');
+  const { email, sub } = readJwtEmail(ctx);
+  const byEmail = isAdminEmail(email);
+  const byUid = isAdminUid(sub);
+  if (byEmail || byUid) {
+    const existing = ctx.db.adminUser.identity.find(ctx.sender);
+    if (!existing) {
+      ctx.db.adminUser.insert({ identity: ctx.sender, email: email || sub, grantedAt: ctx.timestamp });
+    }
+    return;
   }
-  const existing = ctx.db.adminUser.identity.find(ctx.sender);
-  if (!existing) {
-    ctx.db.adminUser.insert({ identity: ctx.sender, email, grantedAt: ctx.timestamp });
-  }
+  if (ctx.db.adminUser.identity.find(ctx.sender)) return;
+  throw new Error('Admin only');
 }
 
 function assertNotBanned(ctx: AnyCtx): void {
@@ -316,10 +324,6 @@ function assertNotBanned(ctx: AnyCtx): void {
 function identityKey(id: { toHexString?: () => string } | string): string {
   if (typeof id === 'string') return id;
   try { return id.toHexString?.() || String(id); } catch { return String(id); }
-}
-
-function bindAdminCtx(outer: AnyCtx, tx: AnyCtx): AnyCtx {
-  return { ...tx, sender: outer.sender, timestamp: outer.timestamp, senderAuth: outer.senderAuth };
 }
 
 function writeAudit(ctx: AnyCtx, action: string, targetKey: string, detail: unknown): void {
@@ -1458,15 +1462,34 @@ export const adminMe = spacetimedb.procedure(
   t.option(t.object('AdminMeResult', {
     ok: t.bool(),
     email: t.string(),
+    detail: t.string(),
   })),
   (ctx) => {
     return ctx.withTx(txCtx => {
+      const bound = bindAdminCtx(ctx as never, txCtx as never);
+      const info = readJwtEmail(bound);
+      let ok = false;
+      let reason = 'denied';
       try {
-        assertAdmin(bindAdminCtx(ctx, txCtx) as never);
-        return { ok: true, email: readJwtEmail(ctx).email };
-      } catch {
-        return { ok: false, email: '' };
+        assertAdmin(bound as never);
+        ok = true;
+        reason = 'ok';
+      } catch (err) {
+        reason = err instanceof Error ? err.message : String(err);
       }
+      const identityHex = identityKey(ctx.sender);
+      return {
+        ok,
+        email: info.email || info.rawEmail,
+        detail: JSON.stringify({
+          issuer: info.issuer || '',
+          sub: info.sub || '',
+          hasJwt: !!info.hasJwt,
+          identity: identityHex,
+          emailVerified: !!info.emailVerified,
+          reason,
+        }),
+      };
     });
   }
 );

@@ -6071,7 +6071,7 @@
       ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(x, y, r * 2, 0, 7); ctx.fill();
     }
     if (isBossLevel(L)) drawMothership(x, y, r, L);
-    else if (true) procPlanet(x, y, r, L, mapT); // jeder Planet einzigartig
+    else procPlanet(x, y, r, L, mapT); // jeder Planet einzigartig
     if (!locked && loadingLevels[L]) {
       ctx.save();
       ctx.strokeStyle = "#ffd54a";
@@ -6081,7 +6081,7 @@
       ctx.stroke();
       ctx.restore();
     }
-    else {
+    else if (!isBossLevel(L)) {
       var st = STYLES[L] || planetStyle(L), type = st[0], hue = st[1];
       if (type === "ring") {
         ctx.save(); ctx.strokeStyle = "hsla(" + (hue + 30) + ",80%,75%,.85)"; ctx.lineWidth = r * 0.16;
@@ -6725,7 +6725,36 @@
 
   // Test-Helfer
   var sidSeq = 0;
-  window.__spaceGame = { hz: function () { ionT = 0; magmT = 0; satT = 0; gridT = 0; for (var i = 0; i < 3; i++) spawnUfo(); ufos.forEach(function (u) { if (!u.sat) u.y = 160 + Math.random() * 120; }); }, featsOf: function (L) { return feats(L); }, bossIconOk: function () { var bad = []; for (var L = 3; L <= 100; L += 3) if (!bossIcon(L === 99 ? 99 : L)) bad.push(L); if (!bossIcon(100)) bad.push(100); return bad; }, centerMap: function (i) { centerOn(i); },
+  window.__spaceGame = { hz: function () { ionT = 0; magmT = 0; satT = 0; gridT = 0; for (var i = 0; i < 3; i++) spawnUfo(); ufos.forEach(function (u) { if (!u.sat) u.y = 160 + Math.random() * 120; }); }, featsOf: function (L) { return feats(L); }, bossIconOk: function () { var bad = []; for (var L = 3; L <= 100; L += 3) if (!bossIcon(L === 99 ? 99 : L)) bad.push(L); if (!bossIcon(100)) bad.push(100); return bad; },
+    mapBossOverPlanet: function (L) {
+      L = L || 3;
+      function snap(draw) {
+        var cv = document.createElement("canvas"); cv.width = 220; cv.height = 220;
+        var main = ctx;
+        ctx = cv.getContext("2d");
+        ctx.fillStyle = "#050816"; ctx.fillRect(0, 0, 220, 220);
+        draw();
+        var img = ctx.getImageData(0, 0, 220, 220);
+        ctx = main;
+        return img.data;
+      }
+      var mothership = snap(function () { drawMothership(110, 110, 42, L); });
+      var overlay = snap(function () {
+        var st = STYLES[L] || planetStyle(L), hue = st[1];
+        ball(110, 110, 42, "hsl(" + hue + ",75%,70%)", "hsl(" + hue + ",70%,30%)");
+      });
+      var full = snap(function () { drawLevelPlanet(L, 110, 110, 42, false); });
+      function dist(a, b) {
+        var s = 0;
+        for (var i = 0; i < a.length; i += 4) {
+          var dr = a[i] - b[i], dg = a[i + 1] - b[i + 1], db = a[i + 2] - b[i + 2];
+          s += dr * dr + dg * dg + db * db;
+        }
+        return s / (a.length / 4);
+      }
+      var toBoss = dist(full, mothership), toPlanet = dist(full, overlay);
+      return { toBoss: toBoss, toPlanet: toPlanet, closerToBoss: toBoss < toPlanet, icon: !!bossIcon(L) };
+    }, centerMap: function (i) { centerOn(i); },
     state: function () { return { state: state, score: score, lives: lives, level: level, rocks: rocks.length, bigRocks: rocks.filter(function (r) { return r.big; }).length, ufos: ufos.length, boss: boss ? boss.hp : null, bombs: bombs.length, shield: shield, triple: Math.ceil(triple), hits: hits, beaten: bossesBeaten, shieldOn: shield, holes: holes.length, comets: comets.length, laser: Math.ceil(laser), magnet: Math.ceil(magnet) }; },
     ship: function () { return ship; }, fire: fire,
     rockAboveShip: function (big) { rocks.push(makeRock(ship.x, ship.y - 250, big ? 50 : 26, !!big)); rocks[rocks.length - 1].vx = 0; rocks[rocks.length - 1].vy = 0; },

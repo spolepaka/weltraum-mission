@@ -2,8 +2,52 @@
  * Admin console — separate Vite entry so players never download it.
  * Access is decided by SpacetimeDB from the Firebase JWT email.
  */
-import { ensureFirebase, isAuthConfigured, loadAuthUser, signInWithGoogle, signOutFirebase } from './lib/firebase-auth';
+import { currentIdToken, ensureFirebase, isAuthConfigured, loadAuthUser, signInWithGoogle, signOutFirebase } from './lib/firebase-auth';
 import { getSpacetimeClient, initSpacetime } from './lib/spacetime-client';
+
+function peekIdTokenClaims(token?: string): { email: string; iss: string; sub: string; emailVerified: boolean } {
+  if (!token) return { email: '', iss: '', sub: '', emailVerified: false };
+  try {
+    const part = token.split('.')[1];
+    if (!part) return { email: '', iss: '', sub: '', emailVerified: false };
+    const json = atob(part.replace(/-/g, '+').replace(/_/g, '/'));
+    const payload = JSON.parse(json) as { email?: string; iss?: string; sub?: string; email_verified?: boolean };
+    return {
+      email: String(payload.email || ''),
+      iss: String(payload.iss || ''),
+      sub: String(payload.sub || ''),
+      emailVerified: payload.email_verified === true,
+    };
+  } catch {
+    return { email: '', iss: '', sub: '', emailVerified: false };
+  }
+}
+
+function showDenied(server: { email?: string; detail?: string }, clientToken?: string): void {
+  let diag: Record<string, unknown> = {};
+  try { diag = JSON.parse(server.detail || '{}') as Record<string, unknown>; } catch { /* ignore */ }
+  const client = peekIdTokenClaims(clientToken);
+  const rows = [
+    ['Server email', server.email || '—'],
+    ['Server issuer', String(diag.issuer || '—')],
+    ['Server has JWT', diag.hasJwt == null ? '—' : String(diag.hasJwt)],
+    ['Server UID (sub)', String(diag.sub || '—')],
+    ['Server identity', String(diag.identity || '—')],
+    ['Email verified', diag.emailVerified == null ? '—' : String(diag.emailVerified)],
+    ['Server reason', String(diag.reason || 'denied')],
+    ['Client email', client.email || '—'],
+    ['Client issuer', client.iss || '—'],
+    ['Client UID', client.sub || '—'],
+  ];
+  root.replaceChildren(el(`
+    <div class="gate">
+      <h1>Access denied</h1>
+      <p class="err">This Firebase account is not an admin.</p>
+      <table class="diag"><tbody>
+        ${rows.map(([k, v]) => `<tr><th>${k}</th><td>${String(v).replace(/[<>&]/g, '')}</td></tr>`).join('')}
+      </tbody></table>
+    </div>`));
+}
 
 type PlayerRow = {
   id: string;
@@ -63,13 +107,15 @@ async function boot(): Promise<void> {
 async function enter(): Promise<void> {
   const user = loadAuthUser();
   if (!user?.idToken) throw new Error('Not signed in');
+  const fresh = await currentIdToken(true);
+  const token = fresh || user.idToken;
   const client = getSpacetimeClient();
-  await client.reconnectWithToken(user.idToken);
+  await client.reconnectWithToken(token);
   const ok = await initSpacetime();
   if (!ok) throw new Error('Could not connect to SpacetimeDB');
   const me = await client.adminMe();
   if (!me?.ok) {
-    root.replaceChildren(el('<div class="gate"><h1>Access denied</h1><p class="err">This Firebase account is not an admin.</p></div>'));
+    showDenied(me || {}, token);
     return;
   }
   await renderApp(client, me.email);
