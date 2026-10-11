@@ -79,9 +79,22 @@ async function main() {
     }
     console.log('[e2e] publishing module to LOCAL server only (not Maincloud)');
     await run('npm', ['run', 'build'], { cwd: `${ROOT}/server/spacetimedb` });
-    await run('spacetime', ['publish', '--server', 'http://localhost:3000', '--anonymous', '-y', 'weltraum-dev'], {
-      cwd: `${ROOT}/server/spacetimedb`,
-    });
+    try {
+      await run('spacetime', ['publish', '--server', 'http://localhost:3000', '--anonymous', '-y', 'weltraum-dev'], {
+        cwd: `${ROOT}/server/spacetimedb`,
+      });
+    } catch (err) {
+      console.log('[e2e] local publish failed; clearing leftover local DB and retrying once');
+      if (stdbProc) { stdbProc.kill('SIGTERM'); stdbProc = null; }
+      try { await run('spacetime', ['server', 'clear', '-y']); } catch { /* ignore */ }
+      await waitForPortClosed(3000);
+      stdbProc = spawn('spacetime', ['start', '--in-memory'], { cwd: ROOT, stdio: 'inherit' });
+      await waitForPort(3000, 'SpacetimeDB');
+      await sleep(1000);
+      await run('spacetime', ['publish', '--server', 'http://localhost:3000', '--anonymous', '-y', 'weltraum-dev'], {
+        cwd: `${ROOT}/server/spacetimedb`,
+      });
+    }
   } else {
     console.log('[e2e] Maincloud target: https://maincloud.spacetimedb.com / weltraum-mission');
     console.log('[e2e] will NOT publish or modify the remote module');

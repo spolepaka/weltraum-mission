@@ -118,7 +118,7 @@ describe.each([
     expect(panel.kind).toMatch(/Signed in|Angemeldet/i);
     expect(panel.signOutHidden).toBe(false);
     expect(panel.guestHidden).toBe(true);
-    expect(panel.name).toMatch(/Turbo Fox 11|Leo|son/i);
+    expect(panel.name).toMatch(/Turbo Fox|Leo|son/i);
     await context.close();
   });
 

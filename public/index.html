@@ -931,7 +931,9 @@
     return { type: type, hp: Math.round(base[0] * (330 + 17 * (L - 18))), speed: base[1] * (1 + (L - 18) * 0.003), name: bg ? bg.name : locShort(type), mods: mods, tint: sec.tint };
   }
   function startGame(L, opts) {
-    try { if (window.__weltraum && window.__weltraum.ensureCloud) window.__weltraum.ensureCloud(); } catch (e) {}
+    try {
+      if (!(opts && opts.training) && window.__weltraum && window.__weltraum.ensureCloud) window.__weltraum.ensureCloud();
+    } catch (e) {}
     audio();
     var asTrain = !!(opts && opts.training);
     trainOn = asTrain;
