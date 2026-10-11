@@ -6,7 +6,7 @@
 import { schema, table, t } from 'spacetimedb/server';
 import { assertTrustedCaller, authSnapshotFromCtx } from './auth-trust';
 import { buildLevelPayload } from './level-catalog';
-import { nameKey, validateDisplayName, type NameKind } from './display-names';
+import { nameKey, uniquifyDisplayName, validateDisplayName, type NameKind } from './display-names';
 import { plausibleLegacyUnlock } from './legacy-import';
 
 /** Account-linked only. Do not call from guest gameplay — local hosts trap on JWT lookup. */
@@ -1265,32 +1265,16 @@ export const setDisplayName = spacetimedb.reducer(
   (ctx, { name, kind }) => {
     const identity = ctx.sender;
     const nameKind = (kind === 'custom' ? 'custom' : 'generated') as NameKind;
-    const auth = authSnapshotFromCtx(ctx);
-    if (nameKind === 'custom' && !auth.hasJWT) {
-      throw new Error('Custom names require a signed-in parent account');
-    }
+    // Custom names are allowed for every identity (guest and signed-in).
     const checked = validateDisplayName(name, nameKind);
     if (!checked.ok) {
       throw new Error(`Invalid display name: ${checked.reason}`);
     }
 
-    let finalName = checked.name;
-    const key = nameKey(finalName);
-    const existingClaim = ctx.db.claimedName.nameKey.find(key);
-    if (existingClaim && String(existingClaim.identity) !== String(identity)) {
-      let found = false;
-      for (let i = 10; i <= 99; i++) {
-        const candidate = `${checked.name.replace(/\s+\d{1,3}$/, '').slice(0, 12)} ${i}`.slice(0, 16);
-        const ckey = nameKey(candidate);
-        const taken = ctx.db.claimedName.nameKey.find(ckey);
-        if (!taken || String(taken.identity) === String(identity)) {
-          finalName = candidate;
-          found = true;
-          break;
-        }
-      }
-      if (!found) throw new Error('Invalid display name: taken');
-    }
+    const finalName = uniquifyDisplayName(checked.name, (key) => {
+      const existingClaim = ctx.db.claimedName.nameKey.find(key);
+      return !!(existingClaim && String(existingClaim.identity) !== String(identity));
+    });
 
     const profile = ctx.db.playerProfile.identity.find(identity);
     if (profile) {

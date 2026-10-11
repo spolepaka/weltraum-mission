@@ -135,10 +135,111 @@
   #obPrompt .btnRow { margin-top: 4px; }
   #obPrompt .big { font-size: 20px; padding: 10px 22px; margin-top: 4px; }
   #welcomeScreen { z-index: 50; }
-  .welcomePanel { max-width: 480px; }
-  .langFlag { min-width: 160px; }
-  .langFlag.on { outline: 4px solid #7dffa8; }
-  #welcomeNameShow { font-size: 30px; color: #ffd54a; margin: 8px 0 4px; font-weight: bold; }
+  .welcomePanel {
+    max-width: min(520px, 94vw);
+    padding: 14px 16px 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-sizing: border-box;
+  }
+  #welcomeScreen .welcomePanel h1 { margin: 0 0 2px; font-size: 26px; }
+  #welcomeScreen .welcomePanel p { margin: 0; font-size: 15px; line-height: 1.25; }
+  .welcomeFlags { display: flex; justify-content: center; gap: 8px; flex-wrap: nowrap; }
+  .langFlag {
+    min-width: 0;
+    margin: 0;
+    padding: 6px 14px;
+    font-size: 16px;
+    border-radius: 22px;
+    border: none;
+    background: #ffd54a;
+    color: #2a1660;
+    font-weight: bold;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #b8901a;
+  }
+  .langFlag.on { outline: 3px solid #7dffa8; }
+  #welcomeNameShow { font-size: 20px; color: #ffd54a; margin: 0; font-weight: bold; }
+  .nameChips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 0; }
+  .nameChips button, .nameChip {
+    width: auto;
+    flex: 1 1 118px;
+    margin: 0;
+    padding: 8px 10px;
+    font-size: 15px;
+    font-weight: bold;
+    font-family: inherit;
+    border: none;
+    border-radius: 16px;
+    background: #ffd54a;
+    color: #2a1660;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #b8901a;
+  }
+  .nameChips button.on, .nameChip.on { outline: 3px solid #7dffa8; }
+  .welcomeActions { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 2px; }
+  #welcomeReroll {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: #8fb0ff;
+    color: #12204a;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #4a5ea8;
+  }
+  #welcomeGo { margin: 0; padding: 10px 26px; font-size: 20px; flex: 1 1 auto; max-width: 280px; }
+  .welcomeOwnBox { display: none; width: 100%; text-align: left; }
+  .welcomeOwnBox.open { display: block; }
+  #welcomeNameIn {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 18px;
+    font-family: inherit;
+    font-weight: bold;
+    padding: 8px 12px;
+    border-radius: 14px;
+    border: 2px solid #ffd54a;
+    background: #0b1238;
+    color: #ffd54a;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  #welcomeOwnHint { color: #aab4e8; font-size: 12px; margin: 4px 0 0; }
+  #welcomeOwnHint.bad { color: #ff9a9a; }
+  #welcomeScreen.ownOpen .welcomePanel,
+  #welcomeScreen.kbOpen .welcomePanel { gap: 4px; padding: 8px 12px 10px; }
+  #welcomeScreen.ownOpen #welcomeTitle,
+  #welcomeScreen.ownOpen #welcomeLangLabel,
+  #welcomeScreen.ownOpen .welcomeFlags,
+  #welcomeScreen.kbOpen #welcomeTitle,
+  #welcomeScreen.kbOpen #welcomeLangLabel,
+  #welcomeScreen.kbOpen .welcomeFlags { display: none; }
+  #welcomeScreen.ownOpen .nameChips { flex-wrap: nowrap; }
+  #welcomeScreen.ownOpen .nameChips button:not(.ownChip) { display: none; }
+  #welcomeScreen.kbOpen { align-items: flex-end; padding-bottom: 8px; }
+  #welcomeScreen.kbOpen .nameChips { display: none; }
+  #welcomeScreen.kbOpen #welcomeNameLabel { display: none; }
+  #accountScreen.kbOpen { align-items: flex-end; }
+  #accountScreen.kbOpen .panel { max-height: 100%; overflow-y: auto; }
+  @media (max-height: 430px) {
+    .welcomePanel { padding: 8px 12px 10px; gap: 5px; }
+    #welcomeScreen .welcomePanel h1 { font-size: 20px; }
+    #welcomeScreen .welcomePanel p { font-size: 13px; }
+    .langFlag { padding: 4px 10px; font-size: 14px; }
+    .nameChips { flex-wrap: nowrap; }
+    .nameChips button, .nameChip { font-size: 13px; padding: 6px 6px; flex: 1 1 0; }
+    #welcomeReroll { width: 38px; height: 38px; min-width: 38px; font-size: 18px; }
+    #welcomeGo { padding: 8px 18px; font-size: 17px; }
+  }
   #trainBtn { bottom: calc(70px + env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); font-size: 15px; background: rgba(40,90,60,.85); border-color: #7dffa8; }
   #trainBanner { position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 8; background: rgba(20,80,50,.9); border: 2px solid #7dffa8; border-radius: 14px; padding: 4px 14px; font-size: 16px; font-weight: bold; zoom: var(--s); pointer-events: none; }
   #joinToast { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); z-index: 45; display: none; gap: 10px; align-items: center; background: rgba(20,40,90,.94); border: 2px solid #7dffa8; border-radius: 16px; padding: 8px 12px; color: #fff; }
@@ -234,8 +335,10 @@
   .nameChoices { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
   .nameChoices button { width: 100%; }
   .nameChoices button.on { outline: 3px solid #ffd54a; }
+  .nameChoices.nameChips { flex-direction: row; flex-wrap: wrap; margin: 0; }
+  .nameChoices.nameChips button { width: auto; }
   #accountScreen .emailRow { display: flex; flex-direction: column; gap: 8px; }
-  #accountEmail { -webkit-user-select: text; user-select: text; font-size: 18px; font-family: inherit; padding: 10px 12px; border-radius: 12px; border: 2px solid #7dffa8; background: rgba(0,0,0,.5); color: #fff; width: 100%; box-sizing: border-box; }
+  #accountEmail, #accountNameIn { -webkit-user-select: text; user-select: text; font-size: 18px; font-family: inherit; padding: 10px 12px; border-radius: 12px; border: 2px solid #7dffa8; background: rgba(0,0,0,.5); color: #fff; width: 100%; box-sizing: border-box; }
   #celebrateHud { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); z-index: 8; text-align: center; pointer-events: none; display: none; width: 90%; }
   #celebrateHud.show { display: block; }
   #celebrateHud h2 { margin: 0 0 8px; font-size: min(48px, 8vw); color: #ffd54a; text-shadow: 0 0 18px #ff5ad0, 0 3px 0 #6a3a00; }
@@ -324,8 +427,8 @@
         <button class="big hidden" id="accountApple">Sign in with Apple</button>
       </div>
     </div>
-    <div id="accountNameBox" class="emailRow hidden">
-      <input id="accountNameIn" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Pilot name">
+    <div id="accountNameBox" class="emailRow">
+      <input id="accountNameIn" maxlength="16" autocomplete="off" spellcheck="false" enterkeyhint="done" inputmode="text" placeholder="Pilot name">
       <button class="big" id="accountNameSave">Change name</button>
       <p class="small" id="accountNameHint"></p>
     </div>
@@ -433,15 +536,19 @@
   <div class="panel welcomePanel">
     <h1 id="welcomeTitle">Welcome, pilot!</h1>
     <p id="welcomeLangLabel">Pick a language</p>
-    <div class="btnRow">
-      <button class="big langFlag" id="welcomeEn" type="button">🇬🇧 English</button>
-      <button class="big langFlag" id="welcomeDe" type="button">🇩🇪 Deutsch</button>
+    <div class="welcomeFlags" role="group" aria-labelledby="welcomeLangLabel">
+      <button class="langFlag" id="welcomeEn" type="button">🇬🇧 English</button>
+      <button class="langFlag" id="welcomeDe" type="button">🇩🇪 Deutsch</button>
     </div>
     <p id="welcomeNameLabel">Your space name</p>
     <p id="welcomeNameShow" class="hidden"></p>
-    <div id="welcomeNameChoices" class="nameChoices"></div>
-    <div class="btnRow">
-      <button class="big alt" id="welcomeReroll" type="button">New names</button>
+    <div id="welcomeNameChoices" class="nameChoices nameChips"></div>
+    <div id="welcomeOwnBox" class="welcomeOwnBox">
+      <input id="welcomeNameIn" maxlength="16" autocomplete="off" spellcheck="false" enterkeyhint="done" inputmode="text" placeholder="Type your name">
+      <p class="small" id="welcomeOwnHint"></p>
+    </div>
+    <div class="welcomeActions">
+      <button class="rerollBtn" id="welcomeReroll" type="button" aria-label="New name" title="New name">🔄</button>
       <button class="big" id="welcomeGo" type="button">Let's fly!</button>
     </div>
   </div>
@@ -728,6 +835,7 @@
     makeStars();
     if (ship) ship.y = H - shipBottom();
     zigDirty = true;
+    if (typeof fitWelcomeToViewport === "function") fitWelcomeToViewport();
   }
   function shipBottom() { return 120 + safeBottom; }
   function currentMode() {
@@ -5288,6 +5396,71 @@
     $("obPrompt").classList.add("hidden");
     obClearSpot();
   }
+  var welcomeOwnMode = false;
+  function suggestedSpaceName() {
+    var names = window.__weltraum && window.__weltraum.names;
+    var lang = curLang === "de" ? "de" : "en";
+    return (names && names.generate && names.generate(lang)) || (lang === "de" ? "Flinker Fuchs" : "Turbo Fox");
+  }
+  function showBadNameHint(el) {
+    if (!el) return;
+    var alt = suggestedSpaceName();
+    el.classList.add("bad");
+    el.textContent = tr("tips.badName") + " " + tr("tips.badNameSuggest", { name: alt });
+    el.setAttribute("data-suggest", alt);
+  }
+  function setWelcomeOwnOpen(on) {
+    welcomeOwnMode = !!on;
+    var screen = $("welcomeScreen");
+    if (screen) screen.classList.toggle("ownOpen", welcomeOwnMode);
+    var box = $("welcomeOwnBox");
+    if (box) box.classList.toggle("open", welcomeOwnMode);
+    var hint = $("welcomeOwnHint");
+    if (hint) {
+      hint.classList.remove("bad");
+      hint.textContent = welcomeOwnMode ? tr("tips.customNameHint") : "";
+    }
+    if (welcomeOwnMode && $("welcomeNameIn")) {
+      $("welcomeNameIn").setAttribute("placeholder", tr("tips.ownNamePlaceholder"));
+      setTimeout(function () { $("welcomeNameIn").focus(); fitWelcomeToViewport(); }, 40);
+    } else {
+      fitWelcomeToViewport();
+    }
+  }
+  function pinOverlayToVisualViewport(el, on) {
+    if (!el) return;
+    var vv = window.visualViewport;
+    if (on && vv) {
+      el.style.top = Math.round(vv.offsetTop || 0) + "px";
+      el.style.height = Math.round(vv.height) + "px";
+      el.style.bottom = "auto";
+    } else {
+      el.style.top = "";
+      el.style.height = "";
+      el.style.bottom = "";
+    }
+  }
+  function fitWelcomeToViewport() {
+    var screen = $("welcomeScreen");
+    var panel = screen && screen.querySelector(".welcomePanel");
+    var acc = $("accountScreen");
+    var vv = window.visualViewport;
+    var vh = vv && vv.height ? vv.height : window.innerHeight;
+    var keyboard = !!(vv && window.innerHeight - vv.height > 80);
+    var welcomeOn = !!(screen && !screen.classList.contains("hidden"));
+    var accOn = !!(acc && !acc.classList.contains("hidden"));
+    if (screen) screen.classList.toggle("kbOpen", keyboard && welcomeOn);
+    if (acc) acc.classList.toggle("kbOpen", keyboard && accOn);
+    pinOverlayToVisualViewport(screen, keyboard && welcomeOn);
+    pinOverlayToVisualViewport(acc, keyboard && accOn);
+    if (panel && welcomeOn) {
+      panel.style.maxHeight = Math.max(140, Math.floor(vh - 12)) + "px";
+    }
+    var focused = document.activeElement;
+    if (focused && focused.scrollIntoView && (focused.id === "welcomeNameIn" || focused.id === "accountNameIn")) {
+      try { focused.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch (e) { focused.scrollIntoView(false); }
+    }
+  }
   function fillNameChoices(boxId, showId) {
     var names = window.__weltraum && window.__weltraum.names;
     var lang = curLang === "de" ? "de" : "en";
@@ -5299,23 +5472,40 @@
     }
     box.innerHTML = "";
     var picked = list[0];
+    var chip = box.classList.contains("nameChips");
     list.forEach(function (nm, i) {
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "big" + (i === 0 ? " on" : "");
+      b.className = (chip ? "nameChip" : "big") + (i === 0 ? " on" : "");
       b.textContent = nm;
       b.addEventListener("click", function () {
         picked = nm;
         if ($(showId)) $(showId).textContent = nm;
         var kids = box.querySelectorAll("button");
         for (var k = 0; k < kids.length; k++) kids[k].classList.toggle("on", kids[k] === b);
+        if (boxId === "welcomeNameChoices") setWelcomeOwnOpen(false);
       });
       box.appendChild(b);
     });
+    if (boxId === "welcomeNameChoices") {
+      var own = document.createElement("button");
+      own.type = "button";
+      own.id = "welcomeOwnChip";
+      own.className = (chip ? "nameChip" : "big") + " ownChip" + (welcomeOwnMode ? " on" : "");
+      own.textContent = "✏️ " + tr("tips.ownName");
+      own.addEventListener("click", function () {
+        var kids = box.querySelectorAll("button");
+        for (var k = 0; k < kids.length; k++) kids[k].classList.toggle("on", kids[k] === own);
+        setWelcomeOwnOpen(true);
+      });
+      box.appendChild(own);
+    }
     if ($(showId)) $(showId).textContent = picked;
     return picked;
   }
   function refreshWelcomeName() {
+    welcomeOwnMode = false;
+    setWelcomeOwnOpen(false);
     fillNameChoices("welcomeNameChoices", "welcomeNameShow");
   }
   function showWelcome() {
@@ -5331,8 +5521,15 @@
     $("welcomeTitle").textContent = tr("tips.welcomeTitle");
     $("welcomeLangLabel").textContent = tr("tips.welcomeLang");
     $("welcomeNameLabel").textContent = tr("tips.welcomeName");
-    $("welcomeReroll").textContent = tr("account.reroll");
+    $("welcomeReroll").setAttribute("aria-label", tr("account.reroll"));
+    $("welcomeReroll").setAttribute("title", tr("account.reroll"));
     $("welcomeGo").textContent = tr("tips.welcomeGo");
+    var ownChip = $("welcomeOwnChip");
+    if (ownChip) ownChip.textContent = "✏️ " + tr("tips.ownName");
+    if ($("welcomeNameIn")) $("welcomeNameIn").setAttribute("placeholder", tr("tips.ownNamePlaceholder"));
+    if ($("welcomeOwnHint") && welcomeOwnMode && !$("welcomeOwnHint").classList.contains("bad")) {
+      $("welcomeOwnHint").textContent = tr("tips.customNameHint");
+    }
     $("trainBtn").textContent = "🎓 " + tr("tips.trainBtn");
     $("accountReplay").textContent = tr("account.replayTutorial");
     $("trainBanner").textContent = tr("tips.trainHud");
@@ -5340,7 +5537,17 @@
   function acceptWelcome() {
     var names = window.__weltraum && window.__weltraum.names;
     var shown = $("welcomeNameShow").textContent || "";
-    if (names) names.save(shown, "generated");
+    if (welcomeOwnMode) {
+      var raw = ($("welcomeNameIn") && $("welcomeNameIn").value) || "";
+      var checked = names && names.validate ? names.validate(raw, "custom") : { ok: false, reason: "chars" };
+      if (!checked.ok) {
+        showBadNameHint($("welcomeOwnHint"));
+        return;
+      }
+      if (names) names.save(checked.name, "custom");
+    } else if (names) {
+      names.save(shown, "generated");
+    }
     $("welcomeScreen").classList.add("hidden");
     var api = onboardApi();
     if (api) api.markWelcome(api.loadOnboard());
@@ -6583,6 +6790,15 @@
     },
     weeklyLevel: function () { var w = window.__weltraum && window.__weltraum.weekly; return w && w.challenge ? w.challenge() : null; },
     displayName: function () { var n = window.__weltraum && window.__weltraum.names && window.__weltraum.names.current(); return n && n.name; },
+    openOwnName: function () { setWelcomeOwnOpen(true); var box = $("welcomeNameChoices"); if (box) { var kids = box.querySelectorAll("button"); for (var k = 0; k < kids.length; k++) kids[k].classList.toggle("on", kids[k].id === "welcomeOwnChip"); } },
+    fitWelcome: fitWelcomeToViewport,
+    showHostRoster: function () {
+      net.role = "host"; net.connected = true;
+      $("onlineScreen").classList.remove("hidden");
+      if (typeof onShow === "function") onShow("room");
+      if (typeof renderRoster === "function") renderRoster();
+      return ($("onPlayers") && $("onPlayers").innerText) || "";
+    },
     forceFinish: function (opts) {
       hideCelebrate(); celebrateT = 0; celebrateKind = null;
       if (opts && opts.level) startGame(opts.level);
@@ -6769,6 +6985,8 @@
     setTxt("joinToastKick", tr("tips.kick"));
     var nm = window.__weltraum && window.__weltraum.names && window.__weltraum.names.current && window.__weltraum.names.current();
     setTxt("accountName", (nm && nm.name) || "—");
+    if ($("accountNameIn") && nm && nm.name && !$("accountNameIn").value) $("accountNameIn").value = nm.name;
+    if ($("accountNameIn")) $("accountNameIn").setAttribute("placeholder", tr("tips.ownNamePlaceholder"));
     var emailEl = $("accountEmail");
     if (emailEl) emailEl.setAttribute("placeholder", tr("account.emailPlaceholder"));
     if (acc) {
@@ -6779,7 +6997,7 @@
       $("accountGuestActions").classList.toggle("hidden", acc.isSignedIn());
       $("accountSignOut").classList.toggle("hidden", !acc.isSignedIn());
       $("accountApple").classList.toggle("hidden", !acc.appleEnabled());
-      $("accountNameBox").classList.toggle("hidden", !acc.isSignedIn());
+      $("accountNameBox").classList.remove("hidden");
       var prof = acc.profile ? acc.profile() : null;
       if (acc.isSignedIn()) {
         setTxt("accountKind", tr("account.signedIn"));
@@ -6939,14 +7157,17 @@
     if (!acc) return;
     Promise.resolve(acc.signOut()).then(function () { applyAllI18n(); });
   });
-  $("accountNameSave").addEventListener("click", function () {
+    $("accountNameSave").addEventListener("click", function () {
     var names = window.__weltraum && window.__weltraum.names;
-    var acc = window.__weltraum && window.__weltraum.account;
-    if (!names || !acc || !acc.isSignedIn()) return;
+    if (!names) return;
     var raw = ($("accountNameIn").value || "").trim();
     var out = names.save(raw, "custom");
-    $("accountNote").textContent = out.ok ? tr("tips.nameSaved") : tr("tips.badName");
-    if (out.ok) applyAllI18n();
+    if (out.ok) {
+      $("accountNote").textContent = tr("tips.nameSaved");
+      applyAllI18n();
+    } else {
+      showBadNameHint($("accountNote"));
+    }
   });
   $("coachGotIt").addEventListener("click", function () {
     var id = $("coachMark").getAttribute("data-tip");
@@ -7042,6 +7263,15 @@
   });
   $("welcomeReroll").addEventListener("click", refreshWelcomeName);
   $("welcomeGo").addEventListener("click", acceptWelcome);
+  if ($("welcomeNameIn")) {
+    $("welcomeNameIn").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); acceptWelcome(); }
+    });
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", fitWelcomeToViewport);
+    window.visualViewport.addEventListener("scroll", fitWelcomeToViewport);
+  }
   $("obSkip").addEventListener("click", function () {
     if (trainOn) finishTraining(true);
     else if (mapTourOn) finishMapTour(true);

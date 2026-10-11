@@ -40,6 +40,12 @@ type GameWin = Window & {
     coachVisible?: () => boolean;
     shopBadgeOn?: () => boolean;
     finishOnboard?: () => void;
+    openOwnName?: () => void;
+    fitWelcome?: () => void;
+    displayName?: () => string | undefined;
+    showHostRoster?: () => string;
+    skipTraining?: () => void;
+    startLevel?: (n: number) => void;
   };
   __fillTextLog?: string[];
   __clearFillTextLog?: () => void;
@@ -416,6 +422,217 @@ describe('German umlaut rendering', { timeout: 45000 }, () => {
     expect(info.ink).toBeGreaterThan(80);
     expect(info.family).toMatch(/Arial|Trebuchet|Segoe|Noto|DejaVu/i);
     expect(info.dom).toBe('Kühnes Kätzchen');
+    await context.close();
+  });
+});
+
+describe.each([
+  ['1024x768', LANDSCAPE],
+  ['768x1024', PORTRAIT],
+  ['844x390', IPHONE_LANDSCAPE],
+] as const)('welcome modal fit %s', { timeout: 45000 }, (label, size) => {
+  for (const lang of ['en', 'de'] as const) {
+    it(`fits without scroll and keeps Let's fly in view (${label}, ${lang})`, async () => {
+      const context = await browser.newContext({
+        viewport: size,
+        deviceScaleFactor: 2,
+        hasTouch: true,
+        isMobile: true,
+      });
+      const page = await context.newPage();
+      await page.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForFunction(() => !!(window as GameWin).__spaceGame, { timeout: 20000 });
+      await page.waitForSelector('#welcomeScreen:not(.hidden)', { timeout: 8000 });
+      await page.click(lang === 'de' ? '#welcomeDe' : '#welcomeEn');
+      await page.waitForTimeout(80);
+      const info = await page.evaluate(() => {
+        const screen = document.getElementById('welcomeScreen');
+        const panel = document.querySelector('#welcomeScreen .welcomePanel') as HTMLElement | null;
+        const go = document.getElementById('welcomeGo');
+        if (!screen || !panel || !go) return { ok: false };
+        const pr = panel.getBoundingClientRect();
+        const gr = go.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const pad = 1;
+        return {
+          ok: true,
+          overflow: panel.scrollHeight > panel.clientHeight + pad || panel.scrollWidth > panel.clientWidth + pad,
+          screenOverflow: screen.scrollHeight > screen.clientHeight + pad,
+          goInView: gr.top >= -pad && gr.left >= -pad && gr.bottom <= vh + pad && gr.right <= vw + pad,
+          panelInView: pr.top >= -pad && pr.bottom <= vh + pad && pr.left >= -pad && pr.right <= vw + pad,
+          goText: (go.textContent || '').trim(),
+          scrollH: panel.scrollHeight,
+          clientH: panel.clientHeight,
+        };
+      });
+      expect(info.ok).toBe(true);
+      expect(info.overflow, `${label} ${lang} panel scroll ${info.scrollH}>${info.clientH}`).toBe(false);
+      expect(info.screenOverflow).toBe(false);
+      expect(info.goInView).toBe(true);
+      expect(info.panelInView).toBe(true);
+      expect(info.goText).toMatch(lang === 'de' ? /Losfliegen/ : /fly/i);
+      await context.close();
+    });
+  }
+});
+
+type WelcomeFit = {
+  ok: boolean;
+  overflow?: boolean;
+  screenOverflow?: boolean;
+  goInView?: boolean;
+  inputInView?: boolean;
+  panelInView?: boolean;
+  goText?: string;
+  scrollH?: number;
+  clientH?: number;
+  ownOpen?: boolean;
+};
+
+async function welcomeFit(page: Page): Promise<WelcomeFit> {
+  return page.evaluate(() => {
+    const screen = document.getElementById('welcomeScreen');
+    const panel = document.querySelector('#welcomeScreen .welcomePanel') as HTMLElement | null;
+    const go = document.getElementById('welcomeGo');
+    const input = document.getElementById('welcomeNameIn');
+    if (!screen || !panel || !go) return { ok: false };
+    const pr = panel.getBoundingClientRect();
+    const gr = go.getBoundingClientRect();
+    const ir = input?.getBoundingClientRect();
+    const vv = window.visualViewport;
+    const vw = vv?.width || window.innerWidth;
+    const vh = vv?.height || window.innerHeight;
+    const pad = 2;
+    const inView = (r: DOMRect) => r.top >= -pad && r.left >= -pad && r.bottom <= vh + pad && r.right <= vw + pad;
+    return {
+      ok: true,
+      overflow: panel.scrollHeight > panel.clientHeight + pad || panel.scrollWidth > panel.clientWidth + pad,
+      screenOverflow: screen.scrollHeight > screen.clientHeight + pad,
+      goInView: inView(gr),
+      inputInView: ir ? inView(ir) : false,
+      panelInView: inView(pr),
+      goText: (go.textContent || '').trim(),
+      scrollH: panel.scrollHeight,
+      clientH: panel.clientHeight,
+      ownOpen: screen.classList.contains('ownOpen'),
+    };
+  });
+}
+
+describe.each([
+  ['1024x768', LANDSCAPE],
+  ['768x1024', PORTRAIT],
+  ['844x390', IPHONE_LANDSCAPE],
+] as const)('welcome own-name fit %s', { timeout: 45000 }, (label, size) => {
+  it(`fits with the custom input open (${label})`, async () => {
+    const context = await browser.newContext({
+      viewport: size,
+      deviceScaleFactor: 2,
+      hasTouch: true,
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    await page.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForFunction(() => !!(window as GameWin).__spaceGame, { timeout: 20000 });
+    await page.waitForSelector('#welcomeScreen:not(.hidden)', { timeout: 8000 });
+    await page.click('#welcomeOwnChip');
+    await page.waitForSelector('#welcomeOwnBox.open', { timeout: 4000 });
+    const info = await welcomeFit(page);
+    expect(info.ok).toBe(true);
+    expect(info.ownOpen).toBe(true);
+    expect(info.overflow, `${label} panel scroll ${info.scrollH}>${info.clientH}`).toBe(false);
+    expect(info.screenOverflow).toBe(false);
+    expect(info.goInView).toBe(true);
+    expect(info.inputInView).toBe(true);
+    expect(info.panelInView).toBe(true);
+    await context.close();
+  });
+
+  it(`keeps input and Let's fly visible with a keyboard-sized visualViewport (${label})`, async () => {
+    const context = await browser.newContext({
+      viewport: size,
+      deviceScaleFactor: 2,
+      hasTouch: true,
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    await page.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForFunction(() => !!(window as GameWin).__spaceGame, { timeout: 20000 });
+    await page.waitForSelector('#welcomeScreen:not(.hidden)', { timeout: 8000 });
+    await page.click('#welcomeOwnChip');
+    await page.waitForSelector('#welcomeOwnBox.open', { timeout: 4000 });
+    await page.evaluate(() => {
+      const shrink = Math.min(280, Math.floor(window.innerHeight * 0.45));
+      const fake = {
+        height: window.innerHeight - shrink,
+        width: window.innerWidth,
+        offsetTop: 0,
+        offsetLeft: 0,
+        scale: 1,
+        addEventListener() {},
+        removeEventListener() {},
+      };
+      Object.defineProperty(window, 'visualViewport', { configurable: true, value: fake });
+      (window as GameWin).__spaceGame?.fitWelcome?.();
+    });
+    const info = await welcomeFit(page);
+    expect(info.ok).toBe(true);
+    expect(info.overflow, `${label} kb panel scroll ${info.scrollH}>${info.clientH}`).toBe(false);
+    expect(info.goInView).toBe(true);
+    expect(info.inputInView).toBe(true);
+    await context.close();
+  });
+});
+
+describe('custom welcome name', { timeout: 60000 }, () => {
+  it('types a custom name and shows it in Account and above the ship in a room', async () => {
+    const context = await browser.newContext({
+      viewport: LANDSCAPE,
+      deviceScaleFactor: 2,
+      hasTouch: true,
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    await page.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForFunction(() => !!(window as GameWin).__spaceGame, { timeout: 20000 });
+    await page.waitForSelector('#welcomeScreen:not(.hidden)', { timeout: 8000 });
+    await page.click('#welcomeOwnChip');
+    await page.waitForSelector('#welcomeNameIn', { timeout: 4000 });
+    await page.fill('#welcomeNameIn', 'Leo Pilot');
+    await page.click('#welcomeGo');
+    await page.waitForFunction(() => document.getElementById('welcomeScreen')?.classList.contains('hidden'), { timeout: 8000 });
+    await page.evaluate(() => {
+      const g = (window as GameWin).__spaceGame;
+      g?.skipTraining?.();
+      g?.finishOnboard?.();
+    });
+    expect(await page.evaluate(() => (window as GameWin).__spaceGame?.displayName?.())).toBe('Leo Pilot');
+
+    await page.waitForSelector('#accountBtn', { state: 'visible', timeout: 8000 });
+    await page.click('#accountBtn');
+    await page.waitForSelector('#accountScreen:not(.hidden)', { timeout: 4000 });
+    const account = await page.evaluate(() => ({
+      label: document.getElementById('accountName')?.textContent || '',
+      boxHidden: document.getElementById('accountNameBox')?.classList.contains('hidden') ?? true,
+    }));
+    expect(account.boxHidden).toBe(false);
+    expect(account.label).toBe('Leo Pilot');
+    await page.click('#accountClose');
+
+    const roster = await page.evaluate(() => (window as GameWin).__spaceGame?.showHostRoster?.() || '');
+    expect(roster).toMatch(/Leo Pilot/);
+    await page.evaluate(() => document.getElementById('onlineScreen')?.classList.add('hidden'));
+
+    await page.click('#twoPBtn');
+    await page.evaluate(() => {
+      const w = window as GameWin;
+      w.__clearFillTextLog?.();
+      w.__spaceGame?.startLevel?.(1);
+    });
+    await page.waitForTimeout(400);
+    const painted = await page.evaluate(() => (window as GameWin).__fillTextLog || []);
+    expect(painted.some((t) => t.includes('Leo Pilot'))).toBe(true);
     await context.close();
   });
 });

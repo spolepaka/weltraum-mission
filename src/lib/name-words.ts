@@ -191,6 +191,19 @@ export const RHYMES_DE: readonly [string, string][] = [
 export const DOOM_TAILS = ['Doom', 'Zoom', 'Boom', 'Stars', 'Moon', 'Jam', 'Fun', 'Pop'] as const;
 export const DOOM_TAILS_DE = ['Wumm', 'Zisch', 'Knall', 'Sternen', 'Mond', 'Spaß', 'Fun', 'Pop'] as const;
 
+/** Full stems only — never truncate before appending -inator. */
+export const INATOR_STEMS_EN = [
+  'Toaster', 'Pebble', 'Rocket', 'Waffle', 'Noodle', 'Pickle', 'Robot', 'Fox',
+  'Blob', 'Penguin', 'Wombat', 'Nugget', 'Guppy', 'Llama', 'Yeti', 'Gnome',
+  'Banjo', 'Kettle', 'Muffin', 'Sloth', 'Turtle', 'Button', 'Cookie', 'Comet',
+] as const;
+
+export const INATOR_STEMS_DE = [
+  'Toaster', 'Keks', 'Waffel', 'Nudel', 'Fuchs', 'Roboter', 'Pinguin', 'Lama',
+  'Yeti', 'Gnom', 'Banjo', 'Kessel', 'Muffin', 'Gurke', 'Käse', 'Nase',
+  'Igel', 'Hase', 'Quark', 'Lolli', 'Ufo', 'Komet', 'Frosch', 'Maus',
+] as const;
+
 export function inflectDeAdj(adj: string, gender: DeGender): string {
   const ending = gender === 'm' ? 'er' : gender === 'f' ? 'e' : 'es';
   return `${adj}${ending}`;

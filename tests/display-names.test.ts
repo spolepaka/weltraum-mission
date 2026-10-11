@@ -9,7 +9,10 @@ import {
   resetNameHistory,
   validateDisplayName,
 } from '../src/lib/display-names';
-import { validateDisplayName as serverValidate } from '../server/spacetimedb/src/display-names';
+import {
+  uniquifyDisplayName,
+  validateDisplayName as serverValidate,
+} from '../server/spacetimedb/src/display-names';
 import {
   ADJ_DE,
   ADJ_EN,
@@ -19,6 +22,8 @@ import {
   PUNS_DE,
   RHYMES_DE,
   TITLE_NOUNS_DE,
+  INATOR_STEMS_DE,
+  INATOR_STEMS_EN,
   fugenForm,
   type DeGender,
 } from '../src/lib/name-words';
@@ -156,18 +161,38 @@ describe('kid-safe display names', () => {
     }
   });
 
-  it('rejects email, phone, URL, profanity, and short custom names', () => {
-    expect(validateDisplayName('ada@x.com', 'custom').ok).toBe(false);
-    expect(validateDisplayName('www.bad.com', 'custom').ok).toBe(false);
-    expect(validateDisplayName('Call 5551234567', 'custom').ok).toBe(false);
-    expect(validateDisplayName('fuckstar', 'custom').ok).toBe(false);
-    expect(validateDisplayName('ab', 'custom').ok).toBe(false);
+  it('accepts good custom names including umlauts', () => {
+    for (const name of ['PilotKid', 'Leo Pilot', 'Käptn Süß', 'Mäuse-Bär', 'Flinker Fuchs']) {
+      expect(validateDisplayName(name, 'custom').ok, name).toBe(true);
+      expect(serverValidate(name, 'custom').ok, name).toBe(true);
+    }
+  });
+
+  it('rejects email, phone, URL, profanity, leetspeak, and short custom names', () => {
+    const blocked = [
+      'ada@x.com', 'www.bad.com', 'https://x.de', 'Call 55512', '12345',
+      'fuckstar', 'f4ckstar', 'sh1tbox', 's c h e i s s e', 'hur3nkind', 'ab', '!!',
+    ];
+    for (const name of blocked) {
+      expect(validateDisplayName(name, 'custom').ok, name).toBe(false);
+      expect(serverValidate(name, 'custom').ok, name).toBe(false);
+    }
+    expect(validateDisplayName('Call 55512', 'custom')).toEqual({ ok: false, reason: 'pii' });
+    expect(validateDisplayName('12345', 'custom')).toEqual({ ok: false, reason: 'pii' });
+    expect(validateDisplayName('fuckstar', 'custom')).toEqual({ ok: false, reason: 'blocked' });
+    expect(validateDisplayName('f4ckstar', 'custom')).toEqual({ ok: false, reason: 'blocked' });
+    expect(validateDisplayName('sh1tbox', 'custom')).toEqual({ ok: false, reason: 'blocked' });
+    expect(validateDisplayName('ab', 'custom')).toEqual({ ok: false, reason: 'length' });
+    expect(hasProfanity('f4ck')).toBe(true);
+    expect(hasProfanity('s c h e i s s e')).toBe(true);
+    expect(hasProfanity('PilotKid')).toBe(false);
     expect(validateDisplayName('PilotKid', 'custom').ok).toBe(true);
     expect(validateDisplayName('Raketen-Pinguin', 'generated').ok).toBe(true);
     expect(validateDisplayName('Flocken-Frosch', 'generated').ok).toBe(true);
+    expect(validateDisplayName('Fox 42', 'custom').ok).toBe(true);
   });
 
-  it('server copy rejects the same invalid names', () => {
+  it('server copy rejects the same invalid names for every identity', () => {
     expect(serverValidate('ada@x.com', 'custom').ok).toBe(false);
     expect(serverValidate('PilotKid', 'custom').ok).toBe(true);
     expect(serverValidate('Cosmic Fox 42', 'generated').ok).toBe(true);
@@ -175,6 +200,18 @@ describe('kid-safe display names', () => {
     expect(serverValidate('Raketen-Pinguin', 'generated').ok).toBe(true);
     expect(serverValidate('Flocken-Frosch', 'generated').ok).toBe(true);
     expect(serverValidate('Kühnes Kätzchen', 'generated').ok).toBe(true);
+    const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../server/spacetimedb/src/index.ts'), 'utf8');
+    expect(src).not.toContain('Custom names require a signed-in parent account');
+    expect(src).toContain('uniquifyDisplayName');
+    expect(src).toMatch(/Custom names are allowed for every identity/);
+  });
+
+  it('uniquifies a taken name with a two-digit suffix that still fits', () => {
+    const taken = new Set(['leo pilot', 'leo pilot 10']);
+    const next = uniquifyDisplayName('Leo Pilot', (key) => taken.has(key));
+    expect(next).toBe('Leo Pilot 11');
+    expect(next.length).toBeLessThanOrEqual(16);
+    expect(uniquifyDisplayName('Free Name', () => false)).toBe('Free Name');
   });
 
   it('uses real German umlauts and ß instead of ae/oe/ue/ss transliterations', () => {
@@ -238,5 +275,28 @@ describe('kid-safe display names', () => {
     expect(html).toMatch(/Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans/);
     expect(html).toContain('Noto Sans');
     expect(html).toContain('DejaVu Sans');
+  });
+
+  it('builds -inator names from full curated stems without truncating', () => {
+    const stems = {
+      en: new Set(INATOR_STEMS_EN.map((s) => s.toLowerCase())),
+      de: new Set(INATOR_STEMS_DE.map((s) => s.toLowerCase())),
+    };
+    for (const stem of [...INATOR_STEMS_EN, ...INATOR_STEMS_DE]) {
+      expect(`${stem}-inator`.length).toBeLessThanOrEqual(16);
+    }
+    let hits = 0;
+    for (let i = 0; i < 800; i++) {
+      const lang = i % 2 ? 'de' : 'en';
+      const core = generateDisplayName(lang).replace(/\s+\d{1,3}$/, '');
+      const m = core.match(/^([\p{L}]+)-inator$/iu);
+      if (!m) {
+        expect(core.toLowerCase().includes('inator') && !/-inator$/i.test(core)).toBe(false);
+        continue;
+      }
+      expect(stems[lang].has(m[1].toLowerCase()), core).toBe(true);
+      hits += 1;
+    }
+    expect(hits).toBeGreaterThan(8);
   });
 });

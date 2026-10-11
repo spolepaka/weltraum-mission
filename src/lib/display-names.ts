@@ -10,6 +10,8 @@ import {
   RHYMES_DE,
   RHYMES_EN,
   TITLE_NOUNS_DE,
+  INATOR_STEMS_DE,
+  INATOR_STEMS_EN,
   fugenForm,
   inflectDeAdj,
   type DeGender,
@@ -182,9 +184,20 @@ function withOptionalNumber(base: string, rnd: () => number): string | null {
   return null;
 }
 
+const LEET_MAPS: Record<string, string>[] = [
+  { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a', '$': 's', '!': 'i' },
+  { '0': 'o', '1': 'i', '3': 'e', '4': 'u', '5': 's', '7': 't', '@': 'a', '$': 's', '!': 'i' },
+];
+
+function compactLeet(value: string, map: Record<string, string>): string {
+  return value.toLowerCase().replace(/[013457@$!]/g, (c) => map[c] || c).replace(/[^a-zäöüß]/g, '');
+}
+
 export function hasProfanity(value: string): boolean {
-  const compact = value.toLowerCase().replace(/[^a-zäöüß]/g, '');
-  return BLOCKED.some((w) => compact.includes(w));
+  return LEET_MAPS.some((map) => {
+    const compact = compactLeet(value, map);
+    return BLOCKED.some((w) => compact.includes(w));
+  });
 }
 
 function shortDeNouns(max = 8): readonly DeNoun[] {
@@ -270,9 +283,9 @@ function buildEn(id: PatternId, rnd: () => number, avoid: Set<string>): NamePart
     return name ? { name, adj: null, nouns: [a, b] } : null;
   }
   if (id === 'inator') {
-    const n = pickFresh(shortEnNouns(7), rnd, (w) => [w], avoid);
-    const name = fit(`${n.replace(/e$/i, '')}-inator`);
-    return name ? { name, adj: null, nouns: [n] } : null;
+    const stem = pickFresh(INATOR_STEMS_EN, rnd, (w) => [w], avoid);
+    const name = fit(`${stem}-inator`);
+    return name ? { name, adj: null, nouns: [stem] } : null;
   }
   const pun = pickFresh(PUNS_EN, rnd, (p) => p.split(/[\s-]+/), avoid);
   return fit(pun) ? { name: pun, adj: null, nouns: pun.split(/[\s-]+/) } : null;
@@ -338,9 +351,9 @@ function buildDe(id: PatternId, rnd: () => number, avoid: Set<string>): NamePart
     return null;
   }
   if (id === 'inator') {
-    const n = pickFresh(shortDeNouns(7), rnd, (x) => [x.word], avoid);
-    const name = fit(`${n.word.replace(/e$/i, '')}-inator`);
-    return name ? { name, adj: null, nouns: [n.word] } : null;
+    const stem = pickFresh(INATOR_STEMS_DE, rnd, (w) => [w], avoid);
+    const name = fit(`${stem}-inator`);
+    return name ? { name, adj: null, nouns: [stem] } : null;
   }
   const pun = pickFresh(PUNS_DE, rnd, (p) => p.split(/[\s-]+/), avoid);
   return fit(pun) ? { name: pun, adj: null, nouns: pun.split(/[\s-]+/) } : null;
@@ -444,8 +457,7 @@ export function looksLikeUrl(value: string): boolean {
 }
 
 export function looksLikePhone(value: string): boolean {
-  const digits = value.replace(/\D/g, '');
-  return digits.length >= 7;
+  return value.replace(/\D/g, '').length > 4;
 }
 
 export function validateDisplayName(raw: string, kind: NameKind): { ok: true; name: string } | { ok: false; reason: string } {
