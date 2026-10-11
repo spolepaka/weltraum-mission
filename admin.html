@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net https://apis.google.com https://www.gstatic.com; connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*.web.app;">
+<title>Weltraum Admin</title>
+<style>
+  body { margin: 0; font: 16px/1.4 Trebuchet MS, Segoe UI, Arial, sans-serif; background: #07101f; color: #e8eefc; }
+  header { padding: 16px 20px; background: #12203a; border-bottom: 2px solid #3d6bff; display: flex; justify-content: space-between; align-items: center; }
+  h1 { margin: 0; font-size: 22px; }
+  main { padding: 16px 20px 40px; }
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .card { background: #12203a; border: 1px solid #3d6bff; border-radius: 12px; padding: 10px 14px; min-width: 140px; }
+  .card b { display: block; font-size: 22px; }
+  input, select, button { font: inherit; border-radius: 8px; border: 1px solid #4a6cff; padding: 6px 10px; }
+  button { background: #2a4dff; color: #fff; cursor: pointer; }
+  button.danger { background: #a32030; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #243656; }
+  tr { cursor: pointer; }
+  tr:hover, tr.on { background: #1a2c4d; }
+  .panel { margin-top: 18px; background: #12203a; border: 1px solid #3d6bff; border-radius: 12px; padding: 14px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; align-items: center; }
+  .err { color: #ff9a9a; }
+  .ok { color: #7dffa8; }
+  .gate { max-width: 420px; margin: 60px auto; text-align: center; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/admin.ts"></script>
+</body>
+</html>

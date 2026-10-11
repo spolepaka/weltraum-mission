@@ -36,46 +36,54 @@ import {
 // Import all reducer arg schemas
 import AddCoinsReducer from "./add_coins_reducer";
 import AddOwnedShipReducer from "./add_owned_ship_reducer";
+import AdminAddCoinsReducer from "./admin_add_coins_reducer";
+import AdminBanReducer from "./admin_ban_reducer";
+import AdminGrantShipReducer from "./admin_grant_ship_reducer";
+import AdminRemoveShipReducer from "./admin_remove_ship_reducer";
+import AdminResetPlayerReducer from "./admin_reset_player_reducer";
+import AdminResetProgressReducer from "./admin_reset_progress_reducer";
+import AdminSetCoinsReducer from "./admin_set_coins_reducer";
+import AdminUnbanReducer from "./admin_unban_reducer";
+import AdminUnlockLevelReducer from "./admin_unlock_level_reducer";
 import ApplySecretCodeReducer from "./apply_secret_code_reducer";
 import CompleteLevelResultReducer from "./complete_level_result_reducer";
+import EquipShipReducer from "./equip_ship_reducer";
 import ImportProgressReducer from "./import_progress_reducer";
 import LegacyImportReducer from "./legacy_import_reducer";
-import EquipShipReducer from "./equip_ship_reducer";
 import PurchaseShipReducer from "./purchase_ship_reducer";
 import PurchaseUpgradeReducer from "./purchase_upgrade_reducer";
 import ReportErrorReducer from "./report_error_reducer";
 import RequestLevelDataReducer from "./request_level_data_reducer";
 import ResetProgressReducer from "./reset_progress_reducer";
+import SetDisplayNameReducer from "./set_display_name_reducer";
 import SetLanguageReducer from "./set_language_reducer";
+import SetPlayerPrefsReducer from "./set_player_prefs_reducer";
 import SetUpgradeLevelReducer from "./set_upgrade_level_reducer";
+import SubmitWeeklyScoreReducer from "./submit_weekly_score_reducer";
 import SyncLevelStarsReducer from "./sync_level_stars_reducer";
 import SyncProgressReducer from "./sync_progress_reducer";
+import TrackAnalyticsReducer from "./track_analytics_reducer";
 import UnlockAchievementReducer from "./unlock_achievement_reducer";
 import UpdateSettingsReducer from "./update_settings_reducer";
 
 // Import all procedure arg schemas
+import * as AdminGetPlayerProcedure from "./admin_get_player_procedure";
+import * as AdminListPlayersProcedure from "./admin_list_players_procedure";
+import * as AdminMeProcedure from "./admin_me_procedure";
+import * as AdminStatsProcedure from "./admin_stats_procedure";
+import * as GetAnalyticsFunnelProcedure from "./get_analytics_funnel_procedure";
 import * as GetLevelDataProcedure from "./get_level_data_procedure";
 import * as GetMyProgressProcedure from "./get_my_progress_procedure";
+import * as GetWeeklyBoardProcedure from "./get_weekly_board_procedure";
 
 // Import all table schema definitions
-import LevelDataRow from "./level_data_table";
 import ServerConfigRow from "./server_config_table";
+import WeeklyScoreRow from "./weekly_score_table";
 
 /** Type-only namespace exports for generated type groups. */
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
-  levelData: __table({
-    name: 'level_data',
-    indexes: [
-      { accessor: 'level', name: 'level_data_level_idx_btree', algorithm: 'btree', columns: [
-        'level',
-      ] },
-    ],
-    constraints: [
-      { name: 'level_data_level_key', constraint: 'unique', columns: ['level'] },
-    ],
-  }, LevelDataRow),
   serverConfig: __table({
     name: 'server_config',
     indexes: [
@@ -87,12 +95,35 @@ const tablesSchema = __schema({
       { name: 'server_config_key_key', constraint: 'unique', columns: ['key'] },
     ],
   }, ServerConfigRow),
+  weeklyScore: __table({
+    name: 'weekly_score',
+    indexes: [
+      { accessor: 'id', name: 'weekly_score_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { accessor: 'weekKey', name: 'weekly_score_week_key_idx_btree', algorithm: 'btree', columns: [
+        'weekKey',
+      ] },
+    ],
+    constraints: [
+      { name: 'weekly_score_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, WeeklyScoreRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("add_coins", AddCoinsReducer),
   __reducerSchema("add_owned_ship", AddOwnedShipReducer),
+  __reducerSchema("admin_add_coins", AdminAddCoinsReducer),
+  __reducerSchema("admin_ban", AdminBanReducer),
+  __reducerSchema("admin_grant_ship", AdminGrantShipReducer),
+  __reducerSchema("admin_remove_ship", AdminRemoveShipReducer),
+  __reducerSchema("admin_reset_player", AdminResetPlayerReducer),
+  __reducerSchema("admin_reset_progress", AdminResetProgressReducer),
+  __reducerSchema("admin_set_coins", AdminSetCoinsReducer),
+  __reducerSchema("admin_unban", AdminUnbanReducer),
+  __reducerSchema("admin_unlock_level", AdminUnlockLevelReducer),
   __reducerSchema("apply_secret_code", ApplySecretCodeReducer),
   __reducerSchema("complete_level_result", CompleteLevelResultReducer),
   __reducerSchema("equip_ship", EquipShipReducer),
@@ -103,18 +134,28 @@ const reducersSchema = __reducers(
   __reducerSchema("report_error", ReportErrorReducer),
   __reducerSchema("request_level_data", RequestLevelDataReducer),
   __reducerSchema("reset_progress", ResetProgressReducer),
+  __reducerSchema("set_display_name", SetDisplayNameReducer),
   __reducerSchema("set_language", SetLanguageReducer),
+  __reducerSchema("set_player_prefs", SetPlayerPrefsReducer),
   __reducerSchema("set_upgrade_level", SetUpgradeLevelReducer),
+  __reducerSchema("submit_weekly_score", SubmitWeeklyScoreReducer),
   __reducerSchema("sync_level_stars", SyncLevelStarsReducer),
   __reducerSchema("sync_progress", SyncProgressReducer),
+  __reducerSchema("track_analytics", TrackAnalyticsReducer),
   __reducerSchema("unlock_achievement", UnlockAchievementReducer),
   __reducerSchema("update_settings", UpdateSettingsReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
+  __procedureSchema("admin_get_player", AdminGetPlayerProcedure.params, AdminGetPlayerProcedure.returnType),
+  __procedureSchema("admin_list_players", AdminListPlayersProcedure.params, AdminListPlayersProcedure.returnType),
+  __procedureSchema("admin_me", AdminMeProcedure.params, AdminMeProcedure.returnType),
+  __procedureSchema("admin_stats", AdminStatsProcedure.params, AdminStatsProcedure.returnType),
+  __procedureSchema("get_analytics_funnel", GetAnalyticsFunnelProcedure.params, GetAnalyticsFunnelProcedure.returnType),
   __procedureSchema("get_level_data", GetLevelDataProcedure.params, GetLevelDataProcedure.returnType),
   __procedureSchema("get_my_progress", GetMyProgressProcedure.params, GetMyProgressProcedure.returnType),
+  __procedureSchema("get_weekly_board", GetWeeklyBoardProcedure.params, GetWeeklyBoardProcedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */

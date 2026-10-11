@@ -10,6 +10,68 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const AdminAudit = __t.object("AdminAudit", {
+  id: __t.u64(),
+  at: __t.timestamp(),
+  adminIdentity: __t.identity(),
+  action: __t.string(),
+  targetKey: __t.string(),
+  detail: __t.string(),
+});
+export type AdminAudit = __Infer<typeof AdminAudit>;
+
+export const AdminListResult = __t.object("AdminListResult", {
+  rowsJson: __t.string(),
+});
+export type AdminListResult = __Infer<typeof AdminListResult>;
+
+export const AdminMeResult = __t.object("AdminMeResult", {
+  ok: __t.bool(),
+  email: __t.string(),
+});
+export type AdminMeResult = __Infer<typeof AdminMeResult>;
+
+export const AdminPlayerResult = __t.object("AdminPlayerResult", {
+  rowJson: __t.string(),
+});
+export type AdminPlayerResult = __Infer<typeof AdminPlayerResult>;
+
+export const AdminStatsResult = __t.object("AdminStatsResult", {
+  players: __t.u32(),
+  activeWeek: __t.u32(),
+  gamesPlayed: __t.u64(),
+});
+export type AdminStatsResult = __Infer<typeof AdminStatsResult>;
+
+export const AdminUser = __t.object("AdminUser", {
+  identity: __t.identity(),
+  email: __t.string(),
+  grantedAt: __t.timestamp(),
+});
+export type AdminUser = __Infer<typeof AdminUser>;
+
+export const AnalyticsCounter = __t.object("AnalyticsCounter", {
+  key: __t.string(),
+  count: __t.u64(),
+});
+export type AnalyticsCounter = __Infer<typeof AnalyticsCounter>;
+
+export const AnalyticsFunnelResult = __t.object("AnalyticsFunnelResult", {
+  dataJson: __t.string(),
+});
+export type AnalyticsFunnelResult = __Infer<typeof AnalyticsFunnelResult>;
+
+export const AnalyticsUnique = __t.object("AnalyticsUnique", {
+  stamp: __t.string(),
+});
+export type AnalyticsUnique = __Infer<typeof AnalyticsUnique>;
+
+export const ClaimedName = __t.object("ClaimedName", {
+  nameKey: __t.string(),
+  identity: __t.identity(),
+});
+export type ClaimedName = __Infer<typeof ClaimedName>;
+
 export const ErrorReport = __t.object("ErrorReport", {
   id: __t.u64(),
   identity: __t.identity(),
@@ -34,6 +96,14 @@ export const LevelDataResult = __t.object("LevelDataResult", {
 });
 export type LevelDataResult = __Infer<typeof LevelDataResult>;
 
+export const LevelStars = __t.object("LevelStars", {
+  identity: __t.identity(),
+  level: __t.u32(),
+  stars: __t.u32(),
+  bestScore: __t.u64(),
+});
+export type LevelStars = __Infer<typeof LevelStars>;
+
 export const MyProgressResult = __t.object("MyProgressResult", {
   unlockedLevel: __t.u32(),
   coins: __t.u64(),
@@ -44,14 +114,6 @@ export const MyProgressResult = __t.object("MyProgressResult", {
   legacyImported: __t.bool(),
 });
 export type MyProgressResult = __Infer<typeof MyProgressResult>;
-
-export const LevelStars = __t.object("LevelStars", {
-  identity: __t.identity(),
-  level: __t.u32(),
-  stars: __t.u32(),
-  bestScore: __t.u64(),
-});
-export type LevelStars = __Infer<typeof LevelStars>;
 
 export const OwnedShip = __t.object("OwnedShip", {
   identity: __t.identity(),
@@ -67,12 +129,46 @@ export const Player = __t.object("Player", {
 });
 export type Player = __Infer<typeof Player>;
 
+export const PlayerAccount = __t.object("PlayerAccount", {
+  identity: __t.identity(),
+  email: __t.string(),
+  firebaseSub: __t.string(),
+});
+export type PlayerAccount = __Infer<typeof PlayerAccount>;
+
 export const PlayerAchievements = __t.object("PlayerAchievements", {
   identity: __t.identity(),
   achievementId: __t.string(),
   unlockedAt: __t.timestamp(),
 });
 export type PlayerAchievements = __Infer<typeof PlayerAchievements>;
+
+export const PlayerBan = __t.object("PlayerBan", {
+  identity: __t.identity(),
+  bannedAt: __t.timestamp(),
+  reason: __t.string(),
+});
+export type PlayerBan = __Infer<typeof PlayerBan>;
+
+export const PlayerLegacyImport = __t.object("PlayerLegacyImport", {
+  identity: __t.identity(),
+  importedAt: __t.timestamp(),
+});
+export type PlayerLegacyImport = __Infer<typeof PlayerLegacyImport>;
+
+export const PlayerPrefs = __t.object("PlayerPrefs", {
+  identity: __t.identity(),
+  difficulty: __t.string(),
+  doNotTrack: __t.bool(),
+});
+export type PlayerPrefs = __Infer<typeof PlayerPrefs>;
+
+export const PlayerProfile = __t.object("PlayerProfile", {
+  identity: __t.identity(),
+  displayName: __t.string(),
+  nameKind: __t.string(),
+});
+export type PlayerProfile = __Infer<typeof PlayerProfile>;
 
 export const PlayerProgress = __t.object("PlayerProgress", {
   identity: __t.identity(),
@@ -114,4 +210,20 @@ export const UsedSecretCode = __t.object("UsedSecretCode", {
   codeKey: __t.string(),
 });
 export type UsedSecretCode = __Infer<typeof UsedSecretCode>;
+
+export const WeeklyBoardResult = __t.object("WeeklyBoardResult", {
+  weekKey: __t.string(),
+  rowsJson: __t.string(),
+});
+export type WeeklyBoardResult = __Infer<typeof WeeklyBoardResult>;
+
+export const WeeklyScore = __t.object("WeeklyScore", {
+  id: __t.u64(),
+  weekKey: __t.string(),
+  identity: __t.identity(),
+  displayName: __t.string(),
+  score: __t.u64(),
+  mode: __t.string(),
+});
+export type WeeklyScore = __Infer<typeof WeeklyScore>;
 

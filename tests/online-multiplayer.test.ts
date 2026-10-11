@@ -7,7 +7,8 @@ const GAME_URL = STDB_QS ? `${BASE_URL}/?${STDB_QS}` : `${BASE_URL}/`;
 
 type GameWin = Window & {
   __spaceGame?: {
-    net?: () => { role: string | null; connected: boolean; inGame: boolean; code: string; nPl: number; guests: Array<{ ok: boolean }>; players: Array<{ x: number }> };
+    net?: () => { role: string | null; connected: boolean; inGame: boolean; code: string; nPl: number; guests: Array<{ ok: boolean }>; players: Array<{ x: number }>; occupancy?: number };
+    inflateCoop?: (n: number) => number;
     startLevel?: (n: number) => void;
     displayName?: () => string | undefined;
     acceptName?: () => void;
@@ -140,5 +141,36 @@ describe('online multiplayer (2–3 browsers, production CSP)', { timeout: 90000
     await host.context.close();
     await a.context.close();
     await b.context.close();
+  });
+
+  it('lets a friend join even if leftover ghost seats inflated the counter', async () => {
+    const host = await openGame();
+    const guest = await openGame();
+    await host.page.click('#onlineBtn');
+    await host.page.click('#onHost');
+    await host.page.waitForFunction(() => {
+      const el = document.getElementById('onCodeShow');
+      const t = el?.textContent || '';
+      return t.length >= 4 && !t.includes('·');
+    }, { timeout: 20000 });
+    const inflated = await host.page.evaluate(() => {
+      const w = window as GameWin;
+      return w.__spaceGame?.inflateCoop?.(4) ?? -1;
+    });
+    expect(inflated).toBeGreaterThanOrEqual(1);
+    const code = (await host.page.locator('#onCodeShow').innerText()).trim();
+    await guest.page.click('#onlineBtn');
+    await guest.page.click('#onJoin');
+    await guest.page.fill('#onCode', code);
+    await guest.page.click('#onGo');
+    await guest.page.waitForFunction(() => {
+      const w = window as GameWin;
+      const n = w.__spaceGame?.net?.();
+      return !!(n && n.connected && n.role === 'guest');
+    }, { timeout: 20000 });
+    const status = await guest.page.locator('#onStatus').innerText().catch(() => '');
+    expect(status.toLowerCase()).not.toMatch(/full|voll/);
+    await host.context.close();
+    await guest.context.close();
   });
 });

@@ -1007,6 +1007,67 @@ class SpacetimeClient {
     }
   }
 
+  async adminMe(): Promise<{ ok: boolean; email: string } | null> {
+    if (!this.connection) return null;
+    try {
+      const result = await this.connection.procedures.adminMe({});
+      return result ? { ok: !!result.ok, email: result.email || '' } : { ok: false, email: '' };
+    } catch {
+      return { ok: false, email: '' };
+    }
+  }
+
+  async adminStats(): Promise<{ players: number; activeWeek: number; gamesPlayed: string } | null> {
+    if (!this.connection) return null;
+    const result = await this.connection.procedures.adminStats({});
+    if (!result) return null;
+    return { players: result.players, activeWeek: result.activeWeek, gamesPlayed: String(result.gamesPlayed) };
+  }
+
+  async adminListPlayers(query = ''): Promise<Array<Record<string, string | number | boolean>>> {
+    if (!this.connection) return [];
+    const result = await this.connection.procedures.adminListPlayers({ query });
+    if (!result?.rowsJson) return [];
+    try { return JSON.parse(result.rowsJson) as Array<Record<string, string | number | boolean>>; }
+    catch { return []; }
+  }
+
+  async adminGetPlayer(targetHex: string): Promise<Record<string, unknown> | null> {
+    if (!this.connection) return null;
+    const result = await this.connection.procedures.adminGetPlayer({ targetHex });
+    if (!result?.rowJson) return null;
+    try { return JSON.parse(result.rowJson) as Record<string, unknown>; }
+    catch { return null; }
+  }
+
+  adminSetCoins(targetHex: string, coins: bigint): Promise<void> {
+    return Promise.resolve(this.connection?.reducers.adminSetCoins({ targetHex, coins }));
+  }
+  adminAddCoins(targetHex: string, delta: bigint): Promise<void> {
+    return Promise.resolve(this.connection?.reducers.adminAddCoins({ targetHex, delta }));
+  }
+  adminUnlockLevel(targetHex: string, level: number): Promise<void> {
+    return Promise.resolve(this.connection?.reducers.adminUnlockLevel({ targetHex, level }));
+  }
+  adminGrantShip(targetHex: string, shipId: string): Promise<void> {
+    return Promise.resolve(this.connection?.reducers.adminGrantShip({ targetHex, shipId }));
+  }
+  adminRemoveShip(targetHex: string, shipId: string): Promise<void> {
+    return Promise.resolve(this.connection?.reducers.adminRemoveShip({ targetHex, shipId }));
+  }
+  adminResetProgress(targetHex: string): Promise<void> {
+    return Promise.resolve(this.connection?.reducers.adminResetProgress({ targetHex }));
+  }
+  adminResetPlayer(targetHex: string): Promise<void> {
+    return Promise.resolve(this.connection?.reducers.adminResetPlayer({ targetHex }));
+  }
+  adminBan(targetHex: string, reason: string): Promise<void> {
+    return Promise.resolve(this.connection?.reducers.adminBan({ targetHex, reason }));
+  }
+  adminUnban(targetHex: string): Promise<void> {
+    return Promise.resolve(this.connection?.reducers.adminUnban({ targetHex }));
+  }
+
   setUpgradeLevel(upgradeId: string, level: number): void {
     console.log('[SpacetimeDB] setUpgradeLevel:', { upgradeId, level });
     const data = this.getLocalData();

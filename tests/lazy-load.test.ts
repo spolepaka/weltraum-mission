@@ -88,6 +88,17 @@ describe('lazy load network + HTML', { timeout: 45000 }, () => {
     await context.close();
   });
 
+  it('serves /admin as its own HTML and guests do not download it', async () => {
+    const { context, urls } = await openGuest();
+    expect(urls.join('\n')).not.toMatch(/\/src\/admin|admin-[A-Za-z0-9_-]+\.js/i);
+    const res = await fetch(new URL('/admin', GAME_URL).toString());
+    const html = await res.text();
+    expect(res.ok).toBe(true);
+    expect(html).toMatch(/Weltraum Admin|src\/admin|admin-/);
+    expect(html).not.toContain('FINALE: Robo-Kaiser');
+    await context.close();
+  });
+
   it('serves version.json with a build id', async () => {
     const { context, page } = await openGuest();
     const payload = await page.evaluate(async () => {

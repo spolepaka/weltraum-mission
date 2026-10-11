@@ -1,0 +1,79 @@
+/**
+ * Shared coin economy: 10× late-game bonuses stay, but one match cannot
+ * print an unbounded pile, and co-op cannot pay more per player than solo.
+ */
+
+export const MAX_LEVEL = 100;
+
+export const SHIP_PRICES: Record<string, number> = {
+  starter: 0,
+  blitz: 150,
+  komet: 250,
+  doppel: 400,
+  eis: 600,
+  falke: 800,
+  feuer: 1000,
+  stern: 1200,
+  titan: 1500,
+  lanze: 2000,
+  koenig: 3000,
+  nova: 5000,
+  quanten: 8000,
+  uni: 12000,
+  rochen: 15000,
+  phoenix: 20000,
+  hammer: 30000,
+  zwilling: 38000,
+  gravitron: 52000,
+  spektral: 65000,
+  segler: 85000,
+  schatten: 105000,
+  drache: 125000,
+  omega: 160000,
+  frostwal: 0,
+  lindwurm: 0,
+  hydra: 0,
+};
+
+export function isBossLevel(level: number): boolean {
+  return level > 0 && (level % 3 === 0 || level === 100);
+}
+
+export function modeCoinMult(mode?: string): number {
+  return mode === 'veteran' ? 1.5 : mode === 'easy' ? 0.75 : 1;
+}
+
+/** Level-clear bonus (already includes Joshi's 10×). Same in solo and co-op. */
+export function levelClearBonus(level: number, stars: number, mode?: string): number {
+  const L = Math.max(1, Math.min(MAX_LEVEL, Math.floor(level) || 1));
+  const st = Math.max(0, Math.min(3, Math.floor(stars) || 0));
+  const boss = isBossLevel(L) ? 40 + L * 8 : 0;
+  return Math.round((10 + L * 3 + st * 8 + boss) * 10 * modeCoinMult(mode));
+}
+
+/** Typical in-level pickups (10-value coins) for a normal clear. */
+export function typicalCollectedCoins(level: number, mode?: string): number {
+  const L = Math.max(1, Math.min(MAX_LEVEL, Math.floor(level) || 1));
+  return Math.round((20 + L * 6) * modeCoinMult(mode));
+}
+
+/**
+ * Hard per-level award cap. 3-star bonus + typical pickups + 35% headroom.
+ * Co-op uses the same number so extra pickups cannot stack per player.
+ */
+export function maxCoinsForLevel(level: number, mode?: string): number {
+  const bonus = levelClearBonus(level, 3, mode);
+  const collected = typicalCollectedCoins(level, mode);
+  return Math.ceil((bonus + collected) * 1.35);
+}
+
+/** Expected payout for a 3-star clear. `players` is ignored on purpose. */
+export function expectedCoinsForLevel(level: number, players = 1, stars = 3, mode?: string): number {
+  void players;
+  return levelClearBonus(level, stars, mode) + typicalCollectedCoins(level, mode);
+}
+
+export function clampLevelCoins(earned: number, level: number, mode?: string): number {
+  const cap = maxCoinsForLevel(level, mode);
+  return Math.max(0, Math.min(cap, Math.floor(earned) || 0));
+}

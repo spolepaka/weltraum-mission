@@ -3,7 +3,9 @@
  * Keep in sync with server/spacetimedb/src/index.ts
  */
 
-export const MAX_LEVEL = 100;
+import { MAX_LEVEL as ECON_MAX_LEVEL, maxCoinsForLevel } from './economy';
+
+export const MAX_LEVEL = ECON_MAX_LEVEL;
 export const MAX_SCORE_PER_LEVEL = 100_000;
 export const MAX_COINS_PER_LEVEL = 5_000;
 export const MIN_TIME_MS = 3_000;
@@ -40,8 +42,7 @@ export function validateLevelResult(
   if (result.score < 0n || result.score > maxScore) {
     return { ok: false, reason: 'score_exceeds_max' };
   }
-  const modeMult = result.mode === 'veteran' ? 1.5 : result.mode === 'easy' ? 0.75 : 1;
-  const maxCoins = BigInt(Math.ceil(result.level * MAX_COINS_PER_LEVEL * modeMult));
+  const maxCoins = BigInt(maxCoinsForLevel(result.level, result.mode));
   if (result.coinsEarned < 0n || result.coinsEarned > maxCoins) {
     return { ok: false, reason: 'coins_exceed_max' };
   }

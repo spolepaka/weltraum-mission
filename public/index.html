@@ -1058,8 +1058,16 @@
     progress.failed = 0;
     var bonus = Math.round((10 + L * 3 + stars * 8 + (isBossLevel(L) ? 40 + L * 8 : 0)) * 10 * modeTune().coinMult);
     coinsRun = Math.round((coinsRun || 0) * modeTune().coinMult);
+    var earnedCap = Math.ceil((bonus + Math.round((20 + L * 6) * modeTune().coinMult)) * 1.35);
+    var rawEarned = bonus + (coinsRun || 0);
+    if (rawEarned > earnedCap) {
+      var overflow = rawEarned - earnedCap;
+      coinsRun = Math.max(0, (coinsRun || 0) - overflow);
+      shop.coins = Math.max(0, shop.coins - overflow);
+      rawEarned = earnedCap;
+    }
     shop.coins += bonus; saveShop(); recAdd("coinsV", bonus);
-    completePayload.coinsEarned = bonus + (coinsRun || 0);
+    completePayload.coinsEarned = rawEarned;
     trackPlay("level_win", L);
     var wk = window.__weltraum && window.__weltraum.weekly;
     if (wk && wk.challenge && wk.challenge().level === L) wk.submit(score);
@@ -1144,7 +1152,7 @@
   function spawnBoss() {
     var spec = bossSpec(level), bt = [spec.type, Math.round(spec.hp * (level >= 19 ? heat() * (TUNE_BOSS[level] || 1) : 1) * (typeof teamScale === "function" ? teamScale() : 1) * modeTune().bossHp), spec.speed, spec.name];
     var esz = Math.min(W * 0.5, H * 0.62, 500), ek = esz / 360;
-    boss = { type: bt[0], name: bt[3], mods: spec.mods, tint: spec.tint, final: !!spec.final, sector: !!spec.sector, atk: level >= 19 ? Math.min(2.2, (1 + (level - 18) * 0.006) * (0.55 + 0.45 * heat()) * Math.sqrt(TUNE_BOSS[level] || 1) * (TUNE_ATK[level] || 1)) : 1, modK: TUNE_MOD[level] || 1, holeImmune: level >= 18, modT: {}, x: W / 2, y: bt[0] === "emperor" ? -140 * ek : -80, targetY: bt[0] === "emperor" ? 132 + 120 * ek : 210, k: ek, sz: esz,
+    boss = { type: bt[0], name: bt[3], mods: spec.mods, tint: spec.tint, final: !!spec.final, sector: !!spec.sector, atk: (level >= 19 ? Math.min(2.2, (1 + (level - 18) * 0.006) * (0.55 + 0.45 * heat()) * Math.sqrt(TUNE_BOSS[level] || 1) * (TUNE_ATK[level] || 1)) : 1) * (typeof teamAtk === "function" ? teamAtk() : 1), modK: TUNE_MOD[level] || 1, holeImmune: level >= 18, modT: {}, x: W / 2, y: bt[0] === "emperor" ? -140 * ek : -80, targetY: bt[0] === "emperor" ? 132 + 120 * ek : 210, k: ek, sz: esz,
       shield: null, shieldCd: 6, droneT: 3, powerT: 9, immuneT: 0, blocks: 0, vx: bt[2] * (Math.random() < 0.5 ? -1 : 1), hp: bt[1], maxHp: bt[1],
       bombTimer: 2.5, spreadT: 3.2, laserCd: 3.5, summonCd: 0, phase: 1, laser: null, t: 0, flash: 0 };
     hideMsg(); SFX.boss(); tone(90, 45, 0.9, "sawtooth", 0.07, 0.2); tone(90, 45, 0.9, "sawtooth", 0.07, 1.1);
@@ -3529,8 +3537,9 @@
     { c: "#d08cff", bg: "rgba(120,60,190,.88)", h: "💜", fx: ["#d08cff", "#ffffff", "#9a5aff"] }];
   function nPlayers() { return twoP ? 1 + others.length : 1; }
   function slotX(pid) { return W * pid / (nPlayers() + 1); }
-  function teamScale() { var n = nPlayers(); return n <= 2 ? 1 : 1 + 0.5 * (n - 2); } // mehr Spieler = Bosse halten mehr aus
-  function teamSpawn() { var n = nPlayers(); return n <= 2 ? 1 : 1 + 0.12 * (n - 2); } // ... und es kommen mehr Gegner
+  function teamScale() { var n = Math.max(1, Math.min(5, nPlayers())); return n; } // 3 Spieler ≈ 3× Boss-HP
+  function teamSpawn() { var n = Math.max(1, Math.min(5, nPlayers())); return 1 + 0.45 * (n - 1); }
+  function teamAtk() { var n = Math.max(1, Math.min(5, nPlayers())); return 1 + 0.25 * (n - 1); }
   function mkPlayer(pid, st, n) { var S0 = st || curStats; return { stats: st || undefined, ship: { x: W * pid / (n + 1), y: H - shipBottom(), w: 46, h: 64 }, lives: S0.hearts, invuln: 0, shield: S0.regen > 0, triple: 0, laser: 0, magnet: 0, fireCooldown: 0, frozen: 0, regenT: S0.regen, touchTarget: null }; }
   function getG() { return { stats: curStats, ship: ship, lives: lives, invuln: invuln, shield: shield, triple: triple, laser: laser, magnet: magnet, fireCooldown: fireCooldown, frozen: frozen, regenT: regenT, touchTarget: touchTarget }; }
   function setG(o) { if (o.stats) curStats = o.stats; ship = o.ship; lives = o.lives; invuln = o.invuln; shield = o.shield; triple = o.triple; laser = o.laser; magnet = o.magnet; fireCooldown = o.fireCooldown; frozen = o.frozen; regenT = o.regenT; touchTarget = o.touchTarget; }
@@ -3856,6 +3865,11 @@
   function closeOnline() { netLeave(); $("onlineScreen").classList.add("hidden"); refreshMapToggles(); }
 
   // ---------- Verbindung ----------
+  function liveOccupancy() { return 1 + net.guests.filter(function (g) { return g.ok; }).length; }
+  function syncOccupancy() {
+    var coop = coopApi();
+    if (coop && coop.setOccupancy) coop.setOccupancy(liveOccupancy());
+  }
   function netTeardown() {
     clearTimeout(net.joinTimer); clearInterval(net.countdown); net.countdown = null;
     var c = net.conn, p = net.peer;
@@ -3865,6 +3879,7 @@
     try { if (c) c.close(); } catch (e) {}
     gs.forEach(function (g) { try { g.conn.close(); } catch (e) {} });
     try { if (p) p.destroy(); } catch (e) {}
+    var coopT = coopApi(); if (coopT && coopT.reset) coopT.reset();
   }
   function netLeave() { if (net.connected) netSend({ t: "bye" }); netTeardown(); }
   function netErr(type) { return tr("tips.net_" + (type || "generic")); }
@@ -3905,11 +3920,15 @@
       peer.on("open", function () { net.code = code; $("onCodeShow").textContent = code; hostStatus(); renderRoster(); });
       peer.on("connection", function (c) {
         var peerId = c.peer || ("anon-" + Date.now());
+        net.guests.slice().forEach(function (old) {
+          if (old.conn && old.conn.peer === peerId) guestLeft(old);
+        });
         var coop = coopApi();
+        syncOccupancy();
         if (coop) {
-          var check = coop.checkJoinAllowed(peerId);
+          var check = coop.checkJoinAllowed ? coop.checkJoinAllowed(peerId) : coop.check(peerId);
           if (!check.allowed) {
-            var deny = check.reason === "kicked" ? "kicked" : check.reason === "rate_limited" ? "rate" : "full";
+            var deny = check.reason === "kicked" ? "kicked" : check.reason === "rate_limited" ? "rate" : check.reason === "already_pending" ? "denied" : "full";
             c.on("open", function () { try { c.send(JSON.stringify({ t: deny })); } catch (e) {} setTimeout(function () { try { c.close(); } catch (e) {} }, 400); });
             return;
           }
@@ -3922,7 +3941,7 @@
             return;
           }
         }
-        var why = net.guests.length >= MAX_PLAYERS - 1 ? "full" : (net.inGame || net.countdown) ? "busy" : null;
+        var why = liveOccupancy() >= MAX_PLAYERS ? "full" : (net.inGame || net.countdown) ? "busy" : null;
         if (why) { c.on("open", function () { try { c.send(JSON.stringify({ t: why })); } catch (e) {} setTimeout(function () { try { c.close(); } catch (e) {} }, 400); }); return; }
         attachGuest(c);
       });
@@ -3970,7 +3989,8 @@
   function guestLeft(g) {
     var i = net.guests.indexOf(g); if (i < 0) return;
     net.guests.splice(i, 1); try { g.conn.close(); } catch (e) {}
-    var coopL = coopApi(); if (coopL && g.ok && coopL.playerLeft) coopL.playerLeft(g.conn && g.conn.peer);
+    syncOccupancy();
+    var coopL = coopApi(); if (coopL && coopL.playerLeft) coopL.playerLeft(g.conn && g.conn.peer);
     net.connected = net.guests.some(function (q) { return q.ok; });
     if (g.ok && net.inGame && (state === "play" || state === "dying" || state === "sucked")) {
       var o = others[g.pid - 2];
@@ -4010,7 +4030,8 @@
         g.name = String(m.name || "").slice(0, 16) || ("P" + g.pid);
         net.gShip = g.ship; net.gStats = g.stats;
         var coopH = coopApi();
-        if (coopH && coopH.playerJoined) coopH.playerJoined();
+        if (coopH && coopH.playerJoined) coopH.playerJoined(g.conn && g.conn.peer);
+        syncOccupancy();
         connSend(g.conn, { t: "welcome", hs: curShip().id, L: net.lvl, pid: g.pid, name: myPilotName() });
         hostRosterSend(); hostStatus(); renderOnLevels(); SFX.power();
         showJoinToast(g);
@@ -6838,7 +6859,13 @@
     protectP1: function () { invuln = 99; },
     ghostInfo: function () { return { run: ghostRun ? { x: ghostRun.x, score: ghostRun.score, ship: ghostRun.g.ship, n: ghostRun.g.xs.length / 2 } : null, recN: ghostRec ? ghostRec.xs.length : 0, stored: load("spaceMissionGhosts", "").length }; },
     missions: function () { return daily; },
-    net: function () { return { role: net.role, connected: net.connected, inGame: net.inGame, code: net.code, rx: net.rx, myX: net.myX, lookP1: net.lookP1, lookP2: net.lookP2, snaps: net.snaps.length, stats: net.stats, p2: others[0] ? { x: Math.round(others[0].ship.x), lives: others[0].lives, down: others[0].ship.down || 0, hearts: others[0].stats ? others[0].stats.hearts : null, perk: others[0].stats ? others[0].stats.perk : null } : null, myPid: net.myPid, nPl: net.nPl, guests: net.guests.map(function (g) { return { pid: g.pid, ok: g.ok, ship: g.ship }; }), players: others.map(function (o) { return { x: Math.round(o.ship.x), lives: o.lives, down: o.ship.down || 0, hearts: o.stats ? o.stats.hearts : null }; }), looks: net.looks, boss: boss ? boss.maxHp : null, hud: document.getElementById("hearts").textContent, roster: document.getElementById("onPlayers").innerText, p1x: ship ? Math.round(ship.x) : null, state: state, score: score, coins: shop.coins, rocks: rocks.length, bullets: bullets.length, W: W, H: H }; },
+    net: function () { return { role: net.role, connected: net.connected, inGame: net.inGame, code: net.code, rx: net.rx, myX: net.myX, lookP1: net.lookP1, lookP2: net.lookP2, snaps: net.snaps.length, stats: net.stats, p2: others[0] ? { x: Math.round(others[0].ship.x), lives: others[0].lives, down: others[0].ship.down || 0, hearts: others[0].stats ? others[0].stats.hearts : null, perk: others[0].stats ? others[0].stats.perk : null } : null, myPid: net.myPid, nPl: net.nPl, guests: net.guests.map(function (g) { return { pid: g.pid, ok: g.ok, ship: g.ship }; }), players: others.map(function (o) { return { x: Math.round(o.ship.x), lives: o.lives, down: o.ship.down || 0, hearts: o.stats ? o.stats.hearts : null }; }), looks: net.looks, boss: boss ? boss.maxHp : null, hud: document.getElementById("hearts").textContent, roster: document.getElementById("onPlayers").innerText, p1x: ship ? Math.round(ship.x) : null, state: state, score: score, coins: shop.coins, rocks: rocks.length, bullets: bullets.length, W: W, H: H, occupancy: liveOccupancy() }; },
+    inflateCoop: function (n) {
+      var coop = coopApi();
+      if (coop && coop.playerJoined) { for (var i = 0; i < n; i++) coop.playerJoined("ghost-" + i); }
+      return coop && coop.occupied ? coop.occupied() : n;
+    },
+    teamScaleNow: function () { return { n: nPlayers(), hp: teamScale(), spawn: teamSpawn(), atk: teamAtk() }; },
     snapLen: function () { return snapString().length; },
     netKill: function () { try { net.peer && net.peer.destroy(); } catch (e) {} },
     arrSizes: function () { return { particles: particles.length, bullets: bullets.length, rocks: rocks.length, coins: coinsArr.length, evq: net.evq.length }; },

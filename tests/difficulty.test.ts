@@ -32,11 +32,11 @@ describe('difficulty modes', () => {
     expect(coinCapForLevel(4, 'veteran')).toBeGreaterThan(coinCapForLevel(4, 'normal'));
     expect(coinCapForLevel(4, 'easy')).toBeLessThan(coinCapForLevel(4, 'normal'));
     const vet = validateLevelResult({
-      level: 4, stars: 3, score: 100n, coinsEarned: 28000n, timeMs: 4000n, heartsLeft: 1, mode: 'veteran',
+      level: 4, stars: 3, score: 100n, coinsEarned: 800n, timeMs: 4000n, heartsLeft: 1, mode: 'veteran',
     });
     expect(vet.ok).toBe(true);
     const easyTooMuch = validateLevelResult({
-      level: 4, stars: 3, score: 100n, coinsEarned: 28000n, timeMs: 4000n, heartsLeft: 2, mode: 'easy',
+      level: 4, stars: 3, score: 100n, coinsEarned: 800n, timeMs: 4000n, heartsLeft: 2, mode: 'easy',
     });
     expect(easyTooMuch.ok).toBe(false);
   });

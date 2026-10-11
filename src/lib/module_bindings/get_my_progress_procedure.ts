@@ -14,5 +14,6 @@ import {
   MyProgressResult,
 } from "./types";
 
-export const params = {};
-export const returnType = __t.option(MyProgressResult);
+export const params = {
+};
+export const returnType = __t.option(MyProgressResult)
