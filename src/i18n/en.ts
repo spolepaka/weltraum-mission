@@ -696,5 +696,6 @@ export const en: Translations = {
     jit_firstLoss: 'No worries — try again, or grab a Shop upgrade.',
     jit_onlineUnlock: 'You can play online now: create a room and share the code.',
     trainHud: 'Training flight',
+    updatingGame: 'Updating the game…',
   },
 };

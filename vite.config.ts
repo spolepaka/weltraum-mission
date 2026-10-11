@@ -34,6 +34,29 @@ function catalogForHtml<T extends { feats?: Record<string, unknown> }>(cat: T): 
   return { ...cat, feats };
 }
 
+export function buildId(): string {
+  return process.env.VERCEL_GIT_COMMIT_SHA
+    || process.env.VITE_BUILD_ID
+    || `dev-${new Date().toISOString().slice(0, 19)}`;
+}
+
+function versionPlugin() {
+  const id = buildId();
+  return {
+    name: 'build-version',
+    config() {
+      return { define: { __BUILD_ID__: JSON.stringify(id) } };
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ id }),
+      });
+    },
+  };
+}
+
 function gameHtmlPlugin() {
   const gamePath = resolve(__dirname, 'public/index.html');
   return {
@@ -63,7 +86,7 @@ function gameHtmlPlugin() {
 export default defineConfig({
   root: '.',
   publicDir: false,
-  plugins: [gameHtmlPlugin()],
+  plugins: [gameHtmlPlugin(), versionPlugin()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,

@@ -57,6 +57,7 @@ import * as onboard from './lib/onboarding';
 import { loadDifficulty, saveDifficulty, parseDifficulty, type Difficulty } from './lib/difficulty';
 import { isoWeekKey, weeklyChallenge } from './lib/weekly';
 import { loadDoNotTrack, saveDoNotTrack, type AnalyticsKind } from './lib/analytics';
+import { clearSoftReloadGuard, installChunkUpdateHandlers } from './lib/chunk-update';
 
 export interface WeltraumApi {
   i18n: {
@@ -590,6 +591,7 @@ function bindAuthWatch(client: SpacetimeClient): void {
 
 async function init(): Promise<void> {
   console.log('[Weltraum] Initializing SpacetimeDB client...');
+  installChunkUpdateHandlers();
   initLanguage();
 
   const client = getSpacetimeClient();
@@ -605,7 +607,7 @@ async function init(): Promise<void> {
 
   let signed = null as Awaited<ReturnType<typeof completeRedirectIfNeeded>>;
   try {
-    if (isAuthConfigured() || needsFirebaseNow() || loadAuthUser()) {
+    if (needsFirebaseNow()) {
       await ensureFirebase();
       signed = await completeEmailLinkIfNeeded() || await completeRedirectIfNeeded();
     }
@@ -629,9 +631,10 @@ async function init(): Promise<void> {
     console.log('[Weltraum] Running in offline mode (local cache)');
     showGameSync('offline');
   }
-  if (isAuthConfigured() || needsFirebaseNow() || loadAuthUser()) {
+  if (needsFirebaseNow()) {
     bindAuthWatch(client);
   }
+  clearSoftReloadGuard();
 }
 
 init();

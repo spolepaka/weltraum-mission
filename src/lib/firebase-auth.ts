@@ -46,6 +46,7 @@ import {
   setLastAuthError,
   type AuthDebugSnapshot,
 } from './firebase-auth-debug';
+import { importFresh } from './chunk-update';
 
 export const AUTH_STORAGE_KEY = 'spaceMissionFirebaseAuth';
 export const ANON_SNAPSHOT_KEY = 'spaceMissionAnonSnapshot';
@@ -188,9 +189,12 @@ export function needsFirebaseNow(): boolean {
 
 export function ensureFirebase(): Promise<AuthImpl> {
   if (!implPromise) {
-    implPromise = import('./firebase-auth-impl').then((impl) => {
+    implPromise = importFresh(() => import('./firebase-auth-impl')).then((impl) => {
       implReady = impl;
       return impl;
+    }).catch((err) => {
+      implPromise = null;
+      throw err;
     });
   }
   return implPromise;
@@ -227,7 +231,7 @@ export function authDebugLine(opts?: {
 }
 
 export async function completeRedirectIfNeeded(): Promise<AuthUser | null> {
-  if (!isAuthConfigured() && !needsFirebaseNow()) return loadAuthUser();
+  if (!needsFirebaseNow()) return loadAuthUser();
   const impl = await ensureFirebase();
   try {
     const user = await impl.completeRedirectIfNeeded();
@@ -241,7 +245,7 @@ export async function completeRedirectIfNeeded(): Promise<AuthUser | null> {
 }
 
 export async function completeEmailLinkIfNeeded(): Promise<AuthUser | null> {
-  if (!needsFirebaseNow() && !isAuthConfigured()) return loadAuthUser();
+  if (!needsFirebaseNow()) return loadAuthUser();
   const impl = await ensureFirebase();
   return impl.completeEmailLinkIfNeeded();
 }
