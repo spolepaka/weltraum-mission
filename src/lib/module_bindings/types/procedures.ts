@@ -6,11 +6,29 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all procedure arg schemas
+import * as AdminGetPlayerProcedure from "../admin_get_player_procedure";
+import * as AdminListPlayersProcedure from "../admin_list_players_procedure";
+import * as AdminMeProcedure from "../admin_me_procedure";
+import * as AdminStatsProcedure from "../admin_stats_procedure";
+import * as GetAnalyticsFunnelProcedure from "../get_analytics_funnel_procedure";
 import * as GetLevelDataProcedure from "../get_level_data_procedure";
 import * as GetMyProgressProcedure from "../get_my_progress_procedure";
+import * as GetWeeklyBoardProcedure from "../get_weekly_board_procedure";
 
+export type AdminGetPlayerArgs = __Infer<typeof AdminGetPlayerProcedure.params>;
+export type AdminGetPlayerResult = __Infer<typeof AdminGetPlayerProcedure.returnType>;
+export type AdminListPlayersArgs = __Infer<typeof AdminListPlayersProcedure.params>;
+export type AdminListPlayersResult = __Infer<typeof AdminListPlayersProcedure.returnType>;
+export type AdminMeArgs = __Infer<typeof AdminMeProcedure.params>;
+export type AdminMeResult = __Infer<typeof AdminMeProcedure.returnType>;
+export type AdminStatsArgs = __Infer<typeof AdminStatsProcedure.params>;
+export type AdminStatsResult = __Infer<typeof AdminStatsProcedure.returnType>;
+export type GetAnalyticsFunnelArgs = __Infer<typeof GetAnalyticsFunnelProcedure.params>;
+export type GetAnalyticsFunnelResult = __Infer<typeof GetAnalyticsFunnelProcedure.returnType>;
 export type GetLevelDataArgs = __Infer<typeof GetLevelDataProcedure.params>;
 export type GetLevelDataResult = __Infer<typeof GetLevelDataProcedure.returnType>;
 export type GetMyProgressArgs = __Infer<typeof GetMyProgressProcedure.params>;
 export type GetMyProgressResult = __Infer<typeof GetMyProgressProcedure.returnType>;
+export type GetWeeklyBoardArgs = __Infer<typeof GetWeeklyBoardProcedure.params>;
+export type GetWeeklyBoardResult = __Infer<typeof GetWeeklyBoardProcedure.returnType>;
 

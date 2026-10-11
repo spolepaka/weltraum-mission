@@ -142,17 +142,17 @@ describe('Anti-cheat: Score Bounds', () => {
 });
 
 describe('Anti-cheat: Coin Bounds', () => {
-  it('accepts coins within bounds', () => {
+  it('accepts coins within the per-level economy cap', async () => {
+    const { maxCoinsForLevel } = await import('../src/lib/economy');
     const level = 50;
-    const maxCoins = BigInt(level * 5000);
-    expect(BigInt(100000) <= maxCoins).toBe(true);
-    expect(BigInt(250000) <= maxCoins).toBe(true);
+    const maxCoins = BigInt(maxCoinsForLevel(level));
+    expect(BigInt(2000) <= maxCoins).toBe(true);
+    expect(BigInt(300000) <= maxCoins).toBe(false);
   });
 
-  it('rejects excessive coins', () => {
-    const level = 50;
-    const maxCoins = BigInt(level * 5000);
-    expect(BigInt(300000) <= maxCoins).toBe(false);
+  it('rejects the old 5000×level pile', async () => {
+    const { maxCoinsForLevel } = await import('../src/lib/economy');
+    expect(BigInt(50 * 5000) > BigInt(maxCoinsForLevel(50))).toBe(true);
   });
 });
 

@@ -76,6 +76,10 @@
   ],
   "rewrites": [
     {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
       "source": "/__/auth/:path*",
       "destination": "https://weltraum-mission.firebaseapp.com/__/auth/:path*"
     },

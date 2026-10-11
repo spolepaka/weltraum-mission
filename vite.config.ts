@@ -63,7 +63,17 @@ function gameHtmlPlugin() {
     name: 'game-html',
     transformIndexHtml: {
       order: 'pre' as const,
-      handler(_html: string, ctx: { server?: unknown }) {
+      handler(_html: string, ctx: { server?: unknown; filename?: string; path?: string }) {
+        const file = `${ctx.filename || ''} ${ctx.path || ''}`;
+        if (file.includes('admin.html') || ctx.path === '/admin') {
+          if (ctx.server || process.env.E2E_LOCAL === '1') {
+            return _html.replace(
+              "connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com",
+              "connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com",
+            );
+          }
+          return _html;
+        }
         let html = fs.readFileSync(gamePath, 'utf8');
         // Localhost is only for the Vite dev server and local E2E (`E2E_LOCAL=1`).
         // Production / Vercel builds never include it.
@@ -91,7 +101,10 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
-      input: resolve(__dirname, 'index.html'),
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        admin: resolve(__dirname, 'admin.html'),
+      },
     },
   },
   server: {

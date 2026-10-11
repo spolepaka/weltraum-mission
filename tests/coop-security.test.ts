@@ -18,6 +18,8 @@ import {
   playerJoined,
   playerLeft,
   getPendingRequests,
+  setOccupancy,
+  occupiedSeats,
   generateSecureRoomCode,
   validateRoomCode,
   recordJoinAttempt,
@@ -87,13 +89,35 @@ describe('Co-op Security', () => {
       setHostApprovalRequired(false);
       
       requestJoin('peer1');
-      playerJoined();
+      playerJoined('peer1');
       
       const check = checkJoinAllowed('peer2');
       expect(check.allowed).toBe(false);
       if (!check.allowed) {
         expect(check.reason).toBe('room_full');
       }
+    });
+
+    it('does not treat a leftover sticky counter or ghost seats as full', () => {
+      setMaxPlayers(5);
+      playerJoined('ghost-a');
+      playerJoined('ghost-b');
+      playerJoined('ghost-c');
+      playerJoined('ghost-d');
+      expect(occupiedSeats()).toBe(5);
+      resetCoopSecurity();
+      expect(occupiedSeats()).toBe(1);
+      expect(checkJoinAllowed('friend').allowed).toBe(true);
+      setOccupancy(1);
+      expect(checkJoinAllowed('friend').allowed).toBe(true);
+    });
+
+    it('counts a reconnect of an approved peer as not full', () => {
+      setMaxPlayers(2);
+      requestJoin('peer1');
+      playerJoined('peer1');
+      const again = checkJoinAllowed('peer1');
+      expect(again.allowed).toBe(true);
     });
 
     it('should allow join when player leaves', () => {

@@ -1,3 +1,5 @@
+import { maxCoinsForLevel } from './economy';
+
 export type Difficulty = 'easy' | 'normal' | 'veteran';
 
 export const DIFFICULTY_KEY = 'spaceMissionDifficulty';
@@ -37,7 +39,7 @@ export function saveDifficulty(mode: Difficulty): void {
 }
 
 export function coinCapForLevel(level: number, mode: Difficulty): number {
-  return Math.ceil(level * 5000 * DIFFICULTY_TUNING[mode].coinMult);
+  return maxCoinsForLevel(level, mode);
 }
 
 export function scoreCapForLevel(level: number): number {

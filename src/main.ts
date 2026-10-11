@@ -552,10 +552,13 @@ function attachCoopStandIn(): void {
       isApproved: (id: string) => coop.isApproved(id),
       isKicked: (id: string) => coop.isKicked(id),
       check: (id: string) => coop.checkJoinAllowed(id),
+      checkJoinAllowed: (id: string) => coop.checkJoinAllowed(id),
       reset: () => coop.resetCoopSecurity(),
       setAsk: (on: boolean) => coop.setHostApprovalRequired(on),
-      playerJoined: () => coop.playerJoined(),
+      playerJoined: (id?: string) => coop.playerJoined(id),
       playerLeft: (id: string) => coop.playerLeft(id),
+      setOccupancy: (n: number) => coop.setOccupancy(n),
+      occupied: () => coop.getState().currentPlayers,
     };
     return true;
   };

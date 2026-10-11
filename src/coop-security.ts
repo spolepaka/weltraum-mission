@@ -59,6 +59,15 @@ export function setMaxPlayers(max: number): void {
   state.maxPlayers = Math.max(2, Math.min(5, max));
 }
 
+/** Host + seated (ok) guests. Ghost / pending connections do not occupy a seat. */
+export function setOccupancy(n: number): void {
+  state.currentPlayers = Math.max(1, Math.min(state.maxPlayers, Math.floor(n) || 1));
+}
+
+export function occupiedSeats(): number {
+  return state.currentPlayers;
+}
+
 export function setRateLimits(limit: number, windowMs: number): void {
   state.joinRateLimit = limit;
   state.joinRateWindow = windowMs;
@@ -88,7 +97,7 @@ export function checkJoinAllowed(peerId: string): JoinCheckResult {
     return { allowed: false, reason: 'kicked' };
   }
 
-  if (state.currentPlayers >= state.maxPlayers) {
+  if (!state.approvedPeers.has(peerId) && state.currentPlayers >= state.maxPlayers) {
     return { allowed: false, reason: 'room_full' };
   }
 
@@ -194,14 +203,15 @@ export function kickPlayer(peerId: string): void {
   }
 }
 
-export function playerJoined(): void {
-  state.currentPlayers++;
+export function playerJoined(peerId?: string): void {
+  if (peerId) state.approvedPeers.add(peerId);
+  state.currentPlayers = Math.min(state.maxPlayers, Math.max(state.currentPlayers, 1 + state.approvedPeers.size));
 }
 
 export function playerLeft(peerId: string): void {
-  state.currentPlayers = Math.max(1, state.currentPlayers - 1);
   state.approvedPeers.delete(peerId);
   state.joinRequests.delete(peerId);
+  state.currentPlayers = Math.max(1, 1 + state.approvedPeers.size);
 }
 
 export function isApproved(peerId: string): boolean {

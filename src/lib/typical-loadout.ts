@@ -1,5 +1,7 @@
 /** Typical L1–L5 spend so balance sims match a kid who shops after ~2-star clears. */
 
+import { isBossLevel as isBoss, levelClearBonus, typicalCollectedCoins } from './economy';
+
 export const EARLY_SHIPS: Array<{ id: string; price: number }> = [
   { id: 'starter', price: 0 },
   { id: 'blitz', price: 150 },
@@ -25,15 +27,14 @@ export const UPGRADE_PRICES: Record<string, number[]> = {
 const UPGRADE_ORDER = ['heart', 'dmg', 'rate', 'mag', 'dur'] as const;
 
 export function isBossLevel(level: number): boolean {
-  return level > 0 && (level % 3 === 0 || level === 100);
+  return isBoss(level);
 }
 
 export function coinsFromLevels(fromL: number, toL: number, stars = 2, coinMult = 1, training = 60): number {
   let coins = training;
+  const mode = coinMult >= 1.4 ? 'veteran' : coinMult <= 0.8 ? 'easy' : 'normal';
   for (let L = fromL; L <= toL; L++) {
-    const bonus = Math.round((10 + L * 3 + stars * 8 + (isBossLevel(L) ? 40 + L * 8 : 0)) * 10 * coinMult);
-    const collected = Math.round((20 + L * 6) * coinMult);
-    coins += bonus + collected;
+    coins += levelClearBonus(L, stars, mode) + typicalCollectedCoins(L, mode);
   }
   return coins;
 }
