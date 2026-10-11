@@ -1,8 +1,8 @@
 /**
  * CI-style runner for the production build + Playwright E2E.
  *
- * Default: Maincloud `weltraum-mission` (does NOT publish).
- * Local:   `node tools/run-e2e-real.mjs --local` (in-memory server + weltraum-dev).
+ * Local only: `node tools/run-e2e-real.mjs --local` (in-memory server + weltraum-dev).
+ * Production Maincloud is refused so tests never mint ghost player rows.
  */
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
@@ -64,6 +64,10 @@ async function main() {
   process.on('exit', cleanup);
   process.on('SIGINT', () => { cleanup(); process.exit(1); });
 
+  if (!LOCAL && process.env.E2E_ALLOW_PRODUCTION !== '1') {
+    throw new Error('Refusing to run E2E against Maincloud. Use `npm run test:e2e:local` (or --local).');
+  }
+
   if (LOCAL) {
     if (!(await portOpen(3000))) {
       console.log('[e2e] starting spacetime start --in-memory');
@@ -75,9 +79,22 @@ async function main() {
     }
     console.log('[e2e] publishing module to LOCAL server only (not Maincloud)');
     await run('npm', ['run', 'build'], { cwd: `${ROOT}/server/spacetimedb` });
-    await run('spacetime', ['publish', '--server', 'http://localhost:3000', 'weltraum-dev'], {
-      cwd: `${ROOT}/server/spacetimedb`,
-    });
+    try {
+      await run('spacetime', ['publish', '--server', 'http://localhost:3000', '--anonymous', '-y', 'weltraum-dev'], {
+        cwd: `${ROOT}/server/spacetimedb`,
+      });
+    } catch (err) {
+      console.log('[e2e] local publish failed; clearing leftover local DB and retrying once');
+      if (stdbProc) { stdbProc.kill('SIGTERM'); stdbProc = null; }
+      try { await run('spacetime', ['server', 'clear', '-y']); } catch { /* ignore */ }
+      await waitForPortClosed(3000);
+      stdbProc = spawn('spacetime', ['start', '--in-memory'], { cwd: ROOT, stdio: 'inherit' });
+      await waitForPort(3000, 'SpacetimeDB');
+      await sleep(1000);
+      await run('spacetime', ['publish', '--server', 'http://localhost:3000', '--anonymous', '-y', 'weltraum-dev'], {
+        cwd: `${ROOT}/server/spacetimedb`,
+      });
+    }
   } else {
     console.log('[e2e] Maincloud target: https://maincloud.spacetimedb.com / weltraum-mission');
     console.log('[e2e] will NOT publish or modify the remote module');

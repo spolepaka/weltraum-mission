@@ -1,7 +1,7 @@
 /**
  * Real E2E against a running SpacetimeDB and the built game.
- * Default: production build → Maincloud `weltraum-mission` (no query override).
- * Local: `E2E_STDB_QS=stdb_host=localhost:3000&stdb_module=weltraum-dev&stdb_ssl=false`
+ * Default / CI: local `weltraum-dev` via `npm run test:e2e:local`.
+ * Production Maincloud is blocked unless E2E_ALLOW_PRODUCTION=1.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -10,8 +10,12 @@ import { chromium, Browser, Page, BrowserContext } from 'playwright';
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:4173';
 const STDB_QS = process.env.E2E_STDB_QS ?? '';
 const GAME_URL = STDB_QS ? `${BASE_URL}/?${STDB_QS}` : `${BASE_URL}/`;
-const EXPECT_HOST = process.env.E2E_EXPECT_HOST || 'maincloud.spacetimedb.com';
-const EXPECT_MODULE = process.env.E2E_EXPECT_MODULE || 'weltraum-mission';
+const ALLOW_PROD = process.env.E2E_ALLOW_PRODUCTION === '1';
+const EXPECT_HOST = process.env.E2E_EXPECT_HOST || (ALLOW_PROD ? 'maincloud.spacetimedb.com' : 'localhost:3000');
+const EXPECT_MODULE = process.env.E2E_EXPECT_MODULE || (ALLOW_PROD ? 'weltraum-mission' : 'weltraum-dev');
+if (EXPECT_HOST.includes('spacetimedb.com') && !ALLOW_PROD) {
+  throw new Error('E2E refused to target production SpacetimeDB. Use test:e2e:local.');
+}
 
 let browser: Browser;
 

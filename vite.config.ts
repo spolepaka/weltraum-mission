@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import fs from 'node:fs';
 import { en } from './src/i18n/en';
 import { de } from './src/i18n/de';
+import { STORE_FULL_IP, signGeo, truncateIp } from './src/lib/geo-privacy';
 
 /**
  * The playable game lives in public/index.html (v33 + Stage Zero hooks).
@@ -93,10 +94,48 @@ function gameHtmlPlugin() {
   };
 }
 
+function geoApiPlugin() {
+  const handle = (req: { headers: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } }, res: { setHeader: (k: string, v: string) => void; statusCode: number; end: (b: string) => void }) => {
+    const h = (name: string) => {
+      const v = req.headers[name] ?? req.headers[name.toLowerCase()];
+      return Array.isArray(v) ? (v[0] || '') : String(v || '');
+    };
+    const forwarded = h('x-forwarded-for').split(',')[0].trim();
+    const rawIp = forwarded || h('x-real-ip') || req.socket?.remoteAddress || '';
+    const country = decodeURIComponent(h('x-vercel-ip-country') || '');
+    const region = decodeURIComponent(h('x-vercel-ip-country-region') || '');
+    const city = decodeURIComponent(h('x-vercel-ip-city') || '');
+    const ipTrunc = truncateIp(rawIp);
+    const iat = Date.now();
+    const body = {
+      country: country.slice(0, 8),
+      region: region.slice(0, 16),
+      city: city.slice(0, 48),
+      ipTrunc,
+      iat,
+      storeFullIp: STORE_FULL_IP,
+      ipFull: STORE_FULL_IP ? rawIp.slice(0, 64) : '',
+    };
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Type', 'application/json');
+    res.statusCode = 200;
+    res.end(JSON.stringify({ ...body, sig: signGeo(body) }));
+  };
+  return {
+    name: 'geo-api',
+    configureServer(server: { middlewares: { use: (path: string, fn: (req: never, res: never) => void) => void } }) {
+      server.middlewares.use('/api/geo', handle as never);
+    },
+    configurePreviewServer(server: { middlewares: { use: (path: string, fn: (req: never, res: never) => void) => void } }) {
+      server.middlewares.use('/api/geo', handle as never);
+    },
+  };
+}
+
 export default defineConfig({
   root: '.',
   publicDir: false,
-  plugins: [gameHtmlPlugin(), versionPlugin()],
+  plugins: [gameHtmlPlugin(), versionPlugin(), geoApiPlugin()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,

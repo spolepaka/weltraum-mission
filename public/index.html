@@ -931,6 +931,9 @@
     return { type: type, hp: Math.round(base[0] * (330 + 17 * (L - 18))), speed: base[1] * (1 + (L - 18) * 0.003), name: bg ? bg.name : locShort(type), mods: mods, tint: sec.tint };
   }
   function startGame(L, opts) {
+    try {
+      if (!(opts && opts.training) && window.__weltraum && window.__weltraum.ensureCloud) window.__weltraum.ensureCloud();
+    } catch (e) {}
     audio();
     var asTrain = !!(opts && opts.training);
     trainOn = asTrain;
@@ -3917,7 +3920,10 @@
       var code = genCode(), peer;
       try { peer = new Peer(NET_PREFIX + code, PEER_OPTS); } catch (e) { netFail("noload"); return; }
       net.peer = peer;
-      peer.on("open", function () { net.code = code; $("onCodeShow").textContent = code; hostStatus(); renderRoster(); });
+      peer.on("open", function () {
+        net.code = code; $("onCodeShow").textContent = code; hostStatus(); renderRoster();
+        try { var st = window.__weltraum && window.__weltraum.spacetime; if (st && st.reportMpJoin) st.reportMpJoin(); } catch (e) {}
+      });
       peer.on("connection", function (c) {
         var peerId = c.peer || ("anon-" + Date.now());
         net.guests.slice().forEach(function (old) {
@@ -5869,6 +5875,7 @@
     var ob = onboardApi();
     if (ob) ob.markAllDone(ob.loadOnboard(), true);
     persistOnboard();
+    if (window.__weltraum && window.__weltraum.ensureCloud) window.__weltraum.ensureCloud();
   }
   function maybePickName() {
     var names = window.__weltraum && window.__weltraum.names;
@@ -6860,6 +6867,19 @@
     applyRemoteShop: function (coins) {
       var n = Math.max(0, Math.floor(Number(coins) || 0));
       if (n > shop.coins) { shop.coins = n; saveShop(); updateMapHud(); if (shopOpen) renderShop(); }
+    },
+    applyRemoteProgress: function (p) {
+      p = p || {};
+      var coins = Math.max(0, Math.floor(Number(p.coins) || 0));
+      if (coins > shop.coins) shop.coins = coins;
+      if (p.unlocked) progress.unlocked = Math.max(progress.unlocked || 1, Math.floor(p.unlocked) || 1);
+      if (p.ships && p.ships.length) {
+        var have = {};
+        (shop.owned || []).concat(p.ships).forEach(function (s) { if (s) have[s] = 1; });
+        shop.owned = Object.keys(have);
+        if (p.equipped) shop.equipped = p.equipped;
+      }
+      saveShop(); saveProgress(); updateMapHud(); if (shopOpen) renderShop();
     },
     unlockTo: function (L) {
       progress.unlocked = Math.max(progress.unlocked, Math.max(1, Math.min(MAX_LEVEL_C, L | 0)));

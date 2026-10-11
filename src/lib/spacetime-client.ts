@@ -10,6 +10,7 @@ import {
 import type { Identity } from 'spacetimedb';
 import { validateLevelResult, type LevelResultInput } from './validation';
 import { mergeCoins, coinDeltaToPush } from './coin-ledger';
+import { isAutomatedClient } from './geo-privacy';
 import {
   loadAuthUser,
   loadGuestToken,
@@ -193,6 +194,12 @@ class SpacetimeClient {
     }
   }
 
+  private shouldRefuseProductionTests(): boolean {
+    if (this.config.host.includes('localhost') || this.config.host.includes('127.0.0.1')) return false;
+    if (typeof process !== 'undefined' && process.env?.E2E_ALLOW_PRODUCTION === '1') return false;
+    return isAutomatedClient() && this.config.host.includes('spacetimedb.com');
+  }
+
   getStatus(): SyncStatus {
     return this.status;
   }
@@ -247,6 +254,11 @@ class SpacetimeClient {
 
     if (this.connection && (this.status === 'connecting' || this.status === 'disconnected')) {
       return new Promise(resolve => this.connectWaiters.push(resolve));
+    }
+
+    if (this.shouldRefuseProductionTests()) {
+      this.setStatus('offline');
+      return false;
     }
 
     this.setStatus('connecting');
@@ -914,6 +926,7 @@ class SpacetimeClient {
     language: string;
     totalScore: bigint;
     legacyImported: boolean;
+    displayName: string;
   } | null> {
     if (!this.connection || !this.isConnected()) return null;
     try {
@@ -930,6 +943,7 @@ class SpacetimeClient {
         language: result.language,
         totalScore: BigInt(result.totalScore),
         legacyImported,
+        displayName: (result as { displayName?: string }).displayName || '',
       };
     } catch (error) {
       console.warn('[SpacetimeDB] getMyProgress failed:', error);
@@ -1020,11 +1034,18 @@ class SpacetimeClient {
     }
   }
 
-  async adminStats(): Promise<{ players: number; activeWeek: number; gamesPlayed: string } | null> {
+  async adminStats(): Promise<{ players: number; activeWeek: number; gamesPlayed: string; emptyGuests?: number; signedIn?: number } | null> {
     if (!this.connection) return null;
     const result = await this.connection.procedures.adminStats({});
     if (!result) return null;
-    return { players: result.players, activeWeek: result.activeWeek, gamesPlayed: String(result.gamesPlayed) };
+    const extra = result as { emptyGuests?: number; signedIn?: number };
+    return {
+      players: result.players,
+      activeWeek: result.activeWeek,
+      gamesPlayed: String(result.gamesPlayed),
+      emptyGuests: extra.emptyGuests,
+      signedIn: extra.signedIn,
+    };
   }
 
   async adminListPlayers(query = ''): Promise<Array<Record<string, string | number | boolean>>> {
@@ -1043,32 +1064,68 @@ class SpacetimeClient {
     catch { return null; }
   }
 
+  private async callAdmin(fn: () => unknown): Promise<void> {
+    const out = fn();
+    if (out && typeof (out as Promise<void>).then === 'function') await out;
+    await new Promise((r) => setTimeout(r, 120));
+  }
+
   adminSetCoins(targetHex: string, coins: bigint): Promise<void> {
-    return Promise.resolve(this.connection?.reducers.adminSetCoins({ targetHex, coins }));
+    return this.callAdmin(() => this.connection?.reducers.adminSetCoins({ targetHex, coins }));
   }
   adminAddCoins(targetHex: string, delta: bigint): Promise<void> {
-    return Promise.resolve(this.connection?.reducers.adminAddCoins({ targetHex, delta }));
+    return this.callAdmin(() => this.connection?.reducers.adminAddCoins({ targetHex, delta }));
   }
   adminUnlockLevel(targetHex: string, level: number): Promise<void> {
-    return Promise.resolve(this.connection?.reducers.adminUnlockLevel({ targetHex, level }));
+    return this.callAdmin(() => this.connection?.reducers.adminUnlockLevel({ targetHex, level }));
   }
   adminGrantShip(targetHex: string, shipId: string): Promise<void> {
-    return Promise.resolve(this.connection?.reducers.adminGrantShip({ targetHex, shipId }));
+    return this.callAdmin(() => this.connection?.reducers.adminGrantShip({ targetHex, shipId }));
   }
   adminRemoveShip(targetHex: string, shipId: string): Promise<void> {
-    return Promise.resolve(this.connection?.reducers.adminRemoveShip({ targetHex, shipId }));
+    return this.callAdmin(() => this.connection?.reducers.adminRemoveShip({ targetHex, shipId }));
   }
   adminResetProgress(targetHex: string): Promise<void> {
-    return Promise.resolve(this.connection?.reducers.adminResetProgress({ targetHex }));
+    return this.callAdmin(() => this.connection?.reducers.adminResetProgress({ targetHex }));
   }
   adminResetPlayer(targetHex: string): Promise<void> {
-    return Promise.resolve(this.connection?.reducers.adminResetPlayer({ targetHex }));
+    return this.callAdmin(() => this.connection?.reducers.adminResetPlayer({ targetHex }));
   }
   adminBan(targetHex: string, reason: string): Promise<void> {
-    return Promise.resolve(this.connection?.reducers.adminBan({ targetHex, reason }));
+    return this.callAdmin(() => this.connection?.reducers.adminBan({ targetHex, reason }));
   }
   adminUnban(targetHex: string): Promise<void> {
-    return Promise.resolve(this.connection?.reducers.adminUnban({ targetHex }));
+    return this.callAdmin(() => this.connection?.reducers.adminUnban({ targetHex }));
+  }
+  adminSetTestFlag(targetHex: string, testBot: boolean): Promise<void> {
+    return this.callAdmin(() => (this.connection?.reducers as { adminSetTestFlag?: (a: { targetHex: string; testBot: boolean }) => unknown }).adminSetTestFlag?.({ targetHex, testBot }));
+  }
+  adminPurgeEmptyGuests(olderDays: number, confirm: string): Promise<void> {
+    return this.callAdmin(() => (this.connection?.reducers as { adminPurgeEmptyGuests?: (a: { olderDays: number; confirm: string }) => unknown }).adminPurgeEmptyGuests?.({ olderDays, confirm }));
+  }
+
+  ensurePlayerRow(): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { ensurePlayerRow?: (a: Record<string, never>) => void }).ensurePlayerRow?.({});
+    });
+  }
+
+  linkGuestIdentity(guestHex: string): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { linkGuestIdentity?: (a: { guestHex: string }) => void }).linkGuestIdentity?.({ guestHex });
+    });
+  }
+
+  reportPresence(payload: Record<string, string | number>): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { reportPresence?: (a: Record<string, string | number>) => void }).reportPresence?.(payload);
+    });
+  }
+
+  reportMpJoin(): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { reportMpJoin?: (a: Record<string, never>) => void }).reportMpJoin?.({});
+    });
   }
 
   setUpgradeLevel(upgradeId: string, level: number): void {
