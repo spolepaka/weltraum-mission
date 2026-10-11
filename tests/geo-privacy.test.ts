@@ -58,7 +58,7 @@ describe('geo privacy', () => {
     const res = {
       setHeader() {},
       status(n: number) { status = n; return res; },
-      json(v: Record<string, unknown>) { body = v; },
+      json(v: unknown) { body = v as Record<string, unknown>; },
     };
     handler(req, res);
     expect(status).toBe(200);
@@ -118,7 +118,7 @@ describe('geo privacy', () => {
       const res = {
         setHeader() {},
         status(n: number) { status = n; return res; },
-        json(v: Record<string, unknown>) { body = v; },
+        json(v: unknown) { body = v as Record<string, unknown>; },
       };
       mod.default({ headers }, res);
       expect(status).toBe(200);

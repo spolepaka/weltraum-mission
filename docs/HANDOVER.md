@@ -491,7 +491,7 @@ Most of the code came from cloud coding agents working in `cursor/*` branches. E
 | Smoke | `npm run test:smoke` | Headless Chrome console-error check |
 | Balance bot | `node tools/sim.mjs …` | Human-like bot. Results in `docs/levels-log.md`. |
 
-**Test count over time** (`npm test`, from PR descriptions): 60 (#1) → 70 (#2) → 79 (#3) → 84 (#4) → 108–109 (#5/#6) → 110 (#7) → 124 (#8) → 136 (#11) → 139 (#10) → 148 (#12) → 162 (#13) → more in #14/#15 (admin JWT, map-boss, empty-guest, geo). This follow-up adds the isolated `/api/geo` build test. Exact current count is in the PR that lands this file.
+**Test count over time** (`npm test`, from PR descriptions): 60 (#1) → 70 (#2) → 79 (#3) → 84 (#4) → 108–109 (#5/#6) → 110 (#7) → 124 (#8) → 136 (#11) → 139 (#10) → 148 (#12) → 162 (#13) → 176 / 25 files (this PR: isolated `/api/geo` build + #14/#15 admin/geo/empty-guest/map-boss).
 
 **CI** (`.github/workflows/ci.yml`) runs on every PR and every push to main: `npm ci` → module typecheck → `tsc --noEmit` → `npm test`. Playwright and E2E suites are **not** in CI.
 
