@@ -696,5 +696,6 @@ export const de: Translations = {
     jit_firstLoss: 'Kein Problem — nochmal fliegen oder im Shop upgraden.',
     jit_onlineUnlock: 'Online geht jetzt: Raum erstellen und den Code teilen.',
     trainHud: 'Trainingsflug',
+    updatingGame: 'Spiel wird aktualisiert…',
   },
 };

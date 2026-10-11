@@ -24,6 +24,8 @@ import {
   needsFirebaseNow,
   REDIRECT_FLAG_KEY,
   tokenIssuerKind,
+  completeRedirectIfNeeded,
+  completeEmailLinkIfNeeded,
 } from '../src/lib/firebase-auth';
 
 const store: Record<string, string> = {};
@@ -111,6 +113,28 @@ describe('Firebase Auth config (no emulator)', () => {
   it('masks Google email and name for the account panel', () => {
     expect(maskEmail('parent@example.com')).toBe('pa…@example.com');
     expect(maskDisplayName('Ada Lovelace')).toBe('Ad…e');
+  });
+
+  it('does not load the auth chunk for a configured guest with no session', async () => {
+    stubStorage();
+    (globalThis as { sessionStorage?: Storage }).sessionStorage = {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+      clear: () => {},
+      key: () => null,
+      length: 0,
+    } as Storage;
+    setFirebaseEnvForTests({
+      VITE_FIREBASE_API_KEY: 'k',
+      VITE_FIREBASE_AUTH_DOMAIN: 'p.firebaseapp.com',
+      VITE_FIREBASE_PROJECT_ID: 'p',
+      VITE_FIREBASE_APP_ID: '1:1:web:x',
+    });
+    expect(isAuthConfigured()).toBe(true);
+    expect(needsFirebaseNow()).toBe(false);
+    expect(await completeRedirectIfNeeded()).toBeNull();
+    expect(await completeEmailLinkIfNeeded()).toBeNull();
   });
 
   it('treats a pending redirect flag as needing Firebase now', () => {

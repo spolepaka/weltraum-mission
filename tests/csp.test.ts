@@ -14,7 +14,8 @@ function metaCsp(html: string): string {
 }
 
 function headerCsp(): string {
-  const csp = VERCEL.headers[0].headers.find((h) => h.key === 'Content-Security-Policy');
+  const block = VERCEL.headers.find((h) => h.source === '/(.*)');
+  const csp = block?.headers.find((h) => h.key === 'Content-Security-Policy');
   if (!csp) throw new Error('vercel.json CSP missing');
   return csp.value;
 }
@@ -48,6 +49,11 @@ describe('production Firebase Auth CSP', () => {
     expect(frame).toMatch(/(?:^|\s)'self'/);
     expect(frame).toContain('https://accounts.google.com');
     expect(frame).toContain('https://*.firebaseapp.com');
+  });
+
+  it('does not cache version.json so leftover tabs can see a new build', () => {
+    const ver = VERCEL.headers.find((h) => h.source === '/version.json');
+    expect(ver?.headers.some((h) => h.key === 'Cache-Control' && /no-store/.test(h.value))).toBe(true);
   });
 
   it('vercel.json header CSP matches the same Firebase hosts', () => {

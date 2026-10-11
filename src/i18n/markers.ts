@@ -50,6 +50,7 @@ export const EN_ONLY_MARKERS = [
   'Replay tutorial',
   'Training flight',
   'Skip training',
+  'Updating the game…',
 ] as const;
 
 export const DE_ONLY_MARKERS = [
@@ -97,6 +98,7 @@ export const DE_ONLY_MARKERS = [
   'Tutorial nochmal',
   'Trainingsflug',
   'Training überspringen',
+  'Spiel wird aktualisiert…',
 ] as const;
 
 export function markersForOtherLanguage(lang: Language): readonly string[] {
