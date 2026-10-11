@@ -103,6 +103,12 @@ Optional (only if the SDK / console shows them):
 - `VITE_FIREBASE_APPLE_ENABLED` = `1` when Apple should appear
 - `VITE_FIREBASE_AUTH_EMULATOR` = `http://127.0.0.1:9099` for local emulator tests only (never set in Vercel)
 
+Optional geo (leave unset — see `/api/geo` below):
+
+| Name | Value |
+|------|--------|
+| `GEO_SIGNING_SECRET` | **Do not set** unless you also change the fallback in `api/geo.ts`, `src/lib/geo-privacy.ts`, and `server/spacetimedb/src/geo.ts` to the same value. The fallback `weltraum-geo-v1` is in the public repo, so geo is best-effort and spoofable. |
+
 Redeploy after adding the variables (`npm run build` reads Vite `VITE_*` at build time).
 
 On first sign-in the client snapshots anonymous progress, reconnects with the Firebase ID token (new identity: issuer+sub), and calls `importProgress` so coins / unlocks / ships merge (max, never wipe). Hourly token refresh uses `onIdTokenChanged` and a silent SpacetimeDB reconnect (no page reload, no second import, no double rewards). Sign-out restores the stored guest identity. Guests who never sign in keep the anonymous identity already stored in `localStorage`.
@@ -254,6 +260,16 @@ The server validates all submitted results:
 - **Kick system**: Kicked players cannot rejoin
 - **Display names**: Generated space names for guests. Custom 3–16 names only for signed-in parents; server rejects PII / profanity.
 - **ALLELEVEL / ALLELEVELS**: Test unlock. Raises **that identity’s** `unlockedLevel` to 100 so `getLevelData` may return every payload for them. Other players stay gated. Same anti-cheat as normal play — do not treat it as a global unlock.
+
+## `/api/geo` (Vercel Node function)
+
+Production `GET /api/geo` reads Vercel IP / geo headers and returns a signed `{ country, region, city, ipTrunc, iat, sig }` record. The client then calls `reportPresence`. Defaults:
+
+- Truncated IP (`a.b.c.0` / first four IPv6 hextets). Full IP only if `STORE_FULL_IP` is flipped in `api/geo.ts` **and** `src/lib/geo-privacy.ts` **and** `server/spacetimedb/src/geo.ts`.
+- 30-day retention on `playerPresence` rows.
+- Signature uses the public fallback `weltraum-geo-v1`. **Geo is best-effort and spoofable.** Do not treat `sig` as a security boundary. Do **not** set `GEO_SIGNING_SECRET` on Vercel unless every copy of the fallback is updated to match — a function-only secret would make the module drop every presence report.
+
+The function must stay **self-contained**. A Vite project with `outputDirectory: dist` does not bundle `../src/*` into the Node function; that import caused production `FUNCTION_INVOCATION_FAILED` (PR after #15). `api/geo.ts` inlines truncate/sign. Dev/preview still serve `/api/geo` from the Vite plugin in `vite.config.ts`.
 
 ## Lazy loading
 

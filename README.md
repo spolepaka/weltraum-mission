@@ -1,132 +1,75 @@
 # Weltraum-Mission
 
-A single-player HTML5 canvas space shooter with German UI, designed for young players on iPad. Features 100 levels across 7 galactic sectors, boss battles, ship upgrades, achievements, local 2-player mode, online co-op (up to 5 players via PeerJS), and a ghost replay system.
+A kid-friendly HTML5 space shooter for iPad and the web. English is the default; a map toggle switches to German. 100 levels across 7 sectors, 34 boss fights, a shop with 29 ships, local 2-player and online co-op (up to 5 via PeerJS), onboarding, optional parent Google / email-link sign-in, and a private `/admin` console.
 
-## Live Demo
+Built for Joshi (9) and Amelia.
 
-[https://space-game-deploy.vercel.app](https://space-game-deploy.vercel.app)
+**Live:** [https://space-game-deploy.vercel.app](https://space-game-deploy.vercel.app)
 
-## Project Structure
+## Docs
 
-```
-weltraum-mission/
-├── public/           # Static game files
-│   └── index.html    # The complete game (v33, ~430KB)
-├── server/           # SpacetimeDB backend module (Stage Zero)
-├── src/              # Client source (after Vite restructure)
-├── tools/            # Headless Chrome test scripts
-│   ├── smoke.mjs     # Console error check at iPad sizes
-│   ├── sim.mjs       # Balance bot for level tuning
-│   └── ...           # Additional test utilities
-├── docs/             # Documentation
-│   ├── roadmap.md    # Path to AAA Quality (Stage Zero plan)
-│   ├── progress-log.md
-│   └── levels-log.md
-└── tests/            # Unit and E2E tests
-```
+| Doc | What it is |
+|---|---|
+| **[docs/HANDOVER.md](docs/HANDOVER.md)** | Full handover: architecture, data model, auth, ops, PR history, known issues |
+| **[docs/DEPLOY.md](docs/DEPLOY.md)** | Publish the SpacetimeDB module, Vercel env, Firebase, `/api/geo` |
+| [docs/roadmap.md](docs/roadmap.md) | Longer-term “Path to AAA” plan |
+| [docs/progress-log.md](docs/progress-log.md) | Single-file-era change log |
+| [docs/levels-log.md](docs/levels-log.md) | Balance / bot results |
+| [docs/onboarding/](docs/onboarding/) | Screenshots of the welcome / training / map tour |
 
-## Quick Start
-
-### Play Locally
+## Quick start
 
 ```bash
-# Serve the static file
-npx serve public
-
-# Or with Python
-cd public && python -m http.server 8080
-```
-
-### Run Tests
-
-```bash
-# Install dependencies
+git clone https://github.com/spolepaka/weltraum-mission && cd weltraum-mission
 npm install
-
-# Run smoke tests (requires Chrome)
-node tools/smoke.mjs 9222 "$(pwd)/public/index.html" 1024 768
-node tools/smoke.mjs 9223 "$(pwd)/public/index.html" 768 1024
-
-# Run balance simulation
-node tools/sim.mjs 9224 "$(pwd)/public/index.html" starter:1:1:0,0,0
+npm run dev                      # http://localhost:5173
+npm test                         # unit + mock E2E (vitest)
+npm run build && npm run preview # production Vite build
 ```
 
-## SpacetimeDB Backend (Stage Zero)
-
-The backend provides:
-- Anonymous player identity (connect without token, persist issued token)
-- Progress sync (unlocked levels, stars, best scores, coins, ships, upgrades)
-- Level gating validation (server validates before delivering level data)
-- Secret code validation (applied server-side)
-- Error tracking (client reports logged to a table)
-
-### Local Development
+Local SpacetimeDB (optional):
 
 ```bash
-# Install SpacetimeDB CLI
-curl -fsSL https://spacetimedb.com/install.sh | bash
-
-# Start local server
-spacetime start
-
-# Publish module (local)
-cd server
-spacetime publish --local weltraum-dev
-
-# The client connects to ws://localhost:3000
+npm run spacetime:start          # in-memory on :3000
+npm run spacetime:publish:local  # publishes weltraum-dev
+# then open
+# http://localhost:5173/?server=ws://localhost:3000&stdb_module=weltraum-dev
 ```
 
-### Publishing to Maincloud
+Sign-in locally needs `VITE_FIREBASE_*` in a gitignored `.env.local`. See [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## How it is built
+
+- **Client:** vanilla-JS game in `public/index.html`, Vite + TypeScript in `src/` (i18n, sync, names, auth, onboarding). Hosted on **Vercel** (`space-game-deploy`).
+- **Game data:** SpacetimeDB TypeScript module `weltraum-mission` on **Maincloud**. Anonymous identity by default; Firebase ID token for parent accounts.
+- **Online co-op:** PeerJS / WebRTC, room code, 2–5 players. No game server, no TURN.
+- **Admin:** `/admin` (unlinked, own Vite entry). Access is a **server-side** Firebase email check (`sumankpolepaka@gmail.com`), never a client flag.
+- **Geo:** `GET /api/geo` is a self-contained Vercel function. Truncated IP, 30-day retention. Best-effort and spoofable — see [docs/DEPLOY.md](docs/DEPLOY.md#apigeo-vercel-node-function).
+
+## Tests
 
 ```bash
-# Login (creates account if needed)
-spacetime login
-
-# Publish to Maincloud Free tier
-cd server
-spacetime publish weltraum-mission
-
-# Update client to use wss://maincloud.spacetimedb.com
+npm test                  # unit + mock E2E
+npm run test:e2e:local    # Playwright against local SpacetimeDB (never Maincloud)
+npm run test:firebase     # Auth emulator + CSP + WebKit
+npm run spacetime:typecheck
 ```
 
-## Features
+`npm run test:e2e:real` refuses production Maincloud unless `E2E_ALLOW_PRODUCTION=1`.
 
-### Gameplay
-- 100 levels across 7 sectors (Heimat-Galaxie through Jenseits)
-- Progressive difficulty with unique hazards per sector
-- 15+ ships with different stats and abilities
-- Shop with upgrades (fire rate, damage, shields, magnet, durability)
-- Achievement system with unlockable color themes
-- Daily missions for bonus coins
-- Local 2-player mode
-- Online co-op (2-5 players, PeerJS/WebRTC)
-- Ghost replays of best runs
+## Stage Zero (done)
 
-### Controls
-- Touch: Drag to move, tap fire button
-- Keyboard: Arrow keys + Space
-- 2P mode: P1 left side, P2 right side
-
-## Tech Stack
-
-- **Client:** Pure HTML5 Canvas, vanilla JavaScript (single file origin)
-- **Backend:** SpacetimeDB (Rust/TypeScript module)
-- **Networking:** PeerJS for P2P co-op, SpacetimeDB for persistence
-- **Hosting:** Vercel (static) + SpacetimeDB Maincloud
-
-## Development
-
-See [docs/roadmap.md](docs/roadmap.md) for the full development plan.
-
-### Stage Zero Goals (Current)
-- [x] Import existing game to repository
-- [ ] English as default language + toggle
-- [ ] SpacetimeDB anonymous identity + progress sync
-- [ ] Progressive/gated content delivery
-- [ ] Host approval for online co-op
-- [ ] CSP / script hygiene
-- [ ] Error tracking
+- [x] Import the game into the repo
+- [x] English default + EN/DE toggle
+- [x] SpacetimeDB anonymous identity + progress sync
+- [x] Progressive / gated level delivery
+- [x] Host approval, kick, auto-admit for online co-op
+- [x] CSP / script hygiene
+- [x] Error tracking
+- [x] Firebase parent sign-in (first-party `/__/auth` proxy)
+- [x] Difficulty modes, weekly challenge, first-party analytics
+- [x] Admin panel + coin caps + co-op scaling
 
 ## License
 
-Private repository - all rights reserved.
+Private repository — all rights reserved.

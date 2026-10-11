@@ -1,10 +1,14 @@
-/** GDPR geo helpers. Lockstep with src/lib/geo-privacy.ts */
+/** GDPR geo helpers. Lockstep with src/lib/geo-privacy.ts and api/geo.ts. */
 
 /** Flip to true only if Suman later wants full IPs stored/shown. Default OFF. */
 export const STORE_FULL_IP = false;
 
 export const GEO_RETENTION_DAYS = 30;
 export const GEO_RETENTION_MS = GEO_RETENTION_DAYS * 24 * 3600 * 1000;
+/**
+ * Same fallback as the public client /api/geo function. Geo is best-effort
+ * and spoofable — do not treat this signature as a security boundary.
+ */
 export const GEO_SIGNING_SECRET = 'weltraum-geo-v1';
 
 export function truncateIp(ip: string): string {

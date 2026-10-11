@@ -8,7 +8,14 @@ export const STORE_FULL_IP = false;
 
 export const GEO_RETENTION_DAYS = 30;
 export const GEO_RETENTION_MS = GEO_RETENTION_DAYS * 24 * 3600 * 1000;
-export const GEO_SIGNING_SECRET = 'weltraum-geo-v1';
+/**
+ * Fallback only. The same string is in the public repo, so a signature is
+ * not a security boundary — geo is best-effort and spoofable. Optional
+ * GEO_SIGNING_SECRET on Vercel must stay equal to this fallback (or the
+ * client/module copies) or presence reports are dropped.
+ */
+export const GEO_SIGNING_SECRET =
+  (typeof process !== 'undefined' && process.env?.GEO_SIGNING_SECRET) || 'weltraum-geo-v1';
 
 export function truncateIp(ip: string): string {
   const raw = String(ip || '').trim();
@@ -22,7 +29,7 @@ export function truncateIp(ip: string): string {
   return '';
 }
 
-export function keyedSig(parts: string[], secret = GEO_SIGNING_SECRET): string {
+export function keyedSig(parts: string[], secret = String(GEO_SIGNING_SECRET)): string {
   const body = `${secret}|${parts.join('|')}`;
   let h = 2166136261;
   for (let i = 0; i < body.length; i++) {
