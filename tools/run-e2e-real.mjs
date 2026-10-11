@@ -79,7 +79,7 @@ async function main() {
     }
     console.log('[e2e] publishing module to LOCAL server only (not Maincloud)');
     await run('npm', ['run', 'build'], { cwd: `${ROOT}/server/spacetimedb` });
-    await run('spacetime', ['publish', '--server', 'http://localhost:3000', 'weltraum-dev'], {
+    await run('spacetime', ['publish', '--server', 'http://localhost:3000', '--anonymous', '-y', 'weltraum-dev'], {
       cwd: `${ROOT}/server/spacetimedb`,
     });
   } else {

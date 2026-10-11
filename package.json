@@ -19,7 +19,7 @@
     "spacetime:build": "npm run spacetime:typecheck && cd server/spacetimedb && spacetime build",
     "spacetime:generate": "spacetime generate --lang typescript --module-path server/spacetimedb --out-dir src/lib/module_bindings",
     "spacetime:start": "spacetime start --in-memory",
-    "spacetime:publish:local": "cd server/spacetimedb && spacetime publish --server http://localhost:3000 weltraum-dev"
+    "spacetime:publish:local": "cd server/spacetimedb && spacetime publish --server http://localhost:3000 --anonymous -y weltraum-dev"
   },
   "dependencies": {
     "firebase": "^11.10.0",
