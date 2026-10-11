@@ -48,7 +48,7 @@ describe('first-party Firebase auth proxy', () => {
 
   it('HTML + site CSP keep frame-src self so the first-party handler iframe is allowed', () => {
     expect(HTML).toMatch(/frame-src 'self'/);
-    const siteCsp = VERCEL.headers[0].headers.find((h) => h.key === 'Content-Security-Policy')?.value || '';
+    const siteCsp = VERCEL.headers.find((h) => h.source === '/(.*)')?.headers.find((h) => h.key === 'Content-Security-Policy')?.value || '';
     expect(siteCsp).toMatch(/frame-src 'self'/);
   });
 
