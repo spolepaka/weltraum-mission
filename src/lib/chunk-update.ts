@@ -22,7 +22,10 @@ export function isStaleChunkError(err: unknown): boolean {
 
 export function readGameState(): string {
   try {
-    const info = (window as Window & { __spaceGame?: { simInfo?: () => { state?: string } } }).__spaceGame?.simInfo?.();
+    const g = globalThis as typeof globalThis & {
+      window?: { __spaceGame?: { simInfo?: () => { state?: string } } };
+    };
+    const info = g.window?.__spaceGame?.simInfo?.();
     return info?.state || '';
   } catch {
     return '';
@@ -54,6 +57,7 @@ export function markSoftReloaded(): void {
 }
 
 export function clearSoftReloadGuard(): void {
+  if (reloadArmed) return;
   sessionClear(SOFT_RELOAD_KEY);
 }
 
@@ -93,20 +97,26 @@ export function savePlayState(): void {
 
 export type SoftReloadReason = 'chunk' | 'version';
 
+let reloadArmed = false;
+let pendingVersionReload = false;
+let installed = false;
+
+export function isSoftReloadArmed(): boolean {
+  return reloadArmed;
+}
+
 export function requestSoftReload(reason: SoftReloadReason, reload: () => void = defaultReload): boolean {
   if (alreadySoftReloaded()) {
     showUpdatingToast();
     return false;
   }
+  // Version polls wait for the map. A missing hashed chunk already broke
+  // the action (Account / Online), so save and reload even mid-level.
   if (reason === 'version' && isLevelInProgress()) {
     pendingVersionReload = true;
     return false;
   }
-  if (reason === 'chunk' && isLevelInProgress()) {
-    pendingVersionReload = true;
-    showUpdatingToast();
-    return false;
-  }
+  reloadArmed = true;
   markSoftReloaded();
   savePlayState();
   showUpdatingToast();
@@ -117,9 +127,6 @@ export function requestSoftReload(reason: SoftReloadReason, reload: () => void =
 function defaultReload(): void {
   if (typeof location !== 'undefined') location.reload();
 }
-
-let pendingVersionReload = false;
-let installed = false;
 
 export function takePendingVersionReload(): boolean {
   const next = pendingVersionReload;
@@ -172,17 +179,27 @@ export function installChunkUpdateHandlers(): () => void {
     void checkBuildVersion();
   };
 
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') onFocus();
+  };
+
   window.addEventListener('vite:preloadError', onPreload);
   window.addEventListener('unhandledrejection', onReject);
   window.addEventListener('focus', onFocus);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') onFocus();
-  });
+  document.addEventListener('visibilitychange', onVisible);
 
   return () => {
     window.removeEventListener('vite:preloadError', onPreload);
     window.removeEventListener('unhandledrejection', onReject);
     window.removeEventListener('focus', onFocus);
+    document.removeEventListener('visibilitychange', onVisible);
     installed = false;
   };
+}
+
+export function resetChunkUpdateForTests(): void {
+  reloadArmed = false;
+  pendingVersionReload = false;
+  installed = false;
+  sessionClear(SOFT_RELOAD_KEY);
 }

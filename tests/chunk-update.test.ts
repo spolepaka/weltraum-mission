@@ -7,9 +7,11 @@ import {
   currentBuildId,
   importFresh,
   isLevelInProgress,
+  isSoftReloadArmed,
   isStaleChunkError,
   markSoftReloaded,
   requestSoftReload,
+  resetChunkUpdateForTests,
 } from '../src/lib/chunk-update';
 
 const sess: Record<string, string> = {};
@@ -27,7 +29,8 @@ function stubSession(): void {
 
 afterEach(() => {
   for (const k of Object.keys(sess)) delete sess[k];
-  clearSoftReloadGuard();
+  resetChunkUpdateForTests();
+  delete (globalThis as { window?: unknown }).window;
 });
 
 describe('stale chunk + version reload', () => {
@@ -83,8 +86,31 @@ describe('stale chunk + version reload', () => {
       ok: true,
       json: async () => ({ id: currentBuildId() }),
     })) as unknown as typeof fetch;
-    clearSoftReloadGuard();
+    resetChunkUpdateForTests();
     expect(await checkBuildVersion(same)).toBe(false);
     expect(n).toBe(0);
+  });
+
+  it('does not reload mid-level for a version bump; chunk 404s still save and reload', () => {
+    stubSession();
+    (globalThis as { window?: unknown }).window = {
+      __spaceGame: { simInfo: () => ({ state: 'play' }) },
+    };
+    let n = 0;
+    expect(requestSoftReload('version', () => { n += 1; })).toBe(false);
+    expect(n).toBe(0);
+    expect(alreadySoftReloaded()).toBe(false);
+    expect(requestSoftReload('chunk', () => { n += 1; })).toBe(true);
+    expect(n).toBe(1);
+    expect(alreadySoftReloaded()).toBe(true);
+  });
+
+  it('keeps the session guard if init tries to clear it after arming a reload', () => {
+    stubSession();
+    requestSoftReload('chunk', () => {});
+    expect(isSoftReloadArmed()).toBe(true);
+    clearSoftReloadGuard();
+    expect(alreadySoftReloaded()).toBe(true);
+    expect(sess[SOFT_RELOAD_KEY]).toBe('1');
   });
 });

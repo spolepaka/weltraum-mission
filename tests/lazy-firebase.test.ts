@@ -33,6 +33,14 @@ describe('lazy Firebase / PeerJS wiring', () => {
       key: () => null,
       length: 0,
     } as Storage;
+    (globalThis as { sessionStorage?: Storage }).sessionStorage = {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+      clear: () => {},
+      key: () => null,
+      length: 0,
+    } as Storage;
     expect(needsFirebaseNow()).toBe(false);
   });
 });

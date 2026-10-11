@@ -57,6 +57,21 @@ describe('lazy load network + HTML', { timeout: 45000 }, () => {
     await context.close();
   });
 
+  it('loads Firebase at startup when a pending-redirect flag is set', async () => {
+    const context = await browser.newContext();
+    await context.addInitScript(() => {
+      sessionStorage.setItem('spaceMissionAuthRedirect', '1');
+    });
+    const page = await context.newPage();
+    const urls: string[] = [];
+    page.on('request', (req) => urls.push(req.url()));
+    await page.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForFunction(() => !!(window as { __spaceGame?: unknown }).__spaceGame, { timeout: 20000 });
+    await page.waitForTimeout(800);
+    expect(urls.join('\n')).toMatch(/firebase-auth-impl/i);
+    await context.close();
+  });
+
   it('downloads the Firebase chunk when Account opens, still not PeerJS', async () => {
     const { context, page, urls } = await openGuest();
     expect(urls.join('\n')).not.toMatch(/firebase-auth-impl/i);
