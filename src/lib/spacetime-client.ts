@@ -632,7 +632,8 @@ class SpacetimeClient {
 
   getLevelDataFromCache(level: number): object | null {
     if (!this.connection) return null;
-    const rows = [...this.connection.db.levelData.iter()];
+    const db = this.connection.db as { levelData?: { iter: () => Iterable<{ level: number; dataJson: string }> } };
+    const rows = [...(db.levelData?.iter() ?? [])];
     const row = rows.find(r => r.level === level);
     if (row) {
       try {
@@ -1118,7 +1119,7 @@ class SpacetimeClient {
 
   reportPresence(payload: Record<string, string | number>): void {
     this.queueOrCallReducer(() => {
-      (this.connection?.reducers as { reportPresence?: (a: Record<string, string | number>) => void }).reportPresence?.(payload);
+      (this.connection?.reducers as unknown as { reportPresence?: (a: Record<string, string | number>) => void }).reportPresence?.(payload);
     });
   }
 

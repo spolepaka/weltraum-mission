@@ -32,7 +32,6 @@ export {
 } from './firebase-auth-debug';
 
 import {
-  isAuthConfigured,
   setFirebaseEnvForTests,
   tokenIssuerKind,
   type AuthProviderId,

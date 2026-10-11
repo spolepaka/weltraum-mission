@@ -45,9 +45,7 @@ type GameWin = Window & {
     displayName?: () => string | undefined;
     showHostRoster?: () => string;
     skipTraining?: () => void;
-    startLevel?: (n: number) => void;
     mapBossOverPlanet?: (L?: number) => { toBoss: number; toPlanet: number; closerToBoss: boolean; icon: boolean };
-    unlockTo?: (n: number) => void;
     centerMap?: (i: number) => void;
   };
   __fillTextLog?: string[];
