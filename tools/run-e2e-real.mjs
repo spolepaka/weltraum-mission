@@ -1,8 +1,8 @@
 /**
  * CI-style runner for the production build + Playwright E2E.
  *
- * Default: Maincloud `weltraum-mission` (does NOT publish).
- * Local:   `node tools/run-e2e-real.mjs --local` (in-memory server + weltraum-dev).
+ * Local only: `node tools/run-e2e-real.mjs --local` (in-memory server + weltraum-dev).
+ * Production Maincloud is refused so tests never mint ghost player rows.
  */
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
@@ -63,6 +63,10 @@ async function main() {
   };
   process.on('exit', cleanup);
   process.on('SIGINT', () => { cleanup(); process.exit(1); });
+
+  if (!LOCAL && process.env.E2E_ALLOW_PRODUCTION !== '1') {
+    throw new Error('Refusing to run E2E against Maincloud. Use `npm run test:e2e:local` (or --local).');
+  }
 
   if (LOCAL) {
     if (!(await portOpen(3000))) {

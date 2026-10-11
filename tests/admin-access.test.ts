@@ -66,6 +66,7 @@ describe('admin access', () => {
     const writes = [
       'adminSetCoins', 'adminAddCoins', 'adminUnlockLevel', 'adminGrantShip',
       'adminRemoveShip', 'adminResetProgress', 'adminResetPlayer', 'adminBan', 'adminUnban',
+      'adminSetTestFlag', 'adminPurgeEmptyGuests',
     ];
     for (const name of writes) {
       expect(moduleSrc).toContain(`export const ${name}`);
@@ -85,5 +86,10 @@ describe('admin access', () => {
     expect(main).not.toContain("from './admin'");
     expect(adminTs).toContain('showDenied');
     expect(adminTs).toContain('currentIdToken(true)');
+    expect(adminTs).toContain('Hide empty guests');
+    expect(adminTs).toContain('Mark as test/bot');
+    expect(adminTs).toContain('type PURGE');
+    expect(adminTs).toContain('Coin history');
+    expect(adminTs).toContain('Location (GDPR)');
   });
 });

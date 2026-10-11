@@ -58,6 +58,7 @@ import { loadDifficulty, saveDifficulty, parseDifficulty, type Difficulty } from
 import { isoWeekKey, weeklyChallenge } from './lib/weekly';
 import { loadDoNotTrack, saveDoNotTrack, type AnalyticsKind } from './lib/analytics';
 import { clearSoftReloadGuard, installChunkUpdateHandlers } from './lib/chunk-update';
+import { isAutomatedClient, isBotUserAgent, verifyGeo } from './lib/geo-privacy';
 
 export interface WeltraumApi {
   i18n: {
@@ -103,6 +104,7 @@ export interface WeltraumApi {
   };
   tips: typeof tips;
   onboard: typeof onboard;
+  ensureCloud: () => Promise<boolean>;
   difficulty: {
     current: () => Difficulty;
     set: (mode: Difficulty) => void;
@@ -162,6 +164,7 @@ declare global {
       progress?: () => { unlocked: number; stars: Record<string, number>; best?: Record<string, number> };
       shop?: () => { coins: number; owned: string[]; equipped: string; up?: Record<string, number> };
       applyRemoteShop?: (coins: number) => void;
+      applyRemoteProgress?: (p: { coins?: number; unlocked?: number; ships?: string[]; equipped?: string; name?: string }) => void;
       coop?: Record<string, unknown>;
     };
     __I18N_BUNDLE__?: unknown;
@@ -236,6 +239,8 @@ function applyHigherServerCoins(client: SpacetimeClient): void {
 let importedOnce = false;
 let watchBound = false;
 let authFlowLock = false;
+let pendingGuestHex = '';
+let cloudReady = false;
 const accountListeners: Array<() => void> = [];
 
 function reportAuthFailure(client: SpacetimeClient, err: unknown, path: string): void {
@@ -290,11 +295,37 @@ async function afterProgressReady(client: SpacetimeClient): Promise<void> {
   }
   const unlocked = adoptGameProgress(client);
   syncFromGame(client);
+  pushLocalName(client);
   await client.reconcileWithServer();
-  applyHigherServerCoins(client);
+  const latest = await client.fetchMyProgress();
+  if (latest && loadAuthUser()) applyServerTruth(client, latest);
+  else applyHigherServerCoins(client);
   const cap = Math.max(unlocked, client.getLocalData().unlockedLevel || 1);
   prefetchUnlocked(cap);
   notifyAccount();
+}
+
+function pushLocalName(client: SpacetimeClient): void {
+  const local = loadDisplayName();
+  if (local?.name) client.setDisplayName(local.name, local.kind === 'custom' ? 'custom' : 'generated');
+}
+
+function applyServerTruth(client: SpacetimeClient, remote: { coins: bigint; unlockedLevel: number; ownedShips: string[]; equippedShip: string; displayName?: string }): void {
+  const game = window.__spaceGame;
+  if (remote.displayName) {
+    saveDisplayName({ name: remote.displayName, kind: loadDisplayName()?.kind === 'custom' ? 'custom' : 'generated' });
+  }
+  if (typeof game?.applyRemoteProgress === 'function') {
+    game.applyRemoteProgress({
+      coins: Number(remote.coins),
+      unlocked: remote.unlockedLevel,
+      ships: remote.ownedShips,
+      equipped: remote.equippedShip,
+      name: remote.displayName || loadDisplayName()?.name || '',
+    });
+  } else {
+    applyHigherServerCoins(client);
+  }
 }
 
 async function mergeAfterSignIn(client: SpacetimeClient): Promise<void> {
@@ -302,16 +333,23 @@ async function mergeAfterSignIn(client: SpacetimeClient): Promise<void> {
   const snap = loadAnonSnapshot() || snapshotFromGame();
   if (snap && loadAuthUser()) {
     importedOnce = true;
+    client.ensurePlayerRow();
     client.importProgress(snap);
+    pushLocalName(client);
+    if (pendingGuestHex) client.linkGuestIdentity(pendingGuestHex);
     clearAnonSnapshot();
+    await new Promise((r) => setTimeout(r, 200));
     await client.reconcileWithServer();
-    applyHigherServerCoins(client);
+    const remote = await client.fetchMyProgress();
+    if (remote) applyServerTruth(client, remote);
+    else applyHigherServerCoins(client);
   }
 }
 
 async function connectFirebaseIdentity(client: SpacetimeClient, firstSignIn: boolean): Promise<void> {
   const user = loadAuthUser();
   if (!user?.idToken) return;
+  pendingGuestHex = client.getIdentityHex() || pendingGuestHex;
   if (firstSignIn) {
     const snap = snapshotFromGame();
     if (snap) saveAnonSnapshot(snap);
@@ -324,8 +362,81 @@ async function connectFirebaseIdentity(client: SpacetimeClient, firstSignIn: boo
     await mergeAfterSignIn(client);
   } else {
     await client.reconcileWithServer();
-    applyHigherServerCoins(client);
+    const remote = await client.fetchMyProgress();
+    if (remote) applyServerTruth(client, remote);
+    else applyHigherServerCoins(client);
   }
+}
+
+function pageIsLocal(): boolean {
+  try {
+    const h = window.location.hostname;
+    if (h === 'localhost' || h === '127.0.0.1') return true;
+    const q = new URLSearchParams(window.location.search);
+    const host = `${q.get('stdb_host') || ''} ${q.get('server') || ''}`;
+    return host.includes('localhost') || host.includes('127.0.0.1');
+  } catch {
+    return false;
+  }
+}
+
+function welcomeIsDone(): boolean {
+  try {
+    const raw = localStorage.getItem('spaceMissionOnboard');
+    return !!(raw && /"welcomeDone"\s*:\s*true/.test(raw));
+  } catch {
+    return false;
+  }
+}
+
+function shouldAutoconnect(): boolean {
+  if (isAutomatedClient() && !pageIsLocal()) return false;
+  if (pageIsLocal()) return true;
+  if (loadAuthUser()) return true;
+  if (welcomeIsDone()) return true;
+  return false;
+}
+
+async function sendPresence(client: SpacetimeClient): Promise<void> {
+  if (loadDoNotTrack() || isBotUserAgent(typeof navigator !== 'undefined' ? navigator.userAgent : '')) return;
+  try {
+    const res = await fetch('/api/geo', { cache: 'no-store' });
+    if (!res.ok) return;
+    const body = await res.json() as { country?: string; region?: string; city?: string; ipTrunc?: string; ipFull?: string; iat?: number; sig?: string };
+    if (!body.sig || !verifyGeo({
+      country: body.country || '',
+      region: body.region || '',
+      city: body.city || '',
+      ipTrunc: body.ipTrunc || '',
+      iat: body.iat || 0,
+      sig: body.sig,
+    })) return;
+    client.reportPresence({
+      country: body.country || '',
+      region: body.region || '',
+      city: body.city || '',
+      ipTrunc: body.ipTrunc || '',
+      ipFull: body.ipFull || '',
+      iat: body.iat || 0,
+      sig: body.sig,
+      userAgent: (typeof navigator !== 'undefined' ? navigator.userAgent : '').slice(0, 160),
+    });
+  } catch {
+    // geo is optional
+  }
+}
+
+async function ensureCloudAndReady(client: SpacetimeClient): Promise<boolean> {
+  const ok = client.isConnected() || await initSpacetime();
+  if (!ok) return false;
+  if (!cloudReady) {
+    cloudReady = true;
+    client.ensurePlayerRow();
+    pushLocalName(client);
+    void sendPresence(client);
+    await afterProgressReady(client);
+  }
+  return true;
 }
 
 function installApi(client: SpacetimeClient): WeltraumApi {
@@ -393,12 +504,14 @@ function installApi(client: SpacetimeClient): WeltraumApi {
         if (!checked.ok) return checked;
         saveDisplayName({ name: checked.name, kind });
         client.setDisplayName(checked.name, kind);
+        void ensureCloudAndReady(client);
         notifyAccount();
         return checked;
       },
     },
     tips,
     onboard,
+    ensureCloud: () => ensureCloudAndReady(client),
     difficulty: {
       current: () => loadDifficulty(),
       set: (mode) => {
@@ -619,16 +732,18 @@ async function init(): Promise<void> {
     reportAuthFailure(client, err, 'redirect');
   }
 
-  const connected = await initSpacetime();
+  const connected = shouldAutoconnect() ? await initSpacetime() : false;
   if (connected) {
     console.log('[Weltraum] SpacetimeDB connected', client.getIdentityHex());
     if (signed) {
       await connectFirebaseIdentity(client, true);
-    } else if (loadAuthUser()) {
-      await mergeAfterSignIn(client);
+      await ensureCloudAndReady(client);
+    } else if (loadAuthUser() || welcomeIsDone()) {
+      if (loadAuthUser()) await mergeAfterSignIn(client);
+      await ensureCloudAndReady(client);
+    } else {
+      showGameSync('saved');
     }
-    await afterProgressReady(client);
-    showGameSync('saved');
     notifyAccount();
   } else {
     console.log('[Weltraum] Running in offline mode (local cache)');

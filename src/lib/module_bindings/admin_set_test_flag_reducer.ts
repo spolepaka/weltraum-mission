@@ -10,8 +10,7 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.row({
-  level: __t.u32().primaryKey(),
-  minUnlockedLevel: __t.u32().name("min_unlocked_level"),
-  dataJson: __t.string().name("data_json"),
-});
+export default {
+  targetHex: __t.string(),
+  testBot: __t.bool(),
+};

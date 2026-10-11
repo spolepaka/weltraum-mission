@@ -10,6 +10,7 @@ import { nameKey, uniquifyDisplayName, validateDisplayName, type NameKind } from
 import { plausibleLegacyUnlock } from './legacy-import';
 import { maxCoinsForLevel } from './economy';
 import { bindAdminCtx, inspectSenderAuth, isAdminEmail, isAdminUid } from './admin';
+import { GEO_RETENTION_MS, STORE_FULL_IP, isEmptyGuestRow, verifyGeo } from './geo';
 
 /** Account-linked only. Do not call from guest gameplay — local hosts trap on JWT lookup. */
 function assertTrusted(ctx: { senderAuth?: { hasJWT: boolean; isInternal?: boolean; jwt?: { issuer?: string } | null } }): void {
@@ -239,6 +240,60 @@ const spacetimedb = schema({
       reason: t.string(),
     }
   ),
+
+  playerLink: table(
+    { public: false },
+    {
+      id: t.u64().autoInc().primaryKey(),
+      primaryIdentity: t.identity().index('btree'),
+      linkedHex: t.string(),
+      kind: t.string(),
+    }
+  ),
+
+  coinEvent: table(
+    { public: false },
+    {
+      id: t.u64().autoInc().primaryKey(),
+      identity: t.identity().index('btree'),
+      at: t.timestamp(),
+      amount: t.i64(),
+      reason: t.string(),
+      level: t.u32(),
+    }
+  ),
+
+  playerPresence: table(
+    { public: false },
+    {
+      id: t.u64().autoInc().primaryKey(),
+      identity: t.identity().index('btree'),
+      at: t.timestamp(),
+      country: t.string(),
+      region: t.string(),
+      city: t.string(),
+      ipTrunc: t.string(),
+      ipFull: t.string(),
+      userAgent: t.string(),
+    }
+  ),
+
+  playerFlag: table(
+    { public: false },
+    {
+      identity: t.identity().primaryKey(),
+      testBot: t.bool(),
+    }
+  ),
+
+  playerSession: table(
+    { public: false },
+    {
+      identity: t.identity().primaryKey(),
+      count: t.u32(),
+      roomsJoined: t.u32(),
+    }
+  ),
   
   errorReport: table(
     { public: false },
@@ -326,6 +381,54 @@ function identityKey(id: { toHexString?: () => string } | string): string {
   try { return id.toHexString?.() || String(id); } catch { return String(id); }
 }
 
+function writeCoinEvent(ctx: AnyCtx, identity: AnyCtx, amount: bigint, reason: string, level = 0): void {
+  ctx.db.coinEvent.insert({
+    id: BigInt(0),
+    identity,
+    at: ctx.timestamp,
+    amount,
+    reason: reason.slice(0, 40),
+    level,
+  });
+}
+
+function ensurePlayer(ctx: AnyCtx): void {
+  const identity = ctx.sender;
+  const now = ctx.timestamp;
+  const existingPlayer = ctx.db.player.identity.find(identity);
+  if (existingPlayer) {
+    ctx.db.player.identity.update({ ...existingPlayer, lastSeenAt: now });
+    return;
+  }
+  ctx.db.player.insert({
+    identity,
+    createdAt: now,
+    lastSeenAt: now,
+    language: 'en',
+  });
+  ctx.db.playerProgress.insert({
+    identity,
+    unlockedLevel: 1,
+    totalScore: BigInt(0),
+  });
+  ctx.db.playerShop.insert({
+    identity,
+    coins: BigInt(0),
+    equippedShip: 'starter',
+  });
+  ctx.db.ownedShip.insert({ identity, shipId: 'starter' });
+  ctx.db.playerSettings.insert({
+    identity,
+    muted: false,
+    twoPlayerMode: false,
+    ghostMode: true,
+  });
+  const defaultUpgrades = ['heart', 'rate', 'dmg', 'dur', 'mag'];
+  for (const upgradeId of defaultUpgrades) {
+    ctx.db.playerUpgrades.insert({ identity, upgradeId, level: 0 });
+  }
+}
+
 function writeAudit(ctx: AnyCtx, action: string, targetKey: string, detail: unknown): void {
   ctx.db.adminAudit.insert({
     id: BigInt(0),
@@ -380,51 +483,16 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
   seedLevelCatalog(ctx);
   const identity = ctx.sender;
   const now = ctx.timestamp;
-  
   const existingPlayer = ctx.db.player.identity.find(identity);
-  
-  if (!existingPlayer) {
-    ctx.db.player.insert({
-      identity,
-      createdAt: now,
-      lastSeenAt: now,
-      language: 'en',
-    });
-    
-    ctx.db.playerProgress.insert({
-      identity,
-      unlockedLevel: 1,
-      totalScore: BigInt(0),
-    });
-    
-    ctx.db.playerShop.insert({
-      identity,
-      coins: BigInt(0),
-      equippedShip: 'starter',
-    });
-    
-    ctx.db.ownedShip.insert({ identity, shipId: 'starter' });
-    
-    ctx.db.playerSettings.insert({
-      identity,
-      muted: false,
-      twoPlayerMode: false,
-      ghostMode: true,
-    });
-    
-    const defaultUpgrades = ['heart', 'rate', 'dmg', 'dur', 'mag'];
-    for (const upgradeId of defaultUpgrades) {
-      ctx.db.playerUpgrades.insert({ identity, upgradeId, level: 0 });
-    }
-    
-    console.info(`New player connected: ${identity}`);
-  } else {
+  if (existingPlayer) {
     ctx.db.player.identity.update({ ...existingPlayer, lastSeenAt: now });
-    console.info(`Returning player connected: ${identity}`);
   }
 
   const { email, sub } = readJwtEmail(ctx);
   if (email) {
+    // Signed-in Google users are real people — mint the row. Guests wait for
+    // ensurePlayerRow / a meaningful action so crawlers and empty tabs stay out.
+    if (!existingPlayer) ensurePlayer(ctx);
     const acc = ctx.db.playerAccount.identity.find(identity);
     if (acc) ctx.db.playerAccount.identity.update({ ...acc, email, firebaseSub: sub });
     else ctx.db.playerAccount.insert({ identity, email, firebaseSub: sub });
@@ -462,9 +530,9 @@ export const syncProgress = spacetimedb.reducer(
   (ctx, data) => {
     assertNotBanned(ctx);
     const identity = ctx.sender;
-    
+    if (!ctx.db.player.identity.find(identity)) return;
     const progress = ctx.db.playerProgress.identity.find(identity);
-    if (!progress) throw new Error('Progress record not found');
+    if (!progress) return;
     
     const newUnlocked = clamp(data.unlockedLevel, 1, MAX_LEVEL);
     const serverUnlocked = progress.unlockedLevel;
@@ -561,6 +629,7 @@ export const completeLevelResult = spacetimedb.reducer(
   },
   (ctx, result) => {
     assertNotBanned(ctx);
+    ensurePlayer(ctx);
     const identity = ctx.sender;
     
     if (!validateLevel(result.level)) {
@@ -585,6 +654,7 @@ export const completeLevelResult = spacetimedb.reducer(
     
     const mode = result.mode === 'easy' || result.mode === 'veteran' ? result.mode : 'normal';
     const maxCoins = BigInt(maxCoinsForLevel(result.level, mode));
+    ensurePlayer(ctx);
     if (result.coinsEarned > maxCoins) {
       throw new Error('Coins exceed maximum for this level');
     }
@@ -634,6 +704,7 @@ export const completeLevelResult = spacetimedb.reducer(
       const newCoins = shop.coins + result.coinsEarned;
       const clampedCoins = newCoins > BigInt(MAX_COINS) ? BigInt(MAX_COINS) : newCoins;
       ctx.db.playerShop.identity.update({ ...shop, coins: clampedCoins });
+      if (result.coinsEarned > 0n) writeCoinEvent(ctx, identity, result.coinsEarned, 'level', result.level);
     }
     
     let totalScore = BigInt(0);
@@ -1032,6 +1103,7 @@ export const addCoins = spacetimedb.reducer(
   { amount: t.u64() },
   (ctx, { amount }) => {
     assertNotBanned(ctx);
+    ensurePlayer(ctx);
     const identity = ctx.sender;
     if (amount <= BigInt(0)) return;
     const perCall = BigInt(maxCoinsForLevel(MAX_LEVEL, 'veteran'));
@@ -1041,6 +1113,7 @@ export const addCoins = spacetimedb.reducer(
     const next = shop.coins + amount;
     const clamped = next > BigInt(MAX_COINS) ? BigInt(MAX_COINS) : next;
     ctx.db.playerShop.identity.update({ ...shop, coins: clamped });
+    writeCoinEvent(ctx, identity, amount, 'add', 0);
   }
 );
 
@@ -1056,6 +1129,7 @@ export const importProgress = spacetimedb.reducer(
   },
   (ctx, data) => {
     assertTrusted(ctx);
+    ensurePlayer(ctx);
     const identity = ctx.sender;
     const progress = ctx.db.playerProgress.identity.find(identity);
     if (!progress) throw new Error('Progress not found');
@@ -1150,6 +1224,7 @@ export const legacyImport = spacetimedb.reducer(
     language: t.string(),
   },
   (ctx, data) => {
+    ensurePlayer(ctx);
     const identity = ctx.sender;
     if (ctx.db.playerLegacyImport.identity.find(identity)) {
       throw new Error('Legacy import already used');
@@ -1375,6 +1450,7 @@ export const getAnalyticsFunnel = spacetimedb.procedure(
 export const setDisplayName = spacetimedb.reducer(
   { name: t.string(), kind: t.string() },
   (ctx, { name, kind }) => {
+    ensurePlayer(ctx);
     const identity = ctx.sender;
     const nameKind = (kind === 'custom' ? 'custom' : 'generated') as NameKind;
     // Custom names are allowed for every identity (guest and signed-in).
@@ -1423,6 +1499,7 @@ export const getMyProgress = spacetimedb.procedure(
     language: t.string(),
     totalScore: t.u64(),
     legacyImported: t.bool(),
+    displayName: t.string(),
   })),
   (ctx) => {
     return ctx.withTx(txCtx => {
@@ -1435,6 +1512,7 @@ export const getMyProgress = spacetimedb.procedure(
       for (const s of txCtx.db.ownedShip.identity.filter(identity)) {
         ships.push(s.shipId);
       }
+      const profile = txCtx.db.playerProfile.identity.find(identity);
       return {
         unlockedLevel: progress.unlockedLevel,
         coins: shop.coins,
@@ -1443,6 +1521,7 @@ export const getMyProgress = spacetimedb.procedure(
         language: player?.language || 'en',
         totalScore: progress.totalScore,
         legacyImported: !!txCtx.db.playerLegacyImport.identity.find(identity),
+        displayName: profile?.displayName || '',
       };
     });
   }
@@ -1455,6 +1534,103 @@ function findPlayerIdentity(db: AnyCtx, hex: string): AnyCtx {
     if (have === want || have.startsWith(want) || want.startsWith(have)) return p.identity;
   }
   return null;
+}
+
+function copyNameIfMissing(ctx: AnyCtx, destIdent: AnyCtx, srcIdent: AnyCtx): void {
+  const srcProfile = ctx.db.playerProfile.identity.find(srcIdent);
+  if (!srcProfile?.displayName) return;
+  const destProfile = ctx.db.playerProfile.identity.find(destIdent);
+  if (destProfile?.displayName) return;
+  if (destProfile) {
+    ctx.db.playerProfile.identity.update({
+      ...destProfile,
+      displayName: srcProfile.displayName,
+      nameKind: srcProfile.nameKind,
+    });
+    return;
+  }
+  ctx.db.playerProfile.insert({
+    identity: destIdent,
+    displayName: srcProfile.displayName,
+    nameKind: srcProfile.nameKind,
+  });
+}
+
+/** Prefer max/union so a kid never loses guest progress when they sign in. */
+function mergeLinkedProgress(ctx: AnyCtx, destIdent: AnyCtx, srcIdent: AnyCtx): void {
+  if (!destIdent || !srcIdent) return;
+  if (identityKey(destIdent) === identityKey(srcIdent)) return;
+  const srcAcc = ctx.db.playerAccount.identity.find(srcIdent);
+  if (srcAcc?.email) return;
+
+  const srcProgress = ctx.db.playerProgress.identity.find(srcIdent);
+  const destProgress = ctx.db.playerProgress.identity.find(destIdent);
+  if (srcProgress && destProgress) {
+    const unlocked = Math.max(srcProgress.unlockedLevel, destProgress.unlockedLevel);
+    const totalScore = srcProgress.totalScore > destProgress.totalScore ? srcProgress.totalScore : destProgress.totalScore;
+    if (unlocked !== destProgress.unlockedLevel || totalScore !== destProgress.totalScore) {
+      ctx.db.playerProgress.identity.update({ ...destProgress, unlockedLevel: unlocked, totalScore });
+    }
+  }
+
+  const srcShop = ctx.db.playerShop.identity.find(srcIdent);
+  const destShop = ctx.db.playerShop.identity.find(destIdent);
+  if (srcShop && destShop) {
+    const coins = srcShop.coins > destShop.coins ? srcShop.coins : destShop.coins;
+    const equip = destShop.equippedShip !== 'starter' ? destShop.equippedShip : srcShop.equippedShip;
+    if (coins !== destShop.coins || equip !== destShop.equippedShip) {
+      ctx.db.playerShop.identity.update({ ...destShop, coins, equippedShip: equip });
+    }
+    if (coins > destShop.coins) writeCoinEvent(ctx, destIdent, BigInt(coins) - BigInt(destShop.coins), 'link_merge', 0);
+  }
+
+  for (const s of ctx.db.ownedShip.identity.filter(srcIdent)) {
+    let owned = false;
+    for (const d of ctx.db.ownedShip.identity.filter(destIdent)) {
+      if (d.shipId === s.shipId) { owned = true; break; }
+    }
+    if (!owned) ctx.db.ownedShip.insert({ identity: destIdent, shipId: s.shipId });
+  }
+
+  for (const s of ctx.db.levelStars.identity.filter(srcIdent)) {
+    let existing: { identity: AnyCtx; level: number; stars: number; bestScore: bigint } | null = null;
+    for (const d of ctx.db.levelStars.identity.filter(destIdent)) {
+      if (d.level === s.level) { existing = d; break; }
+    }
+    if (!existing) {
+      ctx.db.levelStars.insert({ identity: destIdent, level: s.level, stars: s.stars, bestScore: s.bestScore });
+    } else if (s.stars > existing.stars || (s.stars === existing.stars && s.bestScore > existing.bestScore)) {
+      ctx.db.levelStars.delete(existing);
+      ctx.db.levelStars.insert({
+        identity: destIdent,
+        level: s.level,
+        stars: s.stars > existing.stars ? s.stars : existing.stars,
+        bestScore: s.bestScore > existing.bestScore ? s.bestScore : existing.bestScore,
+      });
+    }
+  }
+
+  for (const a of ctx.db.playerAchievements.identity.filter(srcIdent)) {
+    let have = false;
+    for (const d of ctx.db.playerAchievements.identity.filter(destIdent)) {
+      if (d.achievementId === a.achievementId) { have = true; break; }
+    }
+    if (!have) ctx.db.playerAchievements.insert({ identity: destIdent, achievementId: a.achievementId, unlockedAt: a.unlockedAt });
+  }
+
+  copyNameIfMissing(ctx, destIdent, srcIdent);
+}
+
+function displayNameFor(db: AnyCtx, ident: AnyCtx): string {
+  const profile = db.playerProfile.identity.find(ident);
+  if (profile?.displayName) return profile.displayName;
+  for (const l of db.playerLink.primaryIdentity.filter(ident)) {
+    const guest = findPlayerIdentity(db, l.linkedHex);
+    if (!guest) continue;
+    const gp = db.playerProfile.identity.find(guest);
+    if (gp?.displayName) return gp.displayName;
+  }
+  return '';
 }
 
 export const adminMe = spacetimedb.procedure(
@@ -1500,23 +1676,52 @@ export const adminStats = spacetimedb.procedure(
     players: t.u32(),
     activeWeek: t.u32(),
     gamesPlayed: t.u64(),
+    emptyGuests: t.u32(),
+    signedIn: t.u32(),
   })),
   (ctx) => {
     return ctx.withTx(txCtx => {
       assertAdmin(bindAdminCtx(ctx, txCtx) as never);
       let players = 0;
       let activeWeek = 0;
+      let emptyGuests = 0;
+      let signedIn = 0;
       const now = Number(txCtx.timestamp.microsSinceUnixEpoch || 0n);
       const weekUs = 7 * 24 * 3600 * 1_000_000;
       for (const p of txCtx.db.player.iter()) {
         players += 1;
         const seen = Number((p.lastSeenAt as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || 0n);
         if (now && seen && now - seen < weekUs) activeWeek += 1;
+        const acc = txCtx.db.playerAccount.identity.find(p.identity);
+        if (acc?.email) signedIn += 1;
+        const profile = txCtx.db.playerProfile.identity.find(p.identity);
+        const shop = txCtx.db.playerShop.identity.find(p.identity);
+        const progress = txCtx.db.playerProgress.identity.find(p.identity);
+        const banned = !!txCtx.db.playerBan.identity.find(p.identity);
+        const flag = txCtx.db.playerFlag.identity.find(p.identity);
+        let extraShips = 0;
+        for (const s of txCtx.db.ownedShip.identity.filter(p.identity)) {
+          if (s.shipId !== 'starter') extraShips += 1;
+        }
+        let starCount = 0;
+        for (const s of txCtx.db.levelStars.identity.filter(p.identity)) {
+          if (s.stars > 0) starCount += 1;
+        }
+        if (isEmptyGuestRow({
+          email: acc?.email || '',
+          username: profile?.displayName || '',
+          coins: shop?.coins ?? 0n,
+          unlocked: progress?.unlockedLevel ?? 1,
+          extraShips,
+          banned,
+          testBot: !!flag?.testBot,
+          starCount,
+        })) emptyGuests += 1;
       }
       let gamesPlayed = 0n;
       const win = txCtx.db.analyticsCounter.key.find('kind:level_win');
       if (win) gamesPlayed = win.count;
-      return { players, activeWeek, gamesPlayed };
+      return { players, activeWeek, gamesPlayed, emptyGuests, signedIn };
     });
   }
 );
@@ -1531,6 +1736,8 @@ export const adminListPlayers = spacetimedb.procedure(
       assertAdmin(bindAdminCtx(ctx, txCtx) as never);
       const q = query.trim().toLowerCase();
       const rows: Array<Record<string, string | number | boolean>> = [];
+      const now = Number(txCtx.timestamp.microsSinceUnixEpoch || 0n);
+      const dayUs = 24 * 3600 * 1_000_000;
       for (const p of txCtx.db.player.iter()) {
         const id = identityKey(p.identity);
         const progress = txCtx.db.playerProgress.identity.find(p.identity);
@@ -1538,11 +1745,34 @@ export const adminListPlayers = spacetimedb.procedure(
         const profile = txCtx.db.playerProfile.identity.find(p.identity);
         const acc = txCtx.db.playerAccount.identity.find(p.identity);
         const banned = !!txCtx.db.playerBan.identity.find(p.identity);
+        const flag = txCtx.db.playerFlag.identity.find(p.identity);
         const ships: string[] = [];
-        for (const s of txCtx.db.ownedShip.identity.filter(p.identity)) ships.push(s.shipId);
-        const username = profile?.displayName || '';
+        let extraShips = 0;
+        for (const s of txCtx.db.ownedShip.identity.filter(p.identity)) {
+          ships.push(s.shipId);
+          if (s.shipId !== 'starter') extraShips += 1;
+        }
+        let starCount = 0;
+        for (const s of txCtx.db.levelStars.identity.filter(p.identity)) {
+          if (s.stars > 0) starCount += 1;
+        }
+        const linked: string[] = [];
+        for (const l of txCtx.db.playerLink.primaryIdentity.filter(p.identity)) linked.push(l.linkedHex);
+        let linkedTo = '';
+        for (const l of txCtx.db.playerLink.iter()) {
+          if (l.linkedHex.replace(/^0x/i, '').toLowerCase() === id.replace(/^0x/i, '').toLowerCase()) {
+            linkedTo = identityKey(l.primaryIdentity);
+            break;
+          }
+        }
+        const username = displayNameFor(txCtx.db, p.identity);
         const email = acc?.email || '';
-        const blob = `${id} ${username} ${email}`.toLowerCase();
+        const lastSeen = Number((p.lastSeenAt as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || 0n);
+        const emptyGuest = isEmptyGuestRow({
+          email, username, coins: shop?.coins ?? 0n, unlocked: progress?.unlockedLevel ?? 1,
+          extraShips, banned, testBot: !!flag?.testBot, starCount,
+        });
+        const blob = `${id} ${username} ${email} ${linked.join(' ')}`.toLowerCase();
         if (q && !blob.includes(q)) continue;
         rows.push({
           id,
@@ -1555,10 +1785,16 @@ export const adminListPlayers = spacetimedb.procedure(
           lastSeen: String((p.lastSeenAt as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || ''),
           created: String((p.createdAt as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || ''),
           banned,
+          testBot: !!flag?.testBot,
+          emptyGuest,
+          signedIn: !!email,
+          activeToday: !!(now && lastSeen && now - lastSeen < dayUs),
+          linkedIds: linked.join(','),
+          linkedTo,
         });
       }
       rows.sort((a, b) => String(b.lastSeen).localeCompare(String(a.lastSeen)));
-      return { rowsJson: JSON.stringify(rows.slice(0, 400)) };
+      return { rowsJson: JSON.stringify(rows.slice(0, 800)) };
     });
   }
 );
@@ -1578,21 +1814,83 @@ export const adminGetPlayer = spacetimedb.procedure(
       const profile = txCtx.db.playerProfile.identity.find(ident);
       const acc = txCtx.db.playerAccount.identity.find(ident);
       const banned = txCtx.db.playerBan.identity.find(ident);
+      const flag = txCtx.db.playerFlag.identity.find(ident);
+      const sess = txCtx.db.playerSession.identity.find(ident);
+      const player = txCtx.db.player.identity.find(ident);
       const ships: string[] = [];
       for (const s of txCtx.db.ownedShip.identity.filter(ident)) ships.push(s.shipId);
-      const stars: Record<string, number> = {};
-      for (const s of txCtx.db.levelStars.identity.filter(ident)) stars[String(s.level)] = s.stars;
+      const stars: Record<string, { stars: number; best: string }> = {};
+      for (const s of txCtx.db.levelStars.identity.filter(ident)) {
+        stars[String(s.level)] = { stars: s.stars, best: String(s.bestScore) };
+      }
+      const ach: string[] = [];
+      for (const a of txCtx.db.playerAchievements.identity.filter(ident)) ach.push(a.achievementId);
+      const linked: string[] = [];
+      for (const l of txCtx.db.playerLink.primaryIdentity.filter(ident)) linked.push(`${l.kind}:${l.linkedHex}`);
+      const now = Number(txCtx.timestamp.microsSinceUnixEpoch || 0n);
+      const retain = GEO_RETENTION_MS * 1000;
+      const presence: Array<Record<string, string>> = [];
+      for (const pr of txCtx.db.playerPresence.identity.filter(ident)) {
+        const at = Number((pr.at as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || 0n);
+        if (now && at && now - at > retain) continue;
+        presence.push({
+          at: String(at),
+          country: pr.country,
+          region: pr.region,
+          city: pr.city,
+          ipTrunc: pr.ipTrunc,
+          ipFull: STORE_FULL_IP ? pr.ipFull : '',
+          userAgent: pr.userAgent,
+        });
+      }
+      presence.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+      const coins: Array<Record<string, string | number>> = [];
+      for (const ev of txCtx.db.coinEvent.identity.filter(ident)) {
+        coins.push({
+          at: String((ev.at as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || ''),
+          amount: String(ev.amount),
+          reason: ev.reason,
+          level: ev.level,
+        });
+      }
+      coins.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+      const audit: Array<Record<string, string>> = [];
+      const hex = identityKey(ident);
+      for (const a of txCtx.db.adminAudit.iter()) {
+        if (String(a.targetKey).toLowerCase().replace(/^0x/, '').startsWith(hex.replace(/^0x/i, '').slice(0, 10).toLowerCase())
+          || String(a.targetKey).toLowerCase().includes(hex.replace(/^0x/i, '').toLowerCase())) {
+          audit.push({
+            at: String((a.at as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || ''),
+            action: a.action,
+            detail: a.detail,
+          });
+        }
+      }
       return {
         rowJson: JSON.stringify({
-          id: identityKey(ident),
-          username: profile?.displayName || '',
+          id: hex,
+          username: displayNameFor(txCtx.db, ident) || profile?.displayName || '',
           email: acc?.email || '',
+          firebaseSub: acc?.firebaseSub || '',
           coins: String(shop?.coins ?? 0n),
           unlocked: progress?.unlockedLevel ?? 1,
+          equipped: shop?.equippedShip || 'starter',
           ships: ships.join(','),
           stars,
+          achievements: ach.join(','),
           banned: !!banned,
           banReason: banned?.reason || '',
+          testBot: !!flag?.testBot,
+          sessions: sess?.count || 0,
+          roomsJoined: sess?.roomsJoined || 0,
+          linkedIds: linked.join(','),
+          created: String((player?.createdAt as { microsSinceUnixEpoch?: bigint })?.microsSinceUnixEpoch || ''),
+          lastSeen: String((player?.lastSeenAt as { microsSinceUnixEpoch?: bigint })?.microsSinceUnixEpoch || ''),
+          language: player?.language || '',
+          presence: presence.slice(0, 20),
+          coinHistory: coins.slice(0, 40),
+          audit: audit.slice(0, 40),
+          storeFullIp: STORE_FULL_IP,
         }),
       };
     });
@@ -1608,7 +1906,9 @@ export const adminSetCoins = spacetimedb.reducer(
     const shop = ctx.db.playerShop.identity.find(ident);
     if (!shop) throw new Error('Shop not found');
     const next = coins > BigInt(MAX_COINS) ? BigInt(MAX_COINS) : coins;
+    const delta = next - shop.coins;
     ctx.db.playerShop.identity.update({ ...shop, coins: next });
+    writeCoinEvent(ctx, ident, delta, 'admin_set', 0);
     writeAudit(ctx, 'set_coins', targetHex, { coins: String(next) });
   }
 );
@@ -1625,6 +1925,7 @@ export const adminAddCoins = spacetimedb.reducer(
     if (next < 0n) next = 0n;
     if (next > BigInt(MAX_COINS)) next = BigInt(MAX_COINS);
     ctx.db.playerShop.identity.update({ ...shop, coins: next });
+    writeCoinEvent(ctx, ident, delta, 'admin_add', 0);
     writeAudit(ctx, 'add_coins', targetHex, { delta: String(delta), coins: String(next) });
   }
 );
@@ -1731,5 +2032,151 @@ export const adminUnban = spacetimedb.reducer(
     const existing = ctx.db.playerBan.identity.find(ident);
     if (existing) ctx.db.playerBan.delete(existing);
     writeAudit(ctx, 'unban', targetHex, {});
+  }
+);
+
+export const ensurePlayerRow = spacetimedb.reducer(
+  {},
+  (ctx) => {
+    assertNotBanned(ctx);
+    ensurePlayer(ctx);
+  }
+);
+
+export const linkGuestIdentity = spacetimedb.reducer(
+  { guestHex: t.string() },
+  (ctx, { guestHex }) => {
+    ensurePlayer(ctx);
+    const hex = guestHex.replace(/^0x/i, '').toLowerCase().slice(0, 64);
+    if (hex.length < 8) return;
+    if (hex === identityKey(ctx.sender).replace(/^0x/i, '').toLowerCase()) return;
+    let already = false;
+    for (const l of ctx.db.playerLink.primaryIdentity.filter(ctx.sender)) {
+      if (l.linkedHex === hex) already = true;
+    }
+    if (!already) {
+      ctx.db.playerLink.insert({ id: BigInt(0), primaryIdentity: ctx.sender, linkedHex: hex, kind: 'guest' });
+    }
+    const guest = findPlayerIdentity(ctx.db, hex);
+    if (guest) mergeLinkedProgress(ctx, ctx.sender, guest);
+  }
+);
+
+export const reportPresence = spacetimedb.reducer(
+  {
+    country: t.string(),
+    region: t.string(),
+    city: t.string(),
+    ipTrunc: t.string(),
+    ipFull: t.string(),
+    iat: t.u64(),
+    sig: t.string(),
+    userAgent: t.string(),
+  },
+  (ctx, data) => {
+    if (!ctx.db.player.identity.find(ctx.sender)) return;
+    const ok = verifyGeo({
+      country: data.country,
+      region: data.region,
+      city: data.city,
+      ipTrunc: data.ipTrunc,
+      iat: Number(data.iat),
+      sig: data.sig,
+    }, Date.now());
+    if (!ok) return;
+    const now = Number(ctx.timestamp.microsSinceUnixEpoch || 0n);
+    const retain = GEO_RETENTION_MS * 1000;
+    for (const old of [...ctx.db.playerPresence.identity.filter(ctx.sender)]) {
+      const at = Number((old.at as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || 0n);
+      if (now && at && now - at > retain) ctx.db.playerPresence.delete(old);
+    }
+    ctx.db.playerPresence.insert({
+      id: BigInt(0),
+      identity: ctx.sender,
+      at: ctx.timestamp,
+      country: data.country.slice(0, 8),
+      region: data.region.slice(0, 16),
+      city: data.city.slice(0, 48),
+      ipTrunc: data.ipTrunc.slice(0, 48),
+      ipFull: STORE_FULL_IP ? data.ipFull.slice(0, 64) : '',
+      userAgent: data.userAgent.slice(0, 160),
+    });
+    const sess = ctx.db.playerSession.identity.find(ctx.sender);
+    if (sess) ctx.db.playerSession.identity.update({ ...sess, count: sess.count + 1 });
+    else ctx.db.playerSession.insert({ identity: ctx.sender, count: 1, roomsJoined: 0 });
+  }
+);
+
+export const reportMpJoin = spacetimedb.reducer(
+  {},
+  (ctx) => {
+    ensurePlayer(ctx);
+    const sess = ctx.db.playerSession.identity.find(ctx.sender);
+    if (sess) ctx.db.playerSession.identity.update({ ...sess, roomsJoined: sess.roomsJoined + 1 });
+    else ctx.db.playerSession.insert({ identity: ctx.sender, count: 1, roomsJoined: 1 });
+  }
+);
+
+export const adminSetTestFlag = spacetimedb.reducer(
+  { targetHex: t.string(), testBot: t.bool() },
+  (ctx, { targetHex, testBot }) => {
+    assertAdmin(ctx);
+    const ident = findPlayerIdentity(ctx.db, targetHex);
+    if (!ident) throw new Error('Player not found');
+    const existing = ctx.db.playerFlag.identity.find(ident);
+    if (existing) ctx.db.playerFlag.identity.update({ ...existing, testBot });
+    else ctx.db.playerFlag.insert({ identity: ident, testBot });
+    writeAudit(ctx, 'set_test_flag', targetHex, { testBot });
+  }
+);
+
+export const adminPurgeEmptyGuests = spacetimedb.reducer(
+  { olderDays: t.u32(), confirm: t.string() },
+  (ctx, { olderDays, confirm }) => {
+    assertAdmin(ctx);
+    if (confirm !== 'PURGE') throw new Error('Confirmation required');
+    const days = Math.max(1, Math.min(365, olderDays || 14));
+    const now = Number(ctx.timestamp.microsSinceUnixEpoch || 0n);
+    const cutoff = now - days * 24 * 3600 * 1_000_000;
+    let removed = 0;
+    for (const p of [...ctx.db.player.iter()]) {
+      const last = Number((p.lastSeenAt as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || 0n);
+      if (!last || last > cutoff) continue;
+      const acc = ctx.db.playerAccount.identity.find(p.identity);
+      const profile = ctx.db.playerProfile.identity.find(p.identity);
+      const shop = ctx.db.playerShop.identity.find(p.identity);
+      const progress = ctx.db.playerProgress.identity.find(p.identity);
+      const banned = !!ctx.db.playerBan.identity.find(p.identity);
+      const flag = ctx.db.playerFlag.identity.find(p.identity);
+      let extraShips = 0;
+      for (const s of ctx.db.ownedShip.identity.filter(p.identity)) {
+        if (s.shipId !== 'starter') extraShips += 1;
+      }
+      let starCount = 0;
+      for (const s of ctx.db.levelStars.identity.filter(p.identity)) {
+        if (s.stars > 0) starCount += 1;
+      }
+      if (!isEmptyGuestRow({
+        email: acc?.email || '',
+        username: profile?.displayName || '',
+        coins: shop?.coins ?? 0n,
+        unlocked: progress?.unlockedLevel ?? 1,
+        extraShips,
+        banned,
+        testBot: !!flag?.testBot,
+        starCount,
+      })) continue;
+      for (const s of [...ctx.db.ownedShip.identity.filter(p.identity)]) ctx.db.ownedShip.delete(s);
+      for (const s of [...ctx.db.levelStars.identity.filter(p.identity)]) ctx.db.levelStars.delete(s);
+      for (const u of [...ctx.db.playerUpgrades.identity.filter(p.identity)]) ctx.db.playerUpgrades.delete(u);
+      if (shop) ctx.db.playerShop.delete(shop);
+      if (progress) ctx.db.playerProgress.delete(progress);
+      const settings = ctx.db.playerSettings.identity.find(p.identity);
+      if (settings) ctx.db.playerSettings.delete(settings);
+      ctx.db.player.delete(p);
+      removed += 1;
+      if (removed >= 200) break;
+    }
+    writeAudit(ctx, 'purge_empty_guests', 'bulk', { olderDays: days, removed });
   }
 );

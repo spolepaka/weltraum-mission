@@ -41,6 +41,8 @@ export const AdminStatsResult = __t.object("AdminStatsResult", {
   players: __t.u32(),
   activeWeek: __t.u32(),
   gamesPlayed: __t.u64(),
+  emptyGuests: __t.u32(),
+  signedIn: __t.u32(),
 });
 export type AdminStatsResult = __Infer<typeof AdminStatsResult>;
 
@@ -72,6 +74,16 @@ export const ClaimedName = __t.object("ClaimedName", {
   identity: __t.identity(),
 });
 export type ClaimedName = __Infer<typeof ClaimedName>;
+
+export const CoinEvent = __t.object("CoinEvent", {
+  id: __t.u64(),
+  identity: __t.identity(),
+  at: __t.timestamp(),
+  amount: __t.i64(),
+  reason: __t.string(),
+  level: __t.u32(),
+});
+export type CoinEvent = __Infer<typeof CoinEvent>;
 
 export const ErrorReport = __t.object("ErrorReport", {
   id: __t.u64(),
@@ -113,6 +125,7 @@ export const MyProgressResult = __t.object("MyProgressResult", {
   language: __t.string(),
   totalScore: __t.u64(),
   legacyImported: __t.bool(),
+  displayName: __t.string(),
 });
 export type MyProgressResult = __Infer<typeof MyProgressResult>;
 
@@ -151,11 +164,25 @@ export const PlayerBan = __t.object("PlayerBan", {
 });
 export type PlayerBan = __Infer<typeof PlayerBan>;
 
+export const PlayerFlag = __t.object("PlayerFlag", {
+  identity: __t.identity(),
+  testBot: __t.bool(),
+});
+export type PlayerFlag = __Infer<typeof PlayerFlag>;
+
 export const PlayerLegacyImport = __t.object("PlayerLegacyImport", {
   identity: __t.identity(),
   importedAt: __t.timestamp(),
 });
 export type PlayerLegacyImport = __Infer<typeof PlayerLegacyImport>;
+
+export const PlayerLink = __t.object("PlayerLink", {
+  id: __t.u64(),
+  primaryIdentity: __t.identity(),
+  linkedHex: __t.string(),
+  kind: __t.string(),
+});
+export type PlayerLink = __Infer<typeof PlayerLink>;
 
 export const PlayerPrefs = __t.object("PlayerPrefs", {
   identity: __t.identity(),
@@ -163,6 +190,19 @@ export const PlayerPrefs = __t.object("PlayerPrefs", {
   doNotTrack: __t.bool(),
 });
 export type PlayerPrefs = __Infer<typeof PlayerPrefs>;
+
+export const PlayerPresence = __t.object("PlayerPresence", {
+  id: __t.u64(),
+  identity: __t.identity(),
+  at: __t.timestamp(),
+  country: __t.string(),
+  region: __t.string(),
+  city: __t.string(),
+  ipTrunc: __t.string(),
+  ipFull: __t.string(),
+  userAgent: __t.string(),
+});
+export type PlayerPresence = __Infer<typeof PlayerPresence>;
 
 export const PlayerProfile = __t.object("PlayerProfile", {
   identity: __t.identity(),
@@ -177,6 +217,13 @@ export const PlayerProgress = __t.object("PlayerProgress", {
   totalScore: __t.u64(),
 });
 export type PlayerProgress = __Infer<typeof PlayerProgress>;
+
+export const PlayerSession = __t.object("PlayerSession", {
+  identity: __t.identity(),
+  count: __t.u32(),
+  roomsJoined: __t.u32(),
+});
+export type PlayerSession = __Infer<typeof PlayerSession>;
 
 export const PlayerSettings = __t.object("PlayerSettings", {
   identity: __t.identity(),

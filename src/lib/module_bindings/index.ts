@@ -39,20 +39,26 @@ import AddOwnedShipReducer from "./add_owned_ship_reducer";
 import AdminAddCoinsReducer from "./admin_add_coins_reducer";
 import AdminBanReducer from "./admin_ban_reducer";
 import AdminGrantShipReducer from "./admin_grant_ship_reducer";
+import AdminPurgeEmptyGuestsReducer from "./admin_purge_empty_guests_reducer";
 import AdminRemoveShipReducer from "./admin_remove_ship_reducer";
 import AdminResetPlayerReducer from "./admin_reset_player_reducer";
 import AdminResetProgressReducer from "./admin_reset_progress_reducer";
 import AdminSetCoinsReducer from "./admin_set_coins_reducer";
+import AdminSetTestFlagReducer from "./admin_set_test_flag_reducer";
 import AdminUnbanReducer from "./admin_unban_reducer";
 import AdminUnlockLevelReducer from "./admin_unlock_level_reducer";
 import ApplySecretCodeReducer from "./apply_secret_code_reducer";
 import CompleteLevelResultReducer from "./complete_level_result_reducer";
+import EnsurePlayerRowReducer from "./ensure_player_row_reducer";
 import EquipShipReducer from "./equip_ship_reducer";
 import ImportProgressReducer from "./import_progress_reducer";
 import LegacyImportReducer from "./legacy_import_reducer";
+import LinkGuestIdentityReducer from "./link_guest_identity_reducer";
 import PurchaseShipReducer from "./purchase_ship_reducer";
 import PurchaseUpgradeReducer from "./purchase_upgrade_reducer";
 import ReportErrorReducer from "./report_error_reducer";
+import ReportMpJoinReducer from "./report_mp_join_reducer";
+import ReportPresenceReducer from "./report_presence_reducer";
 import RequestLevelDataReducer from "./request_level_data_reducer";
 import ResetProgressReducer from "./reset_progress_reducer";
 import SetDisplayNameReducer from "./set_display_name_reducer";
@@ -118,20 +124,26 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_add_coins", AdminAddCoinsReducer),
   __reducerSchema("admin_ban", AdminBanReducer),
   __reducerSchema("admin_grant_ship", AdminGrantShipReducer),
+  __reducerSchema("admin_purge_empty_guests", AdminPurgeEmptyGuestsReducer),
   __reducerSchema("admin_remove_ship", AdminRemoveShipReducer),
   __reducerSchema("admin_reset_player", AdminResetPlayerReducer),
   __reducerSchema("admin_reset_progress", AdminResetProgressReducer),
   __reducerSchema("admin_set_coins", AdminSetCoinsReducer),
+  __reducerSchema("admin_set_test_flag", AdminSetTestFlagReducer),
   __reducerSchema("admin_unban", AdminUnbanReducer),
   __reducerSchema("admin_unlock_level", AdminUnlockLevelReducer),
   __reducerSchema("apply_secret_code", ApplySecretCodeReducer),
   __reducerSchema("complete_level_result", CompleteLevelResultReducer),
+  __reducerSchema("ensure_player_row", EnsurePlayerRowReducer),
   __reducerSchema("equip_ship", EquipShipReducer),
   __reducerSchema("import_progress", ImportProgressReducer),
   __reducerSchema("legacy_import", LegacyImportReducer),
+  __reducerSchema("link_guest_identity", LinkGuestIdentityReducer),
   __reducerSchema("purchase_ship", PurchaseShipReducer),
   __reducerSchema("purchase_upgrade", PurchaseUpgradeReducer),
   __reducerSchema("report_error", ReportErrorReducer),
+  __reducerSchema("report_mp_join", ReportMpJoinReducer),
+  __reducerSchema("report_presence", ReportPresenceReducer),
   __reducerSchema("request_level_data", RequestLevelDataReducer),
   __reducerSchema("reset_progress", ResetProgressReducer),
   __reducerSchema("set_display_name", SetDisplayNameReducer),
