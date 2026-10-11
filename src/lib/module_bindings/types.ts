@@ -28,6 +28,7 @@ export type AdminListResult = __Infer<typeof AdminListResult>;
 export const AdminMeResult = __t.object("AdminMeResult", {
   ok: __t.bool(),
   email: __t.string(),
+  detail: __t.string(),
 });
 export type AdminMeResult = __Infer<typeof AdminMeResult>;
 

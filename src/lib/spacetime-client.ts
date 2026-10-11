@@ -1007,13 +1007,16 @@ class SpacetimeClient {
     }
   }
 
-  async adminMe(): Promise<{ ok: boolean; email: string } | null> {
+  async adminMe(): Promise<{ ok: boolean; email: string; detail: string } | null> {
     if (!this.connection) return null;
     try {
       const result = await this.connection.procedures.adminMe({});
-      return result ? { ok: !!result.ok, email: result.email || '' } : { ok: false, email: '' };
-    } catch {
-      return { ok: false, email: '' };
+      return result
+        ? { ok: !!result.ok, email: result.email || '', detail: result.detail || '' }
+        : { ok: false, email: '', detail: '{"reason":"empty-result"}' };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, email: '', detail: JSON.stringify({ reason: 'procedure-error', error: msg.slice(0, 160) }) };
     }
   }
 
