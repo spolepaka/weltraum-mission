@@ -121,6 +121,13 @@ export interface Translations {
   leaveRoom: string;
   startGo: string;
   friendsEnterCode: string;
+  roomPublic: string;
+  roomPrivate: string;
+  openRooms: string;
+  noOpenRooms: string;
+  joinOpen: string;
+  refreshRooms: string;
+  orJoinCode: string;
   onlineFooter: string;
   joinRequests: string;
   approve: string;

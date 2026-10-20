@@ -77,3 +77,27 @@ export function clampLevelCoins(earned: number, level: number, mode?: string): n
   const cap = maxCoinsForLevel(level, mode);
   return Math.max(0, Math.min(cap, Math.floor(earned) || 0));
 }
+
+/** The owner cheat is exactly 1e6. A level grant this large is never legitimate. */
+export const MILLION_CHEAT = 1_000_000;
+
+export function isMillionScaleGrant(amount: number | bigint): boolean {
+  const n = typeof amount === 'bigint' ? Number(amount) : amount;
+  return Number.isFinite(n) && n >= 900_000;
+}
+
+/**
+ * Co-op boss-kill payout: same cap as solo, players ignored.
+ * Used by finishLevel and the L100 regression test.
+ */
+export function coopBossKillAward(
+  level: number,
+  stars: number,
+  collected: number,
+  mode?: string,
+  players = 1,
+): number {
+  void players;
+  const raw = levelClearBonus(level, stars, mode) + Math.max(0, Math.floor(collected) || 0);
+  return clampLevelCoins(raw, level, mode);
+}

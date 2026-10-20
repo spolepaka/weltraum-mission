@@ -27,3 +27,27 @@ export function maxCoinsForLevel(level: number, mode?: string): number {
   const collected = typicalCollectedCoins(level, mode);
   return Math.ceil((bonus + collected) * 1.35);
 }
+
+export function clampLevelCoins(earned: number, level: number, mode?: string): number {
+  const cap = maxCoinsForLevel(level, mode);
+  return Math.max(0, Math.min(cap, Math.floor(earned) || 0));
+}
+
+export const MILLION_CHEAT = 1_000_000;
+
+export function isMillionScaleGrant(amount: number | bigint): boolean {
+  const n = typeof amount === 'bigint' ? Number(amount) : amount;
+  return Number.isFinite(n) && n >= 900_000;
+}
+
+export function coopBossKillAward(
+  level: number,
+  stars: number,
+  collected: number,
+  mode?: string,
+  players = 1,
+): number {
+  void players;
+  const raw = levelClearBonus(level, stars, mode) + Math.max(0, Math.floor(collected) || 0);
+  return clampLevelCoins(raw, level, mode);
+}

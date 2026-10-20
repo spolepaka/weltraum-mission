@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   SHIP_PRICES,
   clampLevelCoins,
+  coopBossKillAward,
   expectedCoinsForLevel,
+  isMillionScaleGrant,
   levelClearBonus,
   maxCoinsForLevel,
   typicalCollectedCoins,
@@ -54,6 +56,29 @@ describe('coin economy', () => {
       timeMs: 4000n, heartsLeft: 1, mode: 'normal',
     });
     expect(honest.ok).toBe(true);
+  });
+
+  it('caps a co-op L100 Robo-Kaiser clear well below 1,000,000', () => {
+    const cap = maxCoinsForLevel(100);
+    expect(cap).toBe(16686);
+    expect(coopBossKillAward(100, 3, 1_000_000, 'normal', 5)).toBe(cap);
+    expect(coopBossKillAward(100, 3, 620, 'normal', 5)).toBeLessThan(cap);
+    expect(isMillionScaleGrant(1_000_000)).toBe(true);
+    expect(isMillionScaleGrant(cap)).toBe(false);
+    const huge = validateLevelResult({
+      level: 100, stars: 3, score: 100n, coinsEarned: 1_000_000n, timeMs: 4000n, heartsLeft: 1, mode: 'normal',
+    });
+    expect(huge.ok).toBe(false);
+    expect(huge.reason).toBe('coins_exceed_max');
+  });
+
+  it('identifies the owner secret as the only legitimate 1,000,000 grant', () => {
+    // Root cause of the reported L100 ~1M pile: JOSHIE1000000 / JOSHI1000000.
+    // A real Robo-Kaiser clear cannot mint that amount on any player count.
+    expect(levelClearBonus(100, 3) + typicalCollectedCoins(100)).toBeLessThan(20_000);
+    expect(coopBossKillAward(100, 3, 50_000, 'veteran', 5)).toBe(maxCoinsForLevel(100, 'veteran'));
+    expect(maxCoinsForLevel(100, 'veteran')).toBeLessThan(30_000);
+    expect(isMillionScaleGrant(levelClearBonus(100, 3))).toBe(false);
   });
 
   it('prints the payout table for the report', () => {

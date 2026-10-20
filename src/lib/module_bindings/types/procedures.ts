@@ -14,6 +14,7 @@ import * as GetAnalyticsFunnelProcedure from "../get_analytics_funnel_procedure"
 import * as GetLevelDataProcedure from "../get_level_data_procedure";
 import * as GetMyProgressProcedure from "../get_my_progress_procedure";
 import * as GetWeeklyBoardProcedure from "../get_weekly_board_procedure";
+import * as ListPublicRoomsProcedure from "../list_public_rooms_procedure";
 
 export type AdminGetPlayerArgs = __Infer<typeof AdminGetPlayerProcedure.params>;
 export type AdminGetPlayerResult = __Infer<typeof AdminGetPlayerProcedure.returnType>;
@@ -31,4 +32,6 @@ export type GetMyProgressArgs = __Infer<typeof GetMyProgressProcedure.params>;
 export type GetMyProgressResult = __Infer<typeof GetMyProgressProcedure.returnType>;
 export type GetWeeklyBoardArgs = __Infer<typeof GetWeeklyBoardProcedure.params>;
 export type GetWeeklyBoardResult = __Infer<typeof GetWeeklyBoardProcedure.returnType>;
+export type ListPublicRoomsArgs = __Infer<typeof ListPublicRoomsProcedure.params>;
+export type ListPublicRoomsResult = __Infer<typeof ListPublicRoomsProcedure.returnType>;
 

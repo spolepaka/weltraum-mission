@@ -94,6 +94,12 @@ describe('Secret Code Validation', () => {
     expect(SECRET_CODES['JOSHIE1000000'].coins).toBe(1000000);
   });
 
+  it('treats the million code as a cheat grant, not a level award', () => {
+    expect(SECRET_CODES['JOSHIE1000000'].key).toBe('secretMillion');
+    expect(SECRET_CODES['JOSHIE1000000'].coins).toBe(1_000_000);
+    expect(SECRET_CODES['JOSHI10000'].coins).toBeLessThan(20_000);
+  });
+
   it('returns undefined for unknown codes', () => {
     expect(SECRET_CODES['INVALID']).toBeUndefined();
   });

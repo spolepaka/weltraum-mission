@@ -8,7 +8,7 @@ import { assertTrustedCaller, authSnapshotFromCtx, isFirebaseIssuer } from './au
 import { buildLevelPayload } from './level-catalog';
 import { nameKey, uniquifyDisplayName, validateDisplayName, type NameKind } from './display-names';
 import { plausibleLegacyUnlock } from './legacy-import';
-import { maxCoinsForLevel } from './economy';
+import { isMillionScaleGrant, maxCoinsForLevel } from './economy';
 import { bindAdminCtx, inspectSenderAuth, isAdminEmail, isAdminUid } from './admin';
 import { GEO_RETENTION_MS, STORE_FULL_IP, isEmptyGuestRow, verifyGeo } from './geo';
 
@@ -292,6 +292,28 @@ const spacetimedb = schema({
       identity: t.identity().primaryKey(),
       count: t.u32(),
       roomsJoined: t.u32(),
+    }
+  ),
+
+  publicRoom: table(
+    { public: false },
+    {
+      code: t.string().primaryKey(),
+      hostIdentity: t.identity().index('btree'),
+      hostName: t.string(),
+      level: t.u32(),
+      players: t.u32(),
+      inGame: t.bool(),
+      heartbeat: t.timestamp(),
+    }
+  ),
+
+  levelAward: table(
+    { public: false },
+    {
+      identity: t.identity().primaryKey(),
+      level: t.u32(),
+      at: t.timestamp(),
     }
   ),
   
@@ -655,8 +677,9 @@ export const completeLevelResult = spacetimedb.reducer(
     const mode = result.mode === 'easy' || result.mode === 'veteran' ? result.mode : 'normal';
     const maxCoins = BigInt(maxCoinsForLevel(result.level, mode));
     ensurePlayer(ctx);
-    if (result.coinsEarned > maxCoins) {
-      throw new Error('Coins exceed maximum for this level');
+    let earned = result.coinsEarned;
+    if (isMillionScaleGrant(earned) || earned > maxCoins) {
+      earned = maxCoins;
     }
     
     const minTime = BigInt(3000);
@@ -701,10 +724,19 @@ export const completeLevelResult = spacetimedb.reducer(
     
     const shop = ctx.db.playerShop.identity.find(identity);
     if (shop) {
-      const newCoins = shop.coins + result.coinsEarned;
+      const nowUs = Number(ctx.timestamp.microsSinceUnixEpoch || 0n);
+      const lastAward = ctx.db.levelAward.identity.find(identity);
+      const lastUs = lastAward
+        ? Number((lastAward.at as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || 0n)
+        : 0;
+      const duplicate = !!(lastAward && lastAward.level === result.level && nowUs && lastUs && nowUs - lastUs < 8_000_000);
+      if (duplicate) earned = 0n;
+      else if (lastAward) ctx.db.levelAward.identity.update({ identity, level: result.level, at: ctx.timestamp });
+      else ctx.db.levelAward.insert({ identity, level: result.level, at: ctx.timestamp });
+      const newCoins = shop.coins + earned;
       const clampedCoins = newCoins > BigInt(MAX_COINS) ? BigInt(MAX_COINS) : newCoins;
       ctx.db.playerShop.identity.update({ ...shop, coins: clampedCoins });
-      if (result.coinsEarned > 0n) writeCoinEvent(ctx, identity, result.coinsEarned, 'level', result.level);
+      if (earned > 0n) writeCoinEvent(ctx, identity, earned, result.coinsEarned > maxCoins ? 'level_clamped' : 'level', result.level);
     }
     
     let totalScore = BigInt(0);
@@ -958,9 +990,11 @@ export const applySecretCode = spacetimedb.reducer(
     
     const shop = ctx.db.playerShop.identity.find(identity);
     if (shop) {
-      const newCoins = shop.coins + BigInt(secret.coins);
+      const grant = BigInt(secret.coins);
+      const newCoins = shop.coins + grant;
       const clampedCoins = newCoins > BigInt(MAX_COINS) ? BigInt(MAX_COINS) : newCoins;
       ctx.db.playerShop.identity.update({ ...shop, coins: clampedCoins });
+      writeCoinEvent(ctx, identity, grant, 'secret', 0);
     }
   }
 );
@@ -1107,7 +1141,7 @@ export const addCoins = spacetimedb.reducer(
     const identity = ctx.sender;
     if (amount <= BigInt(0)) return;
     const perCall = BigInt(maxCoinsForLevel(MAX_LEVEL, 'veteran'));
-    if (amount > perCall) throw new Error('Coin grant too large');
+    if (isMillionScaleGrant(amount) || amount > perCall) throw new Error('Coin grant too large');
     const shop = ctx.db.playerShop.identity.find(identity);
     if (!shop) throw new Error('Shop data not found');
     const next = shop.coins + amount;
@@ -2178,5 +2212,105 @@ export const adminPurgeEmptyGuests = spacetimedb.reducer(
       if (removed >= 200) break;
     }
     writeAudit(ctx, 'purge_empty_guests', 'bulk', { olderDays: days, removed });
+  }
+);
+
+const ROOM_CODE_OK = 'ACDEFHJKMNPRTUVWXY34679';
+const ROOM_TTL_US = 15 * 1_000_000;
+
+function cleanRoomCode(code: string): string {
+  return String(code || '').toUpperCase().replace(/O/g, '0').split('').filter((ch) => ROOM_CODE_OK.includes(ch)).join('').slice(0, 5);
+}
+
+function safeRoomName(raw: string): string {
+  const checked = validateDisplayName(String(raw || '').trim().slice(0, 16), 'custom');
+  return checked.ok ? checked.name : 'Pilot';
+}
+
+function upsertPublicRoom(ctx: AnyCtx, code: string, hostName: string, level: number, players: number, inGame: boolean): void {
+  const existing = ctx.db.publicRoom.code.find(code);
+  const row = {
+    code,
+    hostIdentity: ctx.sender,
+    hostName: safeRoomName(hostName),
+    level: Math.max(1, Math.min(MAX_LEVEL, Math.floor(level) || 1)),
+    players: Math.max(1, Math.min(5, Math.floor(players) || 1)),
+    inGame: !!inGame,
+    heartbeat: ctx.timestamp,
+  };
+  if (existing) {
+    if (identityKey(existing.hostIdentity) !== identityKey(ctx.sender)) throw new Error('Not your room');
+    ctx.db.publicRoom.code.update(row);
+    return;
+  }
+  for (const old of [...ctx.db.publicRoom.hostIdentity.filter(ctx.sender)]) {
+    ctx.db.publicRoom.delete(old);
+  }
+  ctx.db.publicRoom.insert(row);
+}
+
+export const publishPublicRoom = spacetimedb.reducer(
+  { code: t.string(), hostName: t.string(), level: t.u32(), players: t.u32(), inGame: t.bool() },
+  (ctx, { code, hostName, level, players, inGame }) => {
+    assertNotBanned(ctx);
+    ensurePlayer(ctx);
+    const clean = cleanRoomCode(code);
+    if (clean.length !== 5) throw new Error('Bad room code');
+    upsertPublicRoom(ctx, clean, hostName, level, players, inGame);
+  }
+);
+
+export const heartbeatPublicRoom = spacetimedb.reducer(
+  { code: t.string(), hostName: t.string(), level: t.u32(), players: t.u32(), inGame: t.bool() },
+  (ctx, { code, hostName, level, players, inGame }) => {
+    const clean = cleanRoomCode(code);
+    if (clean.length !== 5) return;
+    const existing = ctx.db.publicRoom.code.find(clean);
+    if (!existing || identityKey(existing.hostIdentity) !== identityKey(ctx.sender)) return;
+    upsertPublicRoom(ctx, clean, hostName || existing.hostName, level, players, inGame);
+  }
+);
+
+export const closePublicRoom = spacetimedb.reducer(
+  { code: t.string() },
+  (ctx, { code }) => {
+    const clean = cleanRoomCode(code);
+    const existing = clean ? ctx.db.publicRoom.code.find(clean) : null;
+    if (existing && identityKey(existing.hostIdentity) === identityKey(ctx.sender)) {
+      ctx.db.publicRoom.delete(existing);
+      return;
+    }
+    for (const old of [...ctx.db.publicRoom.hostIdentity.filter(ctx.sender)]) {
+      ctx.db.publicRoom.delete(old);
+    }
+  }
+);
+
+export const listPublicRooms = spacetimedb.procedure(
+  {},
+  t.option(t.object('PublicRoomListResult', {
+    roomsJson: t.string(),
+  })),
+  (ctx) => {
+    return ctx.withTx(txCtx => {
+      const now = Number(txCtx.timestamp.microsSinceUnixEpoch || 0n);
+      const rooms: Array<{ code: string; hostName: string; level: number; players: number }> = [];
+      for (const row of [...txCtx.db.publicRoom.iter()]) {
+        const beat = Number((row.heartbeat as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || 0n);
+        if (now && beat && now - beat > ROOM_TTL_US) {
+          txCtx.db.publicRoom.delete(row);
+          continue;
+        }
+        if (row.inGame || row.players < 1 || row.players >= 5) continue;
+        rooms.push({
+          code: row.code,
+          hostName: safeRoomName(row.hostName),
+          level: row.level,
+          players: row.players,
+        });
+      }
+      rooms.sort((a, b) => a.level - b.level || a.hostName.localeCompare(b.hostName));
+      return { roomsJson: JSON.stringify(rooms.slice(0, 40)) };
+    });
   }
 );

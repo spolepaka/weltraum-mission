@@ -10,6 +10,8 @@ import {
 import type { Identity } from 'spacetimedb';
 import { validateLevelResult, type LevelResultInput } from './validation';
 import { mergeCoins, coinDeltaToPush } from './coin-ledger';
+import { clampLevelCoins, maxCoinsForLevel, MAX_LEVEL } from './economy';
+import { filterJoinableRooms, type PublicRoomRow } from './room-list';
 import { isAutomatedClient } from './geo-privacy';
 import {
   loadAuthUser,
@@ -525,6 +527,10 @@ class SpacetimeClient {
   async completeLevelResult(result: LevelResultInput): Promise<{ ok: boolean; reason?: string }> {
     console.log('[SpacetimeDB] completeLevelResult:', result);
     this.lastError = null;
+    result = {
+      ...result,
+      coinsEarned: BigInt(clampLevelCoins(Number(result.coinsEarned), result.level, result.mode)),
+    };
 
     const data = this.getLocalData();
     const localCheck = validateLevelResult(result, data.unlockedLevel);
@@ -559,7 +565,7 @@ class SpacetimeClient {
         level: result.level,
         stars: result.stars,
         score: BigInt(result.score),
-        coinsEarned: BigInt(result.coinsEarned),
+        coinsEarned: BigInt(clampLevelCoins(Number(result.coinsEarned), result.level, result.mode)),
         timeMs: BigInt(result.timeMs),
         heartsLeft: result.heartsLeft,
         mode: result.mode || 'normal',
@@ -839,11 +845,13 @@ class SpacetimeClient {
 
   addCoins(amount: bigint): void {
     if (amount <= 0n) return;
+    const cap = BigInt(maxCoinsForLevel(MAX_LEVEL, 'veteran'));
+    const grant = amount > cap ? cap : amount;
     const data = this.getLocalData();
-    data.coins = data.coins + amount;
+    data.coins = data.coins + grant;
     this.saveLocalData(data);
     this.queueOrCallReducer(() => {
-      this.connection?.reducers.addCoins({ amount: BigInt(amount) });
+      this.connection?.reducers.addCoins({ amount: BigInt(grant) });
     });
   }
 
@@ -1127,6 +1135,36 @@ class SpacetimeClient {
     this.queueOrCallReducer(() => {
       (this.connection?.reducers as { reportMpJoin?: (a: Record<string, never>) => void }).reportMpJoin?.({});
     });
+  }
+
+  publishPublicRoom(row: { code: string; hostName: string; level: number; players: number; inGame: boolean }): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { publishPublicRoom?: (a: typeof row) => void }).publishPublicRoom?.(row);
+    });
+  }
+
+  heartbeatPublicRoom(row: { code: string; hostName: string; level: number; players: number; inGame: boolean }): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { heartbeatPublicRoom?: (a: typeof row) => void }).heartbeatPublicRoom?.(row);
+    });
+  }
+
+  closePublicRoom(code: string): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { closePublicRoom?: (a: { code: string }) => void }).closePublicRoom?.({ code });
+    });
+  }
+
+  async listPublicRooms(): Promise<PublicRoomRow[]> {
+    if (!this.connection || !this.isConnected()) return [];
+    try {
+      const procedures = this.connection.procedures as { listPublicRooms?: (a: Record<string, never>) => Promise<{ roomsJson: string } | undefined> };
+      const result = await procedures.listPublicRooms?.({});
+      const parsed = JSON.parse(result?.roomsJson || '[]') as PublicRoomRow[];
+      return filterJoinableRooms(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      return [];
+    }
   }
 
   setUpgradeLevel(upgradeId: string, level: number): void {
