@@ -316,6 +316,13 @@
   #onLevels button.sel { background: #ffd54a; color: #2a1660; border-color: #fff; }
   #onStatus { min-height: 28px; font-size: 19px; font-weight: bold; } #onStatus.good { color: #7dffa8; } #onStatus.bad { color: #ff9a9a; }
   #onlineScreen .small { font-size: 14px; color: #aab4e8; }
+  #onVisRow, #onRoomList { margin: 10px 0; }
+  #onVisRow label { display: inline-flex; align-items: center; gap: 6px; margin: 0 8px; font-size: 16px; }
+  #onRoomRows { text-align: left; max-height: 220px; overflow-y: auto; margin: 8px 0; }
+  .roomRow { display: flex; align-items: center; gap: 8px; background: rgba(20,30,80,.65); border: 2px solid #4a6cff; border-radius: 12px; padding: 8px 10px; margin: 6px 0; }
+  .roomRow b { color: #ffd54a; }
+  .roomRow .meta { flex: 1; font-size: 15px; }
+  .roomRow button { font-family: inherit; font-size: 15px; font-weight: bold; border: none; border-radius: 14px; padding: 6px 12px; background: #ffd54a; color: #2a1660; cursor: pointer; }
   #missionToast { min-height: 26px; font-weight: bold; color: #7dffa8; }
   #coinPill { cursor: pointer; }
   #secretBox { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 6px; font-size: 20px; }
@@ -472,7 +479,12 @@
       <div class="btnRow"><button class="big" id="onHost">🏠 Create Room</button><button class="big" id="onJoin">🚪 Join Room</button></div>
     </div>
     <div id="onJoinBox" class="hidden">
-      <div id="onJoinForm"><p id="enterRoomCode">Enter your friend's room code:</p>
+      <div id="onJoinForm">
+      <p id="openRoomsLabel">Open rooms</p>
+      <div id="onRoomList"><div id="onRoomRows"></div>
+      <div class="btnRow"><button class="big alt" id="onRefreshRooms">Refresh</button></div></div>
+      <p id="orJoinCode">Or type a room code:</p>
+      <p id="enterRoomCode">Enter your friend's room code:</p>
       <input id="onCode" maxlength="5" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" inputmode="text">
       <div class="btnRow"><button class="big" id="onGo">Connect 🔗</button></div></div>
     </div>
@@ -480,6 +492,11 @@
       <p style="margin:0" id="roomCodeLabel">Room code:</p>
       <div id="onCodeShow">· · · · ·</div>
       <p class="small" style="margin:0" id="friendsEnterCode">Your friends tap Join and enter this code (up to 4 friends).</p>
+      <div id="onVisRow" class="small">
+        <label><input type="radio" name="onVis" id="onVisPublic" value="public" checked> <span id="onVisPublicLbl">Public</span></label>
+        <label><input type="radio" name="onVis" id="onVisPrivate" value="private"> <span id="onVisPrivateLbl">Private</span></label>
+      </div>
+      <p class="small" id="onVisHelp"></p>
       <label id="onAskRow" class="small" style="display:flex;gap:8px;align-items:center;margin:10px 0;justify-content:center">
         <input type="checkbox" id="onAskJoin"> <span id="onAskLabel">Ask before letting people in</span>
       </label>
@@ -1061,13 +1078,16 @@
     progress.failed = 0;
     var bonus = Math.round((10 + L * 3 + stars * 8 + (isBossLevel(L) ? 40 + L * 8 : 0)) * 10 * modeTune().coinMult);
     coinsRun = Math.round((coinsRun || 0) * modeTune().coinMult);
-    var earnedCap = Math.ceil((bonus + Math.round((20 + L * 6) * modeTune().coinMult)) * 1.35);
-    var rawEarned = bonus + (coinsRun || 0);
-    if (rawEarned > earnedCap) {
-      var overflow = rawEarned - earnedCap;
+    var modeNow = (window.__weltraum && window.__weltraum.difficulty && window.__weltraum.difficulty.current && window.__weltraum.difficulty.current()) || "normal";
+    var econ = window.__weltraum && window.__weltraum.economy;
+    var earnedCap = econ && econ.maxCoinsForLevel ? econ.maxCoinsForLevel(L, modeNow) : Math.ceil((bonus + Math.round((20 + L * 6) * modeTune().coinMult)) * 1.35);
+    var uncapped = bonus + (coinsRun || 0);
+    var rawEarned = econ && econ.coopBossKillAward ? econ.coopBossKillAward(L, stars, coinsRun || 0, modeNow, nPlayers()) : uncapped;
+    if (rawEarned > earnedCap) rawEarned = earnedCap;
+    if (uncapped > rawEarned) {
+      var overflow = uncapped - rawEarned;
       coinsRun = Math.max(0, (coinsRun || 0) - overflow);
       shop.coins = Math.max(0, shop.coins - overflow);
-      rawEarned = earnedCap;
     }
     shop.coins += bonus; saveShop(); recAdd("coinsV", bonus);
     completePayload.coinsEarned = rawEarned;
@@ -1142,7 +1162,7 @@
     u.shotT -= dt; if (u.shotT > 0.45 || u.y < 30 || !ship || u.y > ship.y - 220) return;
     u.warn = u.shotT; if (u.shotT > 0) return;
     u.shotT = rnd(2.2, 3.4) / Math.sqrt(heat()); u.warn = 0;
-    var tg = ship; if (twoP && others.length) { var c = [ship].concat(others.map(function (o) { return o.ship; })).filter(function (q) { return !q.down; }); if (c.length) tg = pick(c); }
+    var tg = aimTarget(u.x, u.y);
     var dx = tg.x - u.x, dy = Math.max(80, tg.y - u.y), d = Math.sqrt(dx * dx + dy * dy), v = 165 * speedScale() * (0.8 + 0.2 * heat());
     bombs.push({ x: u.x, y: u.y + 14, vx: dx / d * v, vy: dy / d * v, r: 8, t: 0, sn: true }); tone(900, 500, 0.08, "square", 0.025);
   }
@@ -1433,7 +1453,7 @@
     u.pt += dt;
     if (u.ph === "enter") { u.y += 80 * speedScale() * dt; if (u.y >= u.ty) { u.ph = "aim"; u.pt = 0; } }
     else if (u.ph === "aim") {
-      if (u.pt < 1.1 && ship) { u.ax = ship.x; u.ay = ship.y; }
+      if (u.pt < 1.1) { var sn = aimTarget(u.x, u.y); u.ax = sn.x; u.ay = sn.y; }
       if (u.pt >= 1.8) {
         var dx = u.ax - u.x, dy = u.ay - u.y, d = Math.sqrt(dx * dx + dy * dy) + 1, v = 170 * speedScale();
         bombs.push({ x: u.x, y: u.y + 12, vx: dx / d * v, vy: dy / d * v, r: 8, t: 0, sn: true });
@@ -1488,7 +1508,8 @@
     var x = ax + t * dx - px, y = ay + t * dy - py; return Math.sqrt(x * x + y * y);
   }
   function startBossLaser() {
-    var dir = ship.x < W / 2 ? -1 : 1, tx0 = ship.x;
+    var tg = aimTarget(boss ? boss.x : W / 2, boss ? boss.y : 0);
+    var dir = tg.x < W / 2 ? -1 : 1, tx0 = tg.x;
     boss.laser = { phase: "warn", t: 0, tx0: tx0, tx1: Math.max(20, Math.min(W - 20, tx0 + dir * 150)), warnDur: (boss.modK || 1) > 1 ? 2 : 1.5, fireDur: 1.1 };
     tone(800, 800, 0.12, "square", 0.05); setTimeout(function () { tone(800, 800, 0.12, "square", 0.05); }, 300); setTimeout(function () { tone(800, 800, 0.12, "square", 0.05); }, 600);
   }
@@ -1520,7 +1541,7 @@
           var n = gl ? 4 : 3;
           for (var gi = 0; gi < n; gi++) {
             var sd = gi % 2 ? 1 : -1, gx = b.x + sd * 78, rk = makeRock(gx, b.y + 20, rnd(17, 23), false);
-            rk.vy = 165 * speedScale(); rk.vx = Math.max(-170, Math.min(170, (ship.x - gx) * 0.32)) + (gi - (n - 1) / 2) * 45; rk.hue = 25;
+            rk.vy = 165 * speedScale(); rk.vx = Math.max(-170, Math.min(170, (aimTarget(gx, b.y, gi).x - gx) * 0.32)) + (gi - (n - 1) / 2) * 45; rk.hue = 25;
             if (gl && gi === 0) makeArmored(rk);
             rocks.push(rk);
           }
@@ -1546,7 +1567,7 @@
         if (b.slam.ph === "warn" && b.slam.t >= 1.15) { b.slam.ph = "hit"; b.slam.t = 0; shake = 0.25; noise(0.3, 0.1, 300);
           if (state === "play") eachPlayer(function () { if (state === "play" && !ship.down && Math.abs(ship.x - b.slam.x) < 40 + (curStats.hitR || 22) * 0.5) hurt(ship.x, ship.y); }); }
         else if (b.slam.ph === "hit" && b.slam.t >= 0.45) b.slam = null;
-      } else if (b.laserCd <= 0) { b.laserCd = kl ? 2.8 : 3.6; b.slam = { x: Math.max(30, Math.min(W - 30, ship.x)), t: 0, ph: "warn" }; tone(300, 200, 0.4, "sawtooth", 0.05); }
+      } else if (b.laserCd <= 0) { b.laserCd = kl ? 2.8 : 3.6; b.slam = { x: Math.max(30, Math.min(W - 30, aimTarget(b.x, b.y).x)), t: 0, ph: "warn" }; tone(300, 200, 0.4, "sawtooth", 0.05); }
       if (b.bombTimer <= 0) { b.bombTimer = kl ? 2.1 : 2.7; [-70, 0, 70].forEach(function (vx) { dropBomb(b.x, b.y + 40, vx, 100); bombs[bombs.length - 1].ink = true; }); tone(180, 90, 0.2, "square", 0.04); }
       if (kl && b.spreadT <= 0) { b.spreadT = 9; spawnUfo(); spawnUfo(); showMsg("🛸 " + tr("tips.mothershipHelpers"), "bad", 1.4); }
     } else if (b.type === "station") {
@@ -1554,7 +1575,7 @@
       if (b.bombTimer <= 0) {
         b.bombTimer = sl ? 0.75 : 0.95; b.tur = ((b.tur || 0) + 1) % 4;
         var ta = b.t * 0.8 + b.tur * Math.PI / 2, tx = b.x + Math.cos(ta) * 100, ty = b.y + Math.sin(ta) * 36;
-        if (Math.sin(ta) > -0.4) { var dx = ship.x - tx, dy = Math.max(60, ship.y - ty), dd = Math.sqrt(dx * dx + dy * dy), v = 150 * speedScale(); bombs.push({ x: tx, y: ty + 8, vx: dx / dd * v, vy: dy / dd * v, r: 8, t: 0, sn: true }); tone(700, 300, 0.1, "square", 0.04); }
+        if (Math.sin(ta) > -0.4) { var stg = aimTarget(tx, ty, b.tur); var dx = stg.x - tx, dy = Math.max(60, stg.y - ty), dd = Math.sqrt(dx * dx + dy * dy), v = 150 * speedScale(); bombs.push({ x: tx, y: ty + 8, vx: dx / dd * v, vy: dy / dd * v, r: 8, t: 0, sn: true }); tone(700, 300, 0.1, "square", 0.04); }
       }
       if (b.spreadT <= 0) { b.spreadT = sl ? 6 : 8; [-1, 1].forEach(function (sd) { if (drones.length < 4) drones.push({ x: b.x + sd * 100, y: b.y, vx: sd * 40, t: 0, warn: 0.7 }); }); tone(900, 500, 0.25, "square", 0.05); }
       if (sl && b.laserCd <= 0) { startBossLaser(); return; }
@@ -1562,13 +1583,14 @@
       var scl = b.hp / b.maxHp < 0.5;
       if (b.aim) {
         b.aim.t += dt;
-        if (b.aim.t < 0.9 && ship) { b.aim.tx = ship.x; b.aim.ty = ship.y; }
+        if (b.aim.t < 0.9) { var at = aimTarget(b.x, b.y, b.aim.n); b.aim.tx = at.x; b.aim.ty = at.y; }
         if (b.aim.t >= 1.3 && b.aim.n < 3 && b.aim.t >= 1.3 + b.aim.n * 0.22) {
-          b.aim.n++; var sx = b.x + 40, sy = b.y - 70, ddx = b.aim.tx - sx, ddy = b.aim.ty - sy, d2 = Math.sqrt(ddx * ddx + ddy * ddy) + 1, vv = 230 * speedScale();
+          var volt = aimTarget(b.x + 40, b.y - 70, b.aim.n);
+          b.aim.n++; var sx = b.x + 40, sy = b.y - 70, ddx = volt.x - sx, ddy = volt.y - sy, d2 = Math.sqrt(ddx * ddx + ddy * ddy) + 1, vv = 230 * speedScale();
           bombs.push({ x: sx, y: sy, vx: ddx / d2 * vv, vy: ddy / d2 * vv, r: 8, t: 0, sn: true }); tone(1100, 400, 0.12, "square", 0.05);
         }
         if (b.aim.n >= 3) b.aim = null;
-      } else if (b.bombTimer <= 0) { b.bombTimer = scl ? 2.2 : 2.9; b.aim = { t: 0, n: 0, tx: ship.x, ty: ship.y }; tone(500, 900, 0.3, "triangle", 0.04); }
+      } else if (b.bombTimer <= 0) { b.bombTimer = scl ? 2.2 : 2.9; var a0 = aimTarget(b.x, b.y); b.aim = { t: 0, n: 0, tx: a0.x, ty: a0.y }; tone(500, 900, 0.3, "triangle", 0.04); }
       if (b.spreadT <= 0) { b.spreadT = scl ? 6.5 : 8.5; if (drones.filter(function (d) { return d.missile; }).length < 3) [-1, 1].forEach(function (sd) { drones.push({ missile: true, x: b.x + sd * 95, y: b.y + 20, vx: sd * 60, t: 0, warn: 0.6 }); }); }
       if (scl && b.laserCd <= 0) { b.laserCd = 5; [-120, -60, 0, 60, 120].forEach(function (vx) { dropBomb(b.x, b.y + 30, vx, 110); }); }
     } else if (b.type === "sun") {
@@ -1584,7 +1606,7 @@
       if (b.laserCd <= 0) { startBossLaser(); return; }
       if (b.bombTimer <= 0) { b.bombTimer = gul ? 1.8 : 2.4; [-1, 0, 1].forEach(function (q) { dropBomb(b.x + q * 30, b.y + 50, q * 55, 110); }); }
       b.summonCd = (b.summonCd || 0) - dt;
-      if (holes.length === 0 && b.summonCd <= 0) { b.summonCd = gul ? 11 : 15; spawnHole(ship.x < W / 2 ? W * 0.82 : W * 0.18, H * 0.48); holes[holes.length - 1].vy = 8; explode(holes[holes.length - 1].x, holes[holes.length - 1].y, 30, PURPLE, 200); tone(120, 40, 1, "sine", 0.15); }
+      if (holes.length === 0 && b.summonCd <= 0) { b.summonCd = gul ? 11 : 15; spawnHole(aimTarget(b.x, b.y).x < W / 2 ? W * 0.82 : W * 0.18, H * 0.48); holes[holes.length - 1].vy = 8; explode(holes[holes.length - 1].x, holes[holes.length - 1].y, 30, PURPLE, 200); tone(120, 40, 1, "sine", 0.15); }
       if (b.spreadT <= 0) { b.spreadT = gul ? 13 : 17; if (!grid && !flare) startGrid(); }
     } else if (b.type === "emperor") {
       var fr = b.hp / b.maxHp, ph = fr > 0.8 ? 1 : fr > 0.6 ? 2 : fr > 0.4 ? 3 : fr > 0.15 ? 4 : 5, k = b.k, cy = b.y + 8 * k, rp = ph;
@@ -1614,7 +1636,7 @@
         if (ph === 3) {
           b.summonCd -= dt;
           if (holes.length === 0 && b.summonCd <= 0) {
-            b.summonCd = 12; spawnHole(ship.x < W / 2 ? W * 0.82 : W * 0.18, H * 0.5); holes[holes.length - 1].vy = 10;
+            b.summonCd = 12; spawnHole(aimTarget(b.x, b.y).x < W / 2 ? W * 0.82 : W * 0.18, H * 0.5); holes[holes.length - 1].vy = 10;
             explode(holes[holes.length - 1].x, holes[holes.length - 1].y, 30, PURPLE, 200); tone(120, 40, 1, "sine", 0.15);
           }
         }
@@ -1644,7 +1666,7 @@
       else if (m === "missiles") { if (drones.filter(function (d) { return d.missile; }).length < 3) [0, 1].forEach(function (q) { drones.push({ missile: true, x: rnd(60, W - 60), y: -20 - q * 50, vx: 0, t: 0, warn: 1 }); }); tone(1200, 700, 0.25, "square", 0.05); }
       else if (m === "minions") { spawnUfo(); spawnUfo(); }
       else if (m === "rain") { if (!shower) { shower = { phase: "warn", t: 0, n: 0 }; showMsg("☄️ " + tr("tips.rockRain"), "bad", 1.4); } }
-      else if (m === "holes") { if (holes.length === 0) { spawnHole(ship.x < W / 2 ? W * 0.84 : W * 0.16, H * 0.5); holes[holes.length - 1].vy = 9; } }
+      else if (m === "holes") { if (holes.length === 0) { spawnHole(aimTarget(b.x, b.y).x < W / 2 ? W * 0.84 : W * 0.16, H * 0.5); holes[holes.length - 1].vy = 9; } }
       else if (m === "grid") { if (!grid && !flare) startGrid(); }
       else if (m === "wells") spawnWell();
       else if (m === "snipers") { if (ufos.filter(function (u) { return u.sniper && !u.dead; }).length < 2) spawnSniper(); }
@@ -1936,7 +1958,7 @@
     drones.forEach(function (d) {
       d.t += dt;
       if (d.warn > 0) { d.warn -= dt; return; }
-      var mv = d.missile ? 120 : 70, want = Math.max(-mv, Math.min(mv, (ship.x - d.x) * 0.9));
+      var mv = d.missile ? 120 : 70, want = Math.max(-mv, Math.min(mv, (aimTarget(d.x, d.y).x - d.x) * 0.9));
       d.vx += (want - d.vx) * Math.min(1, dt * (d.missile ? 1.1 : 1.5));
       var dk = d.chillUntil > time ? 0.4 : 1; d.x += d.vx * dt * dk; d.y += (d.missile ? 115 : 75) * ss * dt * dk;
       if (d.y > H + 30) d.dead = true;
@@ -2036,7 +2058,7 @@
   function inIon(sh) { return !!(ion && sh && Math.abs(sh.x - ion.x) < ion.w / 2 && Math.abs(sh.y - ion.y) < ion.h / 2); }
   function updateMagMine(r, dt) {
     r.t += dt; if (r.t < 1.4) { r.vx = 0; r.vy = 0; return; }
-    var tg = ship, best = 1e9; [ship].concat(twoP ? others.map(function (o) { return o.ship; }) : []).forEach(function (q) { if (q && !q.down && Math.abs(q.x - r.x) < best) { best = Math.abs(q.x - r.x); tg = q; } });
+    var tg = aimTarget(r.x, r.y);
     var sc = speedScale(), mx = 62 * sc; r.vy = 62 * sc; r.vx += Math.sign(tg.x - r.x) * 85 * dt; r.vx = Math.max(-mx, Math.min(mx, r.vx));
   }
   function updateSat(u, dt) {
@@ -2211,8 +2233,9 @@
     if (ship.down) { if (state === "play" && ship.down < 900) { ship.down -= dt; if (ship.down <= 0) respawnPlayer(); } return; }
     if (state === "play") {
       var sp = 430 * dt * curStats.speed * (frozen > 0 ? 0.35 : 1);
-      var remoteP2 = net.role === "host" && netOnline() && curPid > 1, rg = remoteP2 ? guestByPid(curPid) : null;
-      var dir = remoteP2 ? 0 : steerDir(curPid);
+      var hostPid = (net && net.hostPid) || 1;
+      var remoteP2 = net.role === "host" && netOnline() && curPid !== hostPid && curPid > 1, rg = remoteP2 ? guestByPid(curPid) : null;
+      var dir = remoteP2 ? 0 : steerDir((net.role === "host" && curPid === hostPid) ? 1 : curPid);
       ship.prevX = ship.x;
       ship.x += dir * sp;
       if (touchTarget !== null) { // Ziehen: Rakete folgt dem Finger direkt (eingefroren: langsam)
@@ -2234,8 +2257,10 @@
     if (curPid > 1 && frozen > 0) frozen -= dt;
     // Feuer gedrückt halten: Dauerfeuer im Takt des Raumschiffs
     var wantFire = false;
-    if (state === "play" && curPid > 1 && net.role === "host" && netOnline()) { var rq = guestByPid(curPid); if (rq && (rq.rfire || rq.rfireOnce)) { wantFire = true; fire(); rq.rfireOnce = false; } }
-    else if (state === "play" && (curPid === 2 ? (Object.keys(fireFingers2).length > 0 || kb2.fire) : (fireFingerCount() > 0 || kb.fire))) { wantFire = true; fire(); }
+    var hostPidF = (net && net.hostPid) || 1;
+    if (state === "play" && curPid !== hostPidF && curPid > 1 && net.role === "host" && netOnline()) { var rq = guestByPid(curPid); if (rq && (rq.rfire || rq.rfireOnce)) { wantFire = true; fire(); rq.rfireOnce = false; } }
+    else if (state === "play" && (curPid === hostPidF || (!net.role && curPid !== 2)) && (fireFingerCount() > 0 || kb.fire)) { wantFire = true; fire(); }
+    else if (state === "play" && !net.role && curPid === 2 && (Object.keys(fireFingers2).length > 0 || kb2.fire)) { wantFire = true; fire(); }
     if (state === "play" && !ship.down) topShipPerks(dt, wantFire);
   }
   // ---------- Spezial-Kräfte der Top-Schiffe ----------
@@ -3566,6 +3591,32 @@
     var list = [curPid === 1 ? null : p1Saved].concat(others.map(function (o, i) { return curPid === i + 2 ? null : o; }));
     return list.some(function (o) { return !!(o && o.ship && !o.ship.down && !o.ship.left && o.lives > 0); });
   }
+  function livingAimShips() {
+    var list = [];
+    function add(s, pid, lv) {
+      if (s && !s.down && !s.left && lv > 0) list.push({ x: s.x, y: s.y, pid: pid, lives: lv, down: s.down, left: !!s.left });
+    }
+    if (curPid === 1) add(ship, 1, lives);
+    else if (p1Saved && p1Saved.ship) add(p1Saved.ship, 1, p1Saved.lives);
+    others.forEach(function (o, i) {
+      if (curPid === i + 2) add(ship, i + 2, lives);
+      else if (o && o.ship) add(o.ship, i + 2, o.lives);
+    });
+    return list;
+  }
+  function aimTarget(fromX, fromY, rotateIdx) {
+    var api = window.__weltraum && window.__weltraum.aim;
+    var ships = livingAimShips();
+    if (api && api.pickAimTarget) return api.pickAimTarget(ships, fromX || 0, fromY || 0, rotateIdx);
+    if (!ships.length) return { x: ship ? ship.x : (fromX || 0), y: ship ? ship.y : (fromY || 0), pid: 1 };
+    if (rotateIdx !== undefined && rotateIdx !== null) return ships[((rotateIdx % ships.length) + ships.length) % ships.length];
+    var best = ships[0], bd = 1e15;
+    ships.forEach(function (s) {
+      var d = (s.x - fromX) * (s.x - fromX) + (s.y - fromY) * (s.y - fromY);
+      if (d < bd) { bd = d; best = s; }
+    });
+    return best;
+  }
   function playerDown(why) {
     explode(ship.x, ship.y, 60, why === "hole" ? PURPLE : FIRE, 320); SFX.bigBoom(); shake = 0.4;
     shield = false; triple = 0; laser = 0; magnet = 0; frozen = 0; lives = 0;
@@ -3716,7 +3767,7 @@
   var net = { role: null, peer: null, conn: null, connected: false, inGame: false, code: "", lastRx: 0, rx: null, rfire: false, rfireOnce: false, tpHold: 0,
     evq: [], snaps: [], sendT: 0, inT: 0, seq: 0, idSeq: 0, gShip: null, gStats: null, hShip: null, myX: null, tapFire: false, gcd: 0, lvl: 1,
     lookP1: null, lookP2: null, joinTimer: null, countdown: null, stats: { snapsTx: 0, snapsRx: 0, inRx: 0, bytes: 0 },
-    guests: [], myPid: 0, nPl: 2, looks: {}, roster: [] };
+    guests: [], myPid: 0, nPl: 2, looks: {}, roster: [], hostPid: 1, gen: 0, isPublic: true, hostAway: false, recovering: false, hbTimer: null };
   var MAX_PLAYERS = 5;
   function guestByPid(pid) { for (var i = 0; i < net.guests.length; i++) if (net.guests[i].pid === pid) return net.guests[i]; return null; }
   function tpNotify() { var g = guestByPid(curPid); if (g) g.tpHold = 0.4; netEmit(["t", r1(ship.x), curPid]); }
@@ -3816,17 +3867,18 @@
     $("onMenu").classList.toggle("hidden", view !== "menu");
     $("onJoinBox").classList.toggle("hidden", view !== "join");
     $("onRoom").classList.toggle("hidden", view !== "room");
-    renderOnLevels(); renderRoster();
+    renderOnLevels(); renderRoster(); updateVisHelp();
+    if (view === "join") refreshRoomList();
   }
   function onStatus(t, cls) { var e = $("onStatus"); e.innerHTML = t || ""; e.className = cls || ""; }
   function renderRoster() { // P1–P5 mit Farben
     var el = $("onPlayers"); if (!el) return;
     var have = {}; (net.role === "host" ? [{ pid: 1, ship: curShip().id, name: myPilotName() }].concat(net.guests.filter(function (g) { return g.ok; }).map(function (g) { return { pid: g.pid, ship: g.ship, name: g.name }; })) : net.roster || []).forEach(function (p) { have[p.pid] = p; });
-    var me = net.role === "host" ? 1 : net.myPid, h = "";
+    var me = net.myPid || (net.role === "host" ? (net.hostPid || 1) : 0), h = "";
     if (!net.role || (!net.connected && net.role === "guest")) { el.classList.add("hidden"); return; }
     for (var pid = 1; pid <= MAX_PLAYERS; pid++) { var p = have[pid], pc = PCOL[pid];
       var who = p && p.name ? String(p.name).slice(0, 16) : ("P" + pid);
-      h += '<span class="pchip' + (p ? "" : " free") + '" style="border-color:' + pc.c + (p ? ";background:" + pc.bg : "") + '">' + (p ? who + (pid === 1 ? " 👑" : " 🚀") + (pid === me ? " " + tr("tips.you") : "") : "P" + pid + " " + tr("tips.freeSlot")) + "</span>";
+      h += '<span class="pchip' + (p ? "" : " free") + '" style="border-color:' + pc.c + (p ? ";background:" + pc.bg : "") + '">' + (p ? who + (pid === (net.hostPid || 1) ? " 👑" : " 🚀") + (pid === me ? " " + tr("tips.you") : "") : "P" + pid + " " + tr("tips.freeSlot")) + "</span>";
       if (net.role === "host" && p && pid > 1) h += '<button data-kick="' + pid + '" class="onKick" style="font-size:12px;margin-left:4px">' + tr("tips.kick") + ' P' + pid + '</button>'; }
     el.innerHTML = h; el.classList.remove("hidden");
     Array.prototype.forEach.call(el.querySelectorAll(".onKick"), function (btn) {
@@ -3873,18 +3925,175 @@
     var coop = coopApi();
     if (coop && coop.setOccupancy) coop.setOccupancy(liveOccupancy());
   }
+  function roomApi() { return window.__weltraum && window.__weltraum.rooms; }
+  function migrateApi() { return window.__weltraum && window.__weltraum.migrate; }
+  function stClient() { return window.__weltraum && window.__weltraum.spacetime; }
+  function migratePeerName(code, gen) {
+    var m = migrateApi();
+    return m && m.migratePeerId ? m.migratePeerId(NET_PREFIX, code, gen) : (NET_PREFIX + code + (gen ? "-m" + gen : ""));
+  }
+  function visPublic() { var el = $("onVisPublic"); return !el || !!el.checked; }
+  function updateVisHelp() {
+    var help = $("onVisHelp"); if (!help) return;
+    help.textContent = visPublic() ? tr("tips.roomPublicHelp") : tr("tips.roomPrivateHelp");
+  }
+  function pushRoomListing(forceClose) {
+    var st = stClient(); if (!st) return;
+    if (forceClose || net.role !== "host" || !net.code || !net.isPublic) {
+      try { if (st.closePublicRoom && net.code) st.closePublicRoom(net.code); } catch (e) {}
+      return;
+    }
+    var row = { code: net.code, hostName: myPilotName(), level: net.lvl || 1, players: liveOccupancy(), inGame: !!net.inGame };
+    try { (net.listed ? st.heartbeatPublicRoom : st.publishPublicRoom)(row); net.listed = true; } catch (e) {}
+  }
+  function startRoomHeartbeat() {
+    stopRoomHeartbeat();
+    net.isPublic = visPublic();
+    pushRoomListing();
+    net.hbTimer = setInterval(function () { if (net.role === "host") { net.isPublic = visPublic(); pushRoomListing(); } }, 4000);
+  }
+  function stopRoomHeartbeat() {
+    if (net.hbTimer) { clearInterval(net.hbTimer); net.hbTimer = null; }
+    if (net.listed) pushRoomListing(true);
+    net.listed = false;
+  }
+  async function refreshRoomList() {
+    var box = $("onRoomRows"); if (!box) return;
+    box.innerHTML = "<p class='small'>" + tr("loading") + "</p>";
+    var st = stClient();
+    var rows = [];
+    try { if (st && st.listPublicRooms) rows = await st.listPublicRooms(); } catch (e) { rows = []; }
+    var api = roomApi();
+    if (api && api.filterJoinableRooms) rows = api.filterJoinableRooms(rows);
+    if (!rows.length) { box.innerHTML = "<p class='small' id='noOpenRooms'>" + tr("noOpenRooms") + "</p>"; return; }
+    box.innerHTML = rows.map(function (r) {
+      return "<div class='roomRow' data-code='" + r.code + "'><div class='meta'><b>" + String(r.hostName || "Pilot").slice(0, 16) + "</b><br>" +
+        tr("level") + " " + r.level + " · " + r.players + "/5</div><button data-join='" + r.code + "'>" + tr("joinOpen") + "</button></div>";
+    }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll("[data-join]"), function (btn) {
+      btn.addEventListener("click", function () { audio(); joinRoom(btn.getAttribute("data-join")); });
+    });
+  }
+  function currentRosterSeats() {
+    if (net.role === "host") {
+      return [{ pid: 1, name: myPilotName() }].concat(net.guests.filter(function (g) { return g.ok; }).map(function (g) {
+        return { pid: g.pid, name: g.name, left: false };
+      }));
+    }
+    return (net.roster || []).map(function (p) { return { pid: p.pid, name: p.name }; });
+  }
+  function nextSuccessorPid() {
+    var m = migrateApi(), seats = currentRosterSeats();
+    if (m && m.nextHostPid) return m.nextHostPid(seats, net.hostPid || 1);
+    var live = seats.filter(function (p) { return p.pid !== (net.hostPid || 1); }).sort(function (a, b) { return a.pid - b.pid; });
+    return live[0] ? live[0].pid : 0;
+  }
+  function resumePayload(nextPid, gen) {
+    var m = migrateApi();
+    var raw = { code: net.code, hostPid: nextPid, gen: gen, name: myPilotName(), L: level || net.lvl || 1, lt: levelTime || 0, sc: score || 0, hl: heartsLostRun || 0, inGame: !!net.inGame && (state === "play" || state === "dying"), lives: allLives(), coinsRun: coinsRun || 0 };
+    return m && m.buildResume ? m.buildResume(raw) : raw;
+  }
+  function tryHostHandoff(reason) {
+    if (net.role !== "host" || !net.connected) return false;
+    var next = nextSuccessorPid();
+    if (!next) return false;
+    net.gen = (net.gen || 0) + 1;
+    var name = "";
+    net.guests.forEach(function (g) { if (g.ok && g.pid === next) name = g.name; });
+    netSend({ t: "handoff", nextPid: next, gen: net.gen, code: net.code, name: name || ("P" + next), reason: reason || "leave", resume: resumePayload(next, net.gen) });
+    return true;
+  }
+  function applySnapAsWorld(b) {
+    if (!b || !b.P) return false;
+    try {
+      SNAP_ARRAYS.forEach(function (k) { setArr(k, (b.A && b.A[k]) || []); });
+      boss = b.boss || null; worm = b.worm; flare = b.flare; shower = b.shower; grid = b.grid || null;
+      wind = b.wind || null; ion = b.ion || null;
+      score = b.sc | 0; level = b.lv | 0; levelTime = +b.lt || 0; time = +b.tm || 0;
+      holeWobble = b.hw; holeFlash = b.hf; heartsLostRun = b.hl | 0; combo = b.cb | 0; comboT = +b.cbt || 0;
+      setG(mkP(b.P[0], b.P[0].x));
+      others = b.P.slice(1).map(function (pi) { return pi ? mkP(pi, pi.x) : mkP(b.P[0], -999); });
+      if ((net.hostPid || 1) !== 1) { ship.down = 999; ship.left = true; lives = 0; }
+      twoP = others.some(function (o) { return o && o.ship && !o.ship.left; });
+      state = b.st === "dying" ? "dying" : "play";
+      return true;
+    } catch (e) { return false; }
+  }
+  function becomeSoloContinue() {
+    twoP = false; others = []; net.nPl = 1; net.connected = false; net.role = "host"; net.hostPid = net.myPid || 1;
+    if (!net.inGame) { goToMap(); openOnline(); onShow("room"); }
+    showMsg("🚀 " + tr("tips.keepPlayingSolo"), "good", 2.4);
+  }
+  function becomeMigratedHost(msg) {
+    var oldConn = net.conn, oldPeer = net.peer;
+    net.conn = null;
+    try { if (oldConn) oldConn.close(); } catch (e) {}
+    try { if (oldPeer) oldPeer.destroy(); } catch (e) {}
+    net.role = "host"; net.myPid = net.myPid || (msg && msg.nextPid) || 2; net.hostPid = net.myPid; net.gen = (msg && msg.gen) || (net.gen || 0) + 1;
+    net.connected = true; net.recovering = false; net.guests = []; net.hostAway = false;
+    var snap = net.snaps && net.snaps[net.snaps.length - 1];
+    var keptGame = !!(msg && msg.resume && msg.resume.inGame && applySnapAsWorld(snap));
+    net.inGame = keptGame;
+    loadPeer(function (ok) {
+      if (!ok || net.role !== "host") return;
+      var peer;
+      try { peer = new Peer(migratePeerName(net.code, net.gen), PEER_OPTS); } catch (e) { return; }
+      net.peer = peer;
+      peer.on("open", function () { startRoomHeartbeat(); hostStatus(); renderRoster(); });
+      peer.on("connection", function (c) { attachGuest(c); });
+    });
+    if (keptGame) showMsg("👑 " + tr("tips.youAreHost"), "good", 2.4);
+    else {
+      $("onlineScreen").classList.remove("hidden"); onShow("room"); $("onCodeShow").textContent = net.code;
+      if (state !== "map") goToMap();
+      showMsg("👑 " + tr("tips.youAreHost"), "good", 2.4);
+    }
+  }
+  function reconnectToSuccessor(msg) {
+    net.recovering = true;
+    showMsg("📡 " + tr("tips.hostMigrating"), "bad", 2.2);
+    var oldConn = net.conn, oldPeer = net.peer;
+    try { if (oldConn) oldConn.close(); } catch (e) {}
+    try { if (oldPeer) oldPeer.destroy(); } catch (e) {}
+    net.conn = null; net.peer = null; net.connected = false; net.role = "guest";
+    net.gen = msg.gen; net.hostPid = msg.nextPid;
+    var delay = (migrateApi() && migrateApi().HOST_RECONNECT_DELAY_MS) || 1200;
+    setTimeout(function () { joinRoom(msg.code || net.code, msg.gen); }, delay);
+    if (msg.name) showMsg("👑 " + tr("tips.nowHost", { name: msg.name }), "good", 2.6);
+  }
+  function beginHostRecovery() {
+    if (net.role !== "guest" || net.recovering) return;
+    net.recovering = true;
+    var away = !!net.hostAway;
+    var wait = migrateApi() && migrateApi().hostGoneTimeout ? migrateApi().hostGoneTimeout(away) : (away ? 25000 : 8000);
+    showMsg("📡 " + (away ? tr("tips.hostAway") : tr("tips.hostMigrating")), "bad", 2.4);
+    setTimeout(function () {
+      if (net.role !== "guest") return;
+      var next = nextSuccessorPid();
+      if (!next) { becomeSoloContinue(); return; }
+      var gen = (net.gen || 0) + 1;
+      if (next === net.myPid) becomeMigratedHost({ nextPid: next, gen: gen, code: net.code, resume: { inGame: net.inGame } });
+      else reconnectToSuccessor({ nextPid: next, gen: gen, code: net.code, name: "" });
+    }, wait);
+  }
   function netTeardown() {
     clearTimeout(net.joinTimer); clearInterval(net.countdown); net.countdown = null;
+    stopRoomHeartbeat();
     var c = net.conn, p = net.peer;
     var gs = net.guests; net.guests = []; net.roster = []; net.myPid = 0; net.looks = {};
     net.conn = null; net.peer = null; net.connected = false; net.handshaking = false; net.role = null; net.inGame = false; net.snaps = []; net.evq = [];
     net.rx = null; net.rfire = false; net.rfireOnce = false; net.lookP1 = net.lookP2 = null; net.myX = null;
+    net.hostPid = 1; net.gen = 0; net.hostAway = false; net.recovering = false;
     try { if (c) c.close(); } catch (e) {}
     gs.forEach(function (g) { try { g.conn.close(); } catch (e) {} });
     try { if (p) p.destroy(); } catch (e) {}
     var coopT = coopApi(); if (coopT && coopT.reset) coopT.reset();
   }
-  function netLeave() { if (net.connected) netSend({ t: "bye" }); netTeardown(); }
+  function netLeave() {
+    if (net.role === "host" && net.connected) tryHostHandoff("leave");
+    else if (net.connected) netSend({ t: "bye" });
+    netTeardown();
+  }
   function netErr(type) { return tr("tips.net_" + (type || "generic")); }
   function netFail(type) {
     netTeardown();
@@ -3921,7 +4130,8 @@
       try { peer = new Peer(NET_PREFIX + code, PEER_OPTS); } catch (e) { netFail("noload"); return; }
       net.peer = peer;
       peer.on("open", function () {
-        net.code = code; $("onCodeShow").textContent = code; hostStatus(); renderRoster();
+        net.code = code; net.myPid = 1; net.hostPid = 1; net.gen = 0; net.isPublic = visPublic(); $("onCodeShow").textContent = code; hostStatus(); renderRoster();
+        startRoomHeartbeat();
         try { var st = window.__weltraum && window.__weltraum.spacetime; if (st && st.reportMpJoin) st.reportMpJoin(); } catch (e) {}
       });
       peer.on("connection", function (c) {
@@ -3960,9 +4170,11 @@
       peer.on("disconnected", function () { if (net.peer === peer && !net.connected) { try { peer.reconnect(); } catch (x) {} } });
     });
   }
-  function joinRoom(code) {
+  function joinRoom(code, gen) {
     trackPlay("room_joined");
-    netTeardown(); net.role = "guest";
+    var keepCode = code, keepGen = gen || 0;
+    if (!net.recovering) netTeardown();
+    net.role = "guest"; net.code = keepCode; net.gen = keepGen;
     onStatus("🔗 " + tr("tips.connecting", { code: code }));
     loadPeer(function (ok) {
       if (net.role !== "guest") return;
@@ -3970,7 +4182,7 @@
       var peer;
       try { peer = new Peer(PEER_OPTS); } catch (e) { netFail("noload"); return; }
       net.peer = peer;
-      peer.on("open", function () { if (net.peer !== peer) return; attachConn(peer.connect(NET_PREFIX + code, { serialization: "raw", reliable: true })); });
+      peer.on("open", function () { if (net.peer !== peer) return; attachConn(peer.connect(migratePeerName(keepCode, keepGen), { serialization: "raw", reliable: true })); });
       peer.on("error", function (e) { if (net.peer !== peer) return; if (net.connected && e.type !== "peer-unavailable") return; netFail(e.type); });
       net.joinTimer = setTimeout(function () { if (net.role === "guest" && !net.connected) netFail("timeout"); }, 15000);
     });
@@ -4002,11 +4214,14 @@
       var o = others[g.pid - 2];
       if (o) { if (curPid === g.pid) { ship.down = 999; ship.left = true; lives = 0; } else { o.ship.down = 999; o.ship.left = true; o.lives = 0; } }
       rawShowMsg("👋 P" + g.pid + " hat das Spiel verlassen.", "bad", 2); updateHud();
+      if (!net.guests.some(function (q) { return q.ok; })) { twoP = false; others = []; showMsg("🚀 " + tr("tips.keepPlayingSolo"), "good", 2.2); }
     }
     if (!net.inGame) { hostRosterSend(); if (!$("onlineScreen").classList.contains("hidden")) { hostStatus(); renderOnLevels(); } }
+    pushRoomListing();
   }
   function netLost() {
     if (!net.role) return;
+    if (net.role === "guest" && (net.connected || net.inGame) && !net.recovering) { beginHostRecovery(); return; }
     var wasGame = net.inGame && (state === "play" || state === "dying" || state === "sucked");
     var wasConnected = net.connected;
     netTeardown();
@@ -4038,7 +4253,7 @@
         var coopH = coopApi();
         if (coopH && coopH.playerJoined) coopH.playerJoined(g.conn && g.conn.peer);
         syncOccupancy();
-        connSend(g.conn, { t: "welcome", hs: curShip().id, L: net.lvl, pid: g.pid, name: myPilotName() });
+        connSend(g.conn, { t: "welcome", hs: curShip().id, L: net.lvl, pid: g.pid, name: myPilotName(), hostPid: net.hostPid || 1, gen: net.gen || 0 });
         hostRosterSend(); hostStatus(); renderOnLevels(); SFX.power();
         showJoinToast(g);
       } else if (m.t === "i") {
@@ -4047,9 +4262,16 @@
         g.rfire = !!m.f; if (m.o) g.rfireOnce = true;
       }
     } else if (net.role === "guest") {
-      if (m.t === "bye") { netLost(); return; }
+      if (m.t === "bye") { beginHostRecovery(); return; }
+      if (m.t === "handoff") {
+        if (m.nextPid === net.myPid) becomeMigratedHost(m);
+        else reconnectToSuccessor(m);
+        return;
+      }
+      if (m.t === "away") { net.hostAway = true; return; }
+      if (m.t === "back") { net.hostAway = false; return; }
       if (m.t === "ready") { sendHello(); }
-      else if (m.t === "welcome") { net.connected = true; net.handshaking = false; net.hShip = SHIP_BY[m.hs] ? m.hs : "starter"; net.myPid = Math.max(2, Math.min(MAX_PLAYERS, m.pid | 0 || 2)); $("onJoinForm").classList.add("hidden"); onShow("join"); onStatus("✅ " + tr("tips.connectedAs", { n: net.myPid }) + " (Level " + (m.L | 0) + ")", "good"); SFX.power(); }
+      else if (m.t === "welcome") { net.connected = true; net.handshaking = false; net.recovering = false; net.hShip = SHIP_BY[m.hs] ? m.hs : "starter"; net.myPid = Math.max(2, Math.min(MAX_PLAYERS, m.pid | 0 || 2)); net.hostPid = m.hostPid || 1; net.gen = m.gen || net.gen || 0; $("onJoinForm").classList.add("hidden"); onShow("join"); onStatus("✅ " + tr("tips.connectedAs", { n: net.myPid }) + " (Level " + (m.L | 0) + ")", "good"); SFX.power(); }
       else if (m.t === "roster") { net.roster = (Array.isArray(m.P) ? m.P : []).filter(function (p) { return p && p.pid >= 1 && p.pid <= MAX_PLAYERS; }).map(function (p) { return { pid: p.pid | 0, ship: SHIP_BY[p.ship] ? p.ship : "starter", name: String(p.name || "").slice(0, 16) }; }); renderRoster(); }
       else if (m.t === "lobby") { onStatus("✅ " + tr("tips.hostPicked", { level: (m.L | 0) }), "good"); }
       else if (m.t === "full") netFail("full");
@@ -4085,7 +4307,7 @@
     if (net.role !== "host" || !net.connected || net.countdown) return;
     var lk = { 1: curShip().id }, ok = net.guests.filter(function (g) { return g.ok; });
     // Spieler-Nummern lückenlos machen (P2, P3, ...), damit niemand auf einem leeren Platz fliegt
-    ok.sort(function (a, b) { return a.pid - b.pid; }).forEach(function (g, i) { if (g.pid !== i + 2) { g.pid = i + 2; connSend(g.conn, { t: "welcome", hs: curShip().id, L: L, pid: g.pid }); } lk[g.pid] = g.ship; });
+    ok.sort(function (a, b) { return a.pid - b.pid; }).forEach(function (g, i) { if (g.pid !== i + 2) { g.pid = i + 2; connSend(g.conn, { t: "welcome", hs: curShip().id, L: L, pid: g.pid, hostPid: net.hostPid || 1, gen: net.gen || 0 }); } lk[g.pid] = g.ship; });
     net.nPl = 1 + ok.length;
     net.lvl = L; netSend({ t: "start", L: L, hs: curShip().id, n: net.nPl, looks: lk }); runCountdown(L);
   }
@@ -4118,7 +4340,7 @@
   function netTick(dt) {
     var now = performance.now();
     if (net.role === "host") net.guests.slice().forEach(function (g) { if (now - g.lastRx > 6000) guestLeft(g); });
-    else if (net.connected && !net.handshaking && now - net.lastRx > 6000) { netLost(); return; }
+    else if (net.connected && !net.handshaking && now - net.lastRx > ((window.__weltraum && window.__weltraum.migrate && window.__weltraum.migrate.hostGoneTimeout) ? window.__weltraum.migrate.hostGoneTimeout(!!net.hostAway) : (net.hostAway ? 25000 : 8000))) { netLost(); return; }
     if (!net.connected) return;
     net.inT -= dt;
     if (net.role === "host" && net.inGame) {
@@ -4283,6 +4505,23 @@
     if (code.length !== CODE_LEN) { onStatus(tr("tips.codeLen", { n: CODE_LEN }), "bad"); return; }
     try { $("onCode").blur(); } catch (e) {}
     joinRoom(code);
+  });
+  if ($("onRefreshRooms")) $("onRefreshRooms").addEventListener("click", function () { audio(); refreshRoomList(); });
+  ["onVisPublic", "onVisPrivate"].forEach(function (id) {
+    if ($(id)) $(id).addEventListener("change", function () { net.isPublic = visPublic(); updateVisHelp(); if (net.role === "host") pushRoomListing(!net.isPublic); });
+  });
+  window.addEventListener("pagehide", function (e) {
+    if (net.role !== "host") return;
+    // iPad Safari fires pagehide on background/sleep. Do not migrate immediately —
+    // guests wait HOST_AWAY_MS, then self-promote if the host never comes back.
+    net.hostAway = true;
+    netSend({ t: "away" });
+    if (!e.persisted) tryHostHandoff("sleep");
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (net.role !== "host") return;
+    net.hostAway = !!document.hidden;
+    netSend({ t: document.hidden ? "away" : "back" });
   });
   $("onLevels").addEventListener("click", function (e) {
     var b = e.target.closest && e.target.closest("[data-lv]"); if (!b) return;
@@ -6908,13 +7147,30 @@
     protectP1: function () { invuln = 99; },
     ghostInfo: function () { return { run: ghostRun ? { x: ghostRun.x, score: ghostRun.score, ship: ghostRun.g.ship, n: ghostRun.g.xs.length / 2 } : null, recN: ghostRec ? ghostRec.xs.length : 0, stored: load("spaceMissionGhosts", "").length }; },
     missions: function () { return daily; },
-    net: function () { return { role: net.role, connected: net.connected, inGame: net.inGame, code: net.code, rx: net.rx, myX: net.myX, lookP1: net.lookP1, lookP2: net.lookP2, snaps: net.snaps.length, stats: net.stats, p2: others[0] ? { x: Math.round(others[0].ship.x), lives: others[0].lives, down: others[0].ship.down || 0, hearts: others[0].stats ? others[0].stats.hearts : null, perk: others[0].stats ? others[0].stats.perk : null } : null, myPid: net.myPid, nPl: net.nPl, guests: net.guests.map(function (g) { return { pid: g.pid, ok: g.ok, ship: g.ship }; }), players: others.map(function (o) { return { x: Math.round(o.ship.x), lives: o.lives, down: o.ship.down || 0, hearts: o.stats ? o.stats.hearts : null }; }), looks: net.looks, boss: boss ? boss.maxHp : null, hud: document.getElementById("hearts").textContent, roster: document.getElementById("onPlayers").innerText, p1x: ship ? Math.round(ship.x) : null, state: state, score: score, coins: shop.coins, rocks: rocks.length, bullets: bullets.length, W: W, H: H, occupancy: liveOccupancy() }; },
+    net: function () { return { role: net.role, connected: net.connected, inGame: net.inGame, code: net.code, rx: net.rx, myX: net.myX, lookP1: net.lookP1, lookP2: net.lookP2, snaps: net.snaps.length, stats: net.stats, p2: others[0] ? { x: Math.round(others[0].ship.x), lives: others[0].lives, down: others[0].ship.down || 0, hearts: others[0].stats ? others[0].stats.hearts : null, perk: others[0].stats ? others[0].stats.perk : null } : null, myPid: net.myPid, nPl: net.nPl, guests: net.guests.map(function (g) { return { pid: g.pid, ok: g.ok, ship: g.ship }; }), players: others.map(function (o) { return { x: Math.round(o.ship.x), lives: o.lives, down: o.ship.down || 0, hearts: o.stats ? o.stats.hearts : null }; }), looks: net.looks, boss: boss ? boss.maxHp : null, hud: document.getElementById("hearts").textContent, roster: document.getElementById("onPlayers").innerText, p1x: ship ? Math.round(ship.x) : null, state: state, score: score, coins: shop.coins, rocks: rocks.length, bullets: bullets.length, W: W, H: H, occupancy: liveOccupancy(), hostPid: net.hostPid, gen: net.gen }; },
     inflateCoop: function (n) {
       var coop = coopApi();
       if (coop && coop.playerJoined) { for (var i = 0; i < n; i++) coop.playerJoined("ghost-" + i); }
       return coop && coop.occupied ? coop.occupied() : n;
     },
     teamScaleNow: function () { return { n: nPlayers(), hp: teamScale(), spawn: teamSpawn(), atk: teamAtk() }; },
+    livingTargets: function () { return livingAimShips(); },
+    aimAt: function (x, y, i) { return aimTarget(x, y, i); },
+    placeOther: function (pid, x, y, lives) {
+      while (others.length < pid - 1) others.push(mkPlayer(others.length + 2, curStats, pid));
+      var o = others[pid - 2] || mkPlayer(pid, curStats, pid);
+      o.ship.x = x; o.ship.y = y; o.lives = lives === undefined ? 3 : lives; o.ship.down = 0; o.ship.left = false;
+      others[pid - 2] = o; twoP = true;
+      return livingAimShips();
+    },
+    migrateNext: function () { return nextSuccessorPid(); },
+    awardCoopBoss: function (L, stars, collected, players) {
+      var econ = window.__weltraum && window.__weltraum.economy;
+      return econ && econ.coopBossKillAward ? econ.coopBossKillAward(L, stars, collected, "normal", players) : 0;
+    },
+    roomListNow: function () { return { public: visPublic(), code: net.code, hostPid: net.hostPid, gen: net.gen }; },
+    forceHandoff: function () { return tryHostHandoff("test"); },
+    forcePromote: function () { becomeMigratedHost({ nextPid: net.myPid || 2, gen: (net.gen || 0) + 1, code: net.code, resume: { inGame: !!net.inGame } }); return { role: net.role, hostPid: net.hostPid }; },
     snapLen: function () { return snapString().length; },
     netKill: function () { try { net.peer && net.peer.destroy(); } catch (e) {} },
     arrSizes: function () { return { particles: particles.length, bullets: bullets.length, rocks: rocks.length, coins: coinsArr.length, evq: net.evq.length }; },
@@ -6983,9 +7239,15 @@
     setTxt("onHost", "🏠 " + tr("createRoom"));
     setTxt("onJoin", "🚪 " + tr("joinRoom"));
     setTxt("enterRoomCode", tr("enterRoomCode"));
+    setTxt("orJoinCode", tr("orJoinCode"));
+    setTxt("openRoomsLabel", tr("openRooms"));
+    setTxt("onRefreshRooms", tr("refreshRooms"));
+    setTxt("onVisPublicLbl", tr("roomPublic"));
+    setTxt("onVisPrivateLbl", tr("roomPrivate"));
     setTxt("onGo", tr("connect") + " 🔗");
     setTxt("roomCodeLabel", tr("roomCodeLabel"));
     setTxt("friendsEnterCode", tr("friendsEnterCode"));
+    updateVisHelp();
     setTxt("onStart", "▶ " + tr("startGo"));
     setTxt("onBack", tr("leaveRoom") + " 🗺️");
     setTxt("onlineFooter", tr("onlineFooter"));

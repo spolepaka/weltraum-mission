@@ -59,6 +59,10 @@ import { isoWeekKey, weeklyChallenge } from './lib/weekly';
 import { loadDoNotTrack, saveDoNotTrack, type AnalyticsKind } from './lib/analytics';
 import { clearSoftReloadGuard, installChunkUpdateHandlers } from './lib/chunk-update';
 import { isAutomatedClient, isBotUserAgent, verifyGeo } from './lib/geo-privacy';
+import * as aim from './lib/aim-target';
+import * as rooms from './lib/room-list';
+import * as migrate from './lib/host-migrate';
+import * as economy from './lib/economy';
 
 export interface WeltraumApi {
   i18n: {
@@ -71,6 +75,10 @@ export interface WeltraumApi {
   };
   spacetime: SpacetimeClient;
   coop: typeof coop;
+  aim: typeof aim;
+  rooms: typeof rooms;
+  migrate: typeof migrate;
+  economy: typeof economy;
   syncStatus: SyncStatus;
   onSyncStatusChange: (callback: (status: SyncStatus) => void) => () => void;
   onGameSave: () => void;
@@ -444,6 +452,10 @@ function installApi(client: SpacetimeClient): WeltraumApi {
     i18n: { t, getLanguage, setLanguage, toggleLanguage, onLanguageChange, getCatalog },
     spacetime: client,
     coop,
+    aim,
+    rooms,
+    migrate,
+    economy,
     syncStatus: client.getStatus(),
     onSyncStatusChange: (callback) => {
       return client.onStatusChange((status) => {

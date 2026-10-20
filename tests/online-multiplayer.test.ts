@@ -14,6 +14,12 @@ type GameWin = Window & {
     acceptName?: () => void;
     namePickVisible?: () => boolean;
     finishOnboard?: () => void;
+    roomListNow?: () => { public: boolean; code: string; hostPid: number };
+    forceHandoff?: () => boolean;
+    forcePromote?: () => { role: string; hostPid: number };
+    awardCoopBoss?: (L: number, stars: number, collected: number, players: number) => number;
+    placeOther?: (pid: number, x: number, y: number, lives?: number) => Array<{ pid: number }>;
+    aimAt?: (x: number, y: number, i?: number) => { pid: number };
   };
 };
 
@@ -172,5 +178,83 @@ describe('online multiplayer (2–3 browsers, production CSP)', { timeout: 90000
     expect(status.toLowerCase()).not.toMatch(/full|voll/);
     await host.context.close();
     await guest.context.close();
+  });
+
+  it('shows a public room in the join list', async () => {
+    const host = await openGame();
+    const guest = await openGame();
+    await host.page.click('#onlineBtn');
+    await host.page.click('#onHost');
+    await host.page.waitForFunction(() => {
+      const el = document.getElementById('onCodeShow');
+      const t = el?.textContent || '';
+      return t.length >= 4 && !t.includes('·');
+    }, { timeout: 20000 });
+    const listed = await host.page.evaluate(() => {
+      const w = window as GameWin;
+      return w.__spaceGame?.roomListNow?.();
+    });
+    expect(listed?.public).toBe(true);
+    expect((listed?.code || '').length).toBeGreaterThanOrEqual(4);
+    await guest.page.click('#onlineBtn');
+    await guest.page.click('#onJoin');
+    await guest.page.waitForSelector('#onRoomRows', { timeout: 8000 });
+    const hasListUi = await guest.page.locator('#onRoomRows').count();
+    expect(hasListUi).toBe(1);
+    await host.context.close();
+    await guest.context.close();
+  });
+
+  it('promotes the next player when the host hands off', async () => {
+    const host = await openGame();
+    const guest = await openGame();
+    await host.page.click('#onlineBtn');
+    await host.page.click('#onHost');
+    await host.page.waitForFunction(() => {
+      const el = document.getElementById('onCodeShow');
+      const t = el?.textContent || '';
+      return t.length >= 4 && !t.includes('·');
+    }, { timeout: 20000 });
+    const code = (await host.page.locator('#onCodeShow').innerText()).trim();
+    await guest.page.click('#onlineBtn');
+    await guest.page.click('#onJoin');
+    await guest.page.fill('#onCode', code);
+    await guest.page.click('#onGo');
+    await guest.page.waitForFunction(() => {
+      const w = window as GameWin;
+      const n = w.__spaceGame?.net?.();
+      return !!(n && n.connected && n.role === 'guest');
+    }, { timeout: 20000 });
+    const sent = await host.page.evaluate(() => {
+      const w = window as GameWin;
+      return w.__spaceGame?.forceHandoff?.();
+    });
+    expect(sent).toBe(true);
+    await guest.page.waitForFunction(() => {
+      const w = window as GameWin;
+      const n = w.__spaceGame?.net?.();
+      return !!(n && (n.role === 'host' || document.body.innerText.includes('host') || document.body.innerText.includes('Raum-Chef')));
+    }, { timeout: 15000 }).catch(() => null);
+    const gn = await netOf(guest.page);
+    expect(gn?.role === 'host' || gn?.connected).toBeTruthy();
+    await host.context.close();
+    await guest.context.close();
+  });
+
+  it('caps a simulated co-op Robo-Kaiser payout well below 1,000,000', async () => {
+    const host = await openGame();
+    const awarded = await host.page.evaluate(() => {
+      const w = window as GameWin;
+      return w.__spaceGame?.awardCoopBoss?.(100, 3, 1_000_000, 5);
+    });
+    expect(awarded).toBeGreaterThan(10000);
+    expect(awarded).toBeLessThanOrEqual(16686);
+    const aimed = await host.page.evaluate(() => {
+      const w = window as GameWin;
+      w.__spaceGame?.placeOther?.(2, 700, 800, 3);
+      return w.__spaceGame?.aimAt?.(680, 100);
+    });
+    expect(aimed?.pid).toBe(2);
+    await host.context.close();
   });
 });

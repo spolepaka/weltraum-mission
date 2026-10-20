@@ -96,6 +96,13 @@ export const ErrorReport = __t.object("ErrorReport", {
 });
 export type ErrorReport = __Infer<typeof ErrorReport>;
 
+export const LevelAward = __t.object("LevelAward", {
+  identity: __t.identity(),
+  level: __t.u32(),
+  at: __t.timestamp(),
+});
+export type LevelAward = __Infer<typeof LevelAward>;
+
 export const LevelData = __t.object("LevelData", {
   level: __t.u32(),
   minUnlockedLevel: __t.u32(),
@@ -246,6 +253,22 @@ export const PlayerUpgrades = __t.object("PlayerUpgrades", {
   level: __t.u32(),
 });
 export type PlayerUpgrades = __Infer<typeof PlayerUpgrades>;
+
+export const PublicRoom = __t.object("PublicRoom", {
+  code: __t.string(),
+  hostIdentity: __t.identity(),
+  hostName: __t.string(),
+  level: __t.u32(),
+  players: __t.u32(),
+  inGame: __t.bool(),
+  heartbeat: __t.timestamp(),
+});
+export type PublicRoom = __Infer<typeof PublicRoom>;
+
+export const PublicRoomListResult = __t.object("PublicRoomListResult", {
+  roomsJson: __t.string(),
+});
+export type PublicRoomListResult = __Infer<typeof PublicRoomListResult>;
 
 export const ServerConfig = __t.object("ServerConfig", {
   key: __t.string(),
