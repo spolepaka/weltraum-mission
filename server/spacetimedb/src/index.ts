@@ -8,7 +8,7 @@ import { assertTrustedCaller, authSnapshotFromCtx, isFirebaseIssuer } from './au
 import { buildLevelPayload } from './level-catalog';
 import { nameKey, uniquifyDisplayName, validateDisplayName, type NameKind } from './display-names';
 import { plausibleLegacyUnlock } from './legacy-import';
-import { isMillionScaleGrant, maxCoinsForLevel } from './economy';
+import { isMillionScaleGrant, maxCoinsForLevel, salePrice } from './economy';
 import { bindAdminCtx, inspectSenderAuth, isAdminEmail, isAdminUid } from './admin';
 import { GEO_RETENTION_MS, STORE_FULL_IP, isEmptyGuestRow, verifyGeo } from './geo';
 
@@ -32,7 +32,8 @@ const VALID_SHIPS = new Set([
   'starter', 'blitz', 'komet', 'doppel', 'eis', 'falke', 'feuer', 'stern',
   'titan', 'lanze', 'koenig', 'nova', 'quanten', 'uni', 'rochen', 'phoenix',
   'hammer', 'zwilling', 'gravitron', 'spektral', 'segler', 'schatten',
-  'drache', 'omega', 'frostwal', 'lindwurm', 'hydra', 'regenbogen', 'kaiserbrecher'
+  'drache', 'omega', 'frostwal', 'lindwurm', 'hydra', 'regenbogen', 'kaiserbrecher',
+  'beepbuggy', 'cloudcoupe', 'shadowspeeder', 'chromewasp', 'apexflash'
 ]);
 
 const VALID_ACHIEVEMENTS = new Set([
@@ -825,29 +826,38 @@ export const purchaseShip = spacetimedb.reducer(
   { shipId: t.string(), price: t.u64() },
   (ctx, { shipId, price }) => {
     const identity = ctx.sender;
-    
+    // Client-sent `price` is ignored — catalog is the only charge (needs republish).
+    void price;
+
     if (!validateShip(shipId)) {
       throw new Error(`Invalid ship: ${shipId}`);
     }
-    
+
+    const catalog = salePrice(shipId);
+    if (catalog === null) {
+      throw new Error('Ship not for sale');
+    }
+    const cost = BigInt(catalog);
+
     const shop = ctx.db.playerShop.identity.find(identity);
     if (!shop) throw new Error('Shop data not found');
-    
+
     for (const s of ctx.db.ownedShip.identity.filter(identity)) {
       if (s.shipId === shipId) {
         throw new Error('Ship already owned');
       }
     }
-    
-    if (shop.coins < price) {
+
+    if (shop.coins < cost) {
       throw new Error('Insufficient coins');
     }
-    
+
     ctx.db.playerShop.identity.update({
       ...shop,
-      coins: shop.coins - price,
+      coins: shop.coins - cost,
+      equippedShip: shipId,
     });
-    
+
     ctx.db.ownedShip.insert({ identity, shipId });
   }
 );

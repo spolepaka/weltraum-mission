@@ -51,6 +51,8 @@ export const EN_ONLY_MARKERS = [
   'Training flight',
   'Skip training',
   'Updating the game…',
+  'Sky Roadsters',
+  'Beep Buggy',
 ] as const;
 
 export const DE_ONLY_MARKERS = [
@@ -99,6 +101,8 @@ export const DE_ONLY_MARKERS = [
   'Trainingsflug',
   'Training überspringen',
   'Spiel wird aktualisiert…',
+  'Himmels-Roadster',
+  'Pieps-Buggy',
 ] as const;
 
 export function markersForOtherLanguage(lang: Language): readonly string[] {

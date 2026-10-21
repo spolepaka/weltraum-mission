@@ -272,7 +272,7 @@
   #onPlayers { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 8px 0 2px; }
   .pchip { border: 2px solid; border-radius: 12px; padding: 4px 9px; font-weight: bold; font-size: 15px; color: #fff; }
   .pchip.free { opacity: .45; font-weight: normal; }
-  #shipTabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+  #shipTabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; justify-content: center; }
   #shipTabs button { font-size: 15px; padding: 7px 11px; border-radius: 12px; border: 2px solid #4a6cff; background: rgba(20,30,80,.7); color: #cfe0ff; cursor: pointer; }
   #shipTabs button.on { background: #4a6cff; color: #fff; box-shadow: 0 0 10px rgba(125,160,255,.7); }
   #shipTabs button small { opacity: .75; font-size: 12px; }
@@ -2308,6 +2308,33 @@
     } else if (p2k === "frostaura") {
       bombs.forEach(function (b) { if (!b.slowed && Math.abs(b.x - ship.x) < 130 && Math.abs(b.y - ship.y) < 150) { b.slowed = true; b.vx *= 0.5; b.vy *= 0.5; } });
       drones.forEach(function (dr) { if (Math.abs(dr.x - ship.x) < 130 && Math.abs(dr.y - ship.y) < 150) dr.chillUntil = time + 0.3; });
+    } else if (p2k === "dash") {
+      ship.dashT = (ship.dashT === undefined ? 1 : ship.dashT) - dt;
+      if (ship.dashT <= 0 && wantFire) {
+        ship.dashT = 3.2;
+        var dashDir = ship.x < W / 2 ? 1 : -1;
+        if (ship.x < 80) dashDir = 1;
+        if (ship.x > W - 80) dashDir = -1;
+        var nx = Math.max(ship.w / 2 + 4, Math.min(W - ship.w / 2 - 4, ship.x + dashDir * 100));
+        explode(ship.x, ship.y, 12, ["#7dffea", "#ffffff", "#c8f6ff"], 140);
+        ship.x = nx;
+        explode(ship.x, ship.y, 12, ["#7dffea", "#ffffff", "#c8f6ff"], 140);
+        invuln = Math.max(invuln, 0.35);
+        tone(900, 1600, 0.18, "sine", 0.06);
+        showMsg("⚡ " + tr("tips.boostDash"), "good", 0.8);
+        if (touchTarget !== null) { dragOffset += nx - touchTarget; touchTarget = nx; }
+        if (curPid > 1 && net.role === "host" && netOnline()) tpNotify();
+      }
+    } else if (p2k === "pulse") {
+      ship.pulseT = (ship.pulseT === undefined ? 2 : ship.pulseT) - dt;
+      if (ship.pulseT <= 0 && wantFire) {
+        ship.pulseT = 7;
+        shield = true;
+        particles.push({ ring: true, x: ship.x, y: ship.y, r: 18, vr: 520, life: 0.45, max: 0.45, c: "#ffd54a" });
+        bombs.forEach(function (b) { if (!b.dead && Math.abs(b.x - ship.x) < 110 && Math.abs(b.y - ship.y) < 130) b.dead = true; });
+        tone(280, 880, 0.28, "triangle", 0.07);
+        showMsg("💫 " + tr("tips.shieldPulse"), "good", 0.9);
+      }
     }
   }
   function updateGorbs(dt) {
@@ -4602,7 +4629,17 @@
     { id: "regenbogen", name: "Regenbogen-Komet", tier: 4, price: 0, unlock: { ach: "combo25" }, hearts: 5, speed: 1.75, rate: 0.22, shots: 3, dmg: 3.8, regen: 0, perk: "prism", bullet: "#ffffff",
       flame: ["255,255,255", "255,213,74", "255,90,200"], engines: [[0, 28, 1]], perkText: "5 Regenbogen-Schüsse: Eis, Feuer oder Sterne!", desc: "Belohnung für den Erfolg Combo-König (25er Combo)! Fächert 5 bunte Schüsse – jeder hat eine zufällige Kraft." },
     { id: "kaiserbrecher", name: "Kaiser-Brecher", tier: 4, price: 0, unlock: { L: 90 }, hearts: 7, speed: 1.55, rate: 0.22, shots: 3, dmg: 5, regen: 10, perk: "nova", drones: 4, bullet: "#ffd54a",
-      flame: ["255,255,230", "255,213,74", "200,60,255"], engines: [[-16, 32, 1], [0, 35, 1.3], [16, 32, 1]], perkText: "Nova-Schüsse + 4 Kampf-Drohnen + 1,6x Schaden gegen den Robo-Kaiser", desc: "Belohnung für den Schwarzloch-Wächter! Gebaut, um den Robo-Kaiser zu besiegen: Nova-Wellen und vier Drohnen." }
+      flame: ["255,255,230", "255,213,74", "200,60,255"], engines: [[-16, 32, 1], [0, 35, 1.3], [16, 32, 1]], perkText: "Nova-Schüsse + 4 Kampf-Drohnen + 1,6x Schaden gegen den Robo-Kaiser", desc: "Belohnung für den Schwarzloch-Wächter! Gebaut, um den Robo-Kaiser zu besiegen: Nova-Wellen und vier Drohnen." },
+    { id: "beepbuggy", name: "Pieps-Buggy", tier: 5, price: 900, hearts: 3, speed: 1.25, rate: 0.23, shots: 1, dmg: 1.05, regen: 0, bullet: "#ff6a5a",
+      flame: ["255,220,180", "255,90,70", "180,20,20"], engines: [[-7, 30, 0.7], [7, 30, 0.7]], perkText: "Kleiner Zipp-Roadster", desc: "Ein winziges rotes Zweisitzer-Flitzerchen mit Pieps-Hupe und zwei Funken-Düsen. Günstig, lustig und ein bisschen wackelig!" },
+    { id: "cloudcoupe", name: "Wolken-Coupé", tier: 5, price: 6000, hearts: 3, speed: 1.55, rate: 0.2, shots: 1, dmg: 1.5, regen: 0, perk2: "dash", bullet: "#e8f6ff",
+      flame: ["240,252,255", "140,210,255", "60,140,255"], engines: [[-10, 30, 0.8], [0, 32, 1], [10, 30, 0.8]], perkText: "Boost-Sprint alle 3 s", desc: "Ein glänzend weißes Coupé auf einem Wolken-Triebwerk. Beim Feuern sprintet es seitwärts mit einem kurzen Schutzblitz!" },
+    { id: "shadowspeeder", name: "Schatten-Renner", tier: 5, price: 22000, hearts: 4, speed: 1.4, rate: 0.26, shots: 2, dmg: 2.6, regen: 0, perk: "pierce", bullet: "#ff4a5a",
+      flame: ["255,180,190", "255,60,90", "80,0,20"], engines: [[-12, 30, 0.7], [-4, 32, 0.8], [4, 32, 0.8], [12, 30, 0.7]], perkText: "Zwillings-Laser durch alles", desc: "Ein niedriger schwarzer Nacht-Racer. Zwei rote Laser fliegen durch alle Gegner in der Bahn." },
+    { id: "chromewasp", name: "Chrom-Wespe", tier: 5, price: 45000, hearts: 5, speed: 1.5, rate: 0.22, shots: 2, dmg: 3.6, regen: 14, perk: "homing", bullet: "#d8e8ff",
+      flame: ["255,255,255", "200,220,255", "140,160,200"], engines: [[-14, 28, 0.7], [-6, 32, 0.9], [6, 32, 0.9], [14, 28, 0.7]], perkText: "Zielsuchende Stachel + Schild alle 14 s", desc: "Ein silberner Wespen-Roadster. Zielsuchende Stachel jagen Gegner, und alle 14 Sekunden summt ein Schild zurück." },
+    { id: "apexflash", name: "Apex-Blitz", tier: 5, price: 148000, hearts: 7, speed: 1.62, rate: 0.2, shots: 3, dmg: 4.8, regen: 11, perk: "homing", perk2: "pulse", bullet: "#ffd54a",
+      flame: ["255,255,230", "255,180,60", "255,60,20"], engines: [[-14, 30, 0.8], [-6, 33, 1], [6, 33, 1], [14, 30, 0.8], [0, 36, 1.2]], perkText: "Zielsuch-Salve + Schildpuls", desc: "Der Top-Himmels-Roadster. Dreifach zielsuchend, Goldstreifen-Kanzel und ein Schildpuls, der Bomben in der Nähe knallt. Eines der besten Schiffe im Hangar!" }
   ];
   var SHIP_BY = {}; SHIPS.forEach(function (d) { SHIP_BY[d.id] = d; if (d.tier === undefined) d.tier = d.price >= 3000 ? 1 : 0; });
   function shipUnlocked(d) { if (!d.unlock) return true; if (d.unlock.L) return (progress.stars[d.unlock.L] | 0) > 0; if (d.unlock.ach) return !!achDone[d.unlock.ach]; return false; }
@@ -5333,6 +5370,63 @@
     ctx.save(); ctx.translate(0, 4); ctx.rotate(t); ctx.fillStyle = "#ffd54a"; poly([0, -8, 2.5, -2.5, 8, 0, 2.5, 2.5, 0, 8, -2.5, 2.5, -8, 0, -2.5, -2.5]); ctx.fill(); ctx.restore();
     ctx.fillStyle = lgV(-34, -20, ["#ffe0ff", "#c08cff"]); ctx.beginPath(); ctx.ellipse(0, -26, 4.5, 8, 0, 0, 7); ctx.fill();
   };
+  // Sky Roadsters: low two-seat sports-car silhouette, glass canopy, under-jets. No brand marks.
+  function roadsterKit(t, d, fx, o) {
+    var p = 0.5 + 0.5 * Math.sin(t * 5), c = o.c;
+    if (fx && o.aura) softAura(o.aura[0], o.aura[1], o.aura[2]);
+    (o.jets || [[-8, 30, 16, 4], [8, 30, 16, 4]]).forEach(function (e, i) { flameAt(e[0], e[1], e[2] + p * 3, e[3], d.flame, t, i * 1.2); });
+    ctx.fillStyle = "#1a1a22"; poly([-o.rear, 18, o.rear, 18, o.rear - 4, 28, -o.rear + 4, 28]); ctx.fill();
+    mirror(function (s) {
+      ctx.fillStyle = lgH(s * 6, s * o.wide, [c[2], c[1], c[0]]); ctx.strokeStyle = o.edge; ctx.lineWidth = 1.6;
+      poly([s * 8, -6, s * o.wide, 4, s * o.wide, 20, s * (o.wide - 6), 26, s * 10, 22]); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = o.acc; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(s * 10, 2); ctx.lineTo(s * (o.wide - 5), 12); ctx.stroke();
+      glowDot(s * (o.wide - 3), 8, 2.2 + p * 0.8, o.glow, 10);
+      if (o.canard) { ctx.fillStyle = c[1]; poly([s * 6, -16, s * 18, -22, s * 16, -14, s * 6, -10]); ctx.fill(); }
+      if (o.pods) {
+        ctx.fillStyle = "#2a2f45"; ctx.fillRect(s * o.pods - 2.2, -12, 4.4, 18);
+        ctx.fillStyle = o.acc; ctx.fillRect(s * o.pods - 1.4, -16, 2.8, 5);
+        glowDot(s * o.pods, -16, 1.8 + p, o.glow, 8);
+      }
+    });
+    var L = o.len || 40, bw = o.bw || 12;
+    ctx.beginPath(); ctx.moveTo(0, -L);
+    ctx.quadraticCurveTo(bw * 0.55, -L * 0.75, bw * 0.85, -L * 0.35);
+    ctx.lineTo(bw, 8); ctx.quadraticCurveTo(bw + 2, 20, bw - 3, 24);
+    ctx.lineTo(-(bw - 3), 24); ctx.quadraticCurveTo(-(bw + 2), 20, -bw, 8);
+    ctx.lineTo(-bw * 0.85, -L * 0.35); ctx.quadraticCurveTo(-bw * 0.55, -L * 0.75, 0, -L); ctx.closePath();
+    ctx.fillStyle = lgH(-bw, bw, [c[2], c[0], c[1], c[0], c[2]]); ctx.fill(); ctx.strokeStyle = o.edge; ctx.lineWidth = 2; ctx.stroke();
+    if (o.stripe) { ctx.fillStyle = o.stripe; ctx.globalAlpha = 0.85; poly([-2.2, -L + 4, 2.2, -L + 4, 3, 18, -3, 18]); ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.fillStyle = lgV(-L * 0.42, -L * 0.08, ["rgba(230,250,255,.95)", o.glass]);
+    ctx.beginPath(); ctx.ellipse(0, -L * 0.22, o.canopyW || 7, o.canopyH || 11, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,.45)"; ctx.beginPath(); ctx.ellipse(-2, -L * 0.28, 2.2, 3.5, -0.3, 0, 7); ctx.fill();
+    glowDot(-5, -L + 6, 1.6 + p * 0.5, "#fff6c8", 8); glowDot(5, -L + 6, 1.6 + p * 0.5, "#fff6c8", 8);
+    if (o.core) glowDot(0, 10, 3 + p * 2, o.core, 12);
+  }
+  DESIGNS.beepbuggy = function (t, d, fx) {
+    roadsterKit(t, d, fx, { c: ["#ff8a6a", "#e03a2a", "#8a1210"], edge: "#5a0808", acc: "#ffd54a", glass: "#3a8ad8", glow: "#ff7a5a",
+      len: 34, wide: 22, rear: 16, bw: 11, canopyW: 6.5, canopyH: 9, jets: [[-7, 28, 14, 4], [7, 28, 14, 4]] });
+  };
+  DESIGNS.cloudcoupe = function (t, d, fx) {
+    roadsterKit(t, d, fx, { c: ["#ffffff", "#e8eef8", "#b8c4d8"], edge: "#6a7a98", acc: "#7dffea", glass: "#2a9ad8", glow: "#7dffea", stripe: "#7dffea",
+      len: 42, wide: 26, rear: 18, bw: 12, canopyW: 7.5, canopyH: 11, canard: true, aura: [48, "rgba(125,255,234,.18)", "rgba(125,255,234,0)"],
+      jets: [[-10, 30, 16, 4.5], [0, 32, 18, 5], [10, 30, 16, 4.5]] });
+  };
+  DESIGNS.shadowspeeder = function (t, d, fx) {
+    roadsterKit(t, d, fx, { c: ["#3a3a48", "#15151c", "#050508"], edge: "#ff4a6a", acc: "#ff4a6a", glass: "#4a1020", glow: "#ff4a6a", stripe: "#ff2a4a",
+      len: 44, wide: 28, rear: 20, bw: 11, canopyW: 6.5, canopyH: 10, pods: 20,
+      jets: [[-12, 30, 15, 3.5], [-4, 32, 17, 3.8], [4, 32, 17, 3.8], [12, 30, 15, 3.5]] });
+  };
+  DESIGNS.chromewasp = function (t, d, fx) {
+    roadsterKit(t, d, fx, { c: ["#f4f7ff", "#c8d2e4", "#7a8498"], edge: "#ffe066", acc: "#ffe066", glass: "#1a6aaa", glow: "#ffe066", core: "#ffe066",
+      len: 46, wide: 30, rear: 22, bw: 10, canopyW: 7, canopyH: 12, canard: true, aura: [52, "rgba(255,224,102,.16)", "rgba(255,224,102,0)"],
+      jets: [[-14, 28, 14, 3.5], [-6, 32, 18, 4.5], [6, 32, 18, 4.5], [14, 28, 14, 3.5]] });
+  };
+  DESIGNS.apexflash = function (t, d, fx) {
+    roadsterKit(t, d, fx, { c: ["#ff6a4a", "#c82018", "#4a0808"], edge: "#ffd54a", acc: "#ffd54a", glass: "#1a4a8a", glow: "#ffd54a", stripe: "#ffd54a", core: "#ffffff",
+      len: 48, wide: 32, rear: 24, bw: 13, canopyW: 8, canopyH: 13, pods: 22, canard: true, aura: [62, "rgba(255,213,74,.22)", "rgba(255,90,20,0)"],
+      jets: [[-14, 30, 16, 4], [-6, 33, 20, 5], [6, 33, 20, 5], [14, 30, 16, 4], [0, 36, 22, 6]] });
+  };
   function drawShipModel(id, x, y, t, fx, skin) {
     var d = SHIP_BY[id] || (id === "amelia" ? AMELIA_DEF : SHIPS[0]);
     ctx.save(); ctx.translate(x, y); ctx.lineJoin = "round";
@@ -5341,7 +5435,13 @@
     else if ((SHIP_BY[id] || {}).tier >= 2) ctx.scale(1.12, 1.12);
     if (skin) drawSkinAura(skin, t);
     flameOverride = skin ? skinFlame(skin, t) : null;
-    try { DESIGNS[d.id](t, d, fx); } finally { flameOverride = null; }
+    try {
+      var fn = DESIGNS[d.id];
+      if (typeof fn === "function") fn(t, d, fx);
+      else DESIGNS.starter(t, d, fx);
+    } catch (e) {
+      try { DESIGNS.starter(t, d, fx); } catch (e2) {}
+    } finally { flameOverride = null; }
     ctx.restore();
   }
 
@@ -5371,13 +5471,13 @@
   function notEnough(price) { shopToast(tr("tips.missingCoins", { n: price - shop.coins }), "bad"); tone(220, 140, 0.25, "square", 0.06); }
   function firePower(st) {
     var sh = st.perk === "prism" ? 5 : st.shots, base = st.dmg * sh / st.rate * (st.perk === "beam" ? 0.7 : 1);
-    var extra = (st.drones ? st.drones * ORBIT_DMG * (st.dmg / 2.9) / ORBIT_RATE : 0) + (st.perk === "nova" ? NOVA_DMG / NOVA_EVERY : 0) + (st.perk2 === "wing" ? base * 0.6 * 2 / sh : 0) + (st.perk2 === "clone" ? base * 0.7 : 0) + (st.perk2 === "breath" ? st.dmg * 1.2 * 9 / 5 : 0) + (st.perk2 === "gravity" ? st.dmg * 6 / 5 : 0);
+    var extra = (st.drones ? st.drones * ORBIT_DMG * (st.dmg / 2.9) / ORBIT_RATE : 0) + (st.perk === "nova" ? NOVA_DMG / NOVA_EVERY : 0) + (st.perk2 === "wing" ? base * 0.6 * 2 / sh : 0) + (st.perk2 === "clone" ? base * 0.7 : 0) + (st.perk2 === "breath" ? st.dmg * 1.2 * 9 / 5 : 0) + (st.perk2 === "gravity" ? st.dmg * 6 / 5 : 0) + (st.perk2 === "dash" ? base * 0.12 : 0) + (st.perk2 === "pulse" ? st.dmg * 2 / 7 : 0);
     var m = { pierce: 2, phase: 2, omega: 2.2, quake: 2.2, beam: 2.4, homing: 1.6, orbit: 1.6, chain: 1.8, split: 1.6, prism: 1.5 }[st.perk] || (st.perk ? 1.3 : 1);
     return (base + extra) * m;
   }
   function maxFirePower() { var m = 0; SHIPS.forEach(function (d) { m = Math.max(m, firePower(statsFor(d.id))); }); return m; }
   function bar(f) { return '<span class="sbar"><i style="width:' + Math.round(Math.max(0.06, Math.min(1, f)) * 100) + '%"></i></span>'; }
-  var SHOP_TABS = [["🚀", "tabStart"], ["⭐", "tabPro"], ["🌌", "tabGalaxy"], ["👑", "tabLegend"], ["🎁", "tabSpecial"]], shopTab = 0;
+  var SHOP_TABS = [["🚀", "tabStart"], ["⭐", "tabPro"], ["🌌", "tabGalaxy"], ["👑", "tabLegend"], ["🎁", "tabSpecial"], ["🏎️", "tabRoadster"]], shopTab = 0;
   function shipCardLabel(sd) {
     var o = shop.owned.indexOf(sd.id) >= 0, e = shop.equipped === sd.id;
     if (e) return "✅ " + tr("equipped"); if (o) return tr("tips.owned");
@@ -5386,6 +5486,7 @@
   }
   function renderShop() {
     $("shopCoins").textContent = fmtN(shop.coins);
+    if (!SHIP_BY[shopSel]) shopSel = shop.equipped && SHIP_BY[shop.equipped] ? shop.equipped : "starter";
     if (SHIP_BY[shopSel].tier !== shopTab && !renderShop.keepTab) shopTab = SHIP_BY[shopSel].tier;
     renderShop.keepTab = false;
     var d = SHIP_BY[shopSel], st = statsFor(shopSel), owned = shop.owned.indexOf(shopSel) >= 0, eq = shop.equipped === shopSel;
@@ -5442,6 +5543,7 @@
     if (!owned && d.unlock) {
       if (!shipUnlocked(d)) { shopToast(unlockText(d) + " " + tr("tips.thenFree"), "bad"); tone(220, 140, 0.25, "square", 0.06); return; }
       shop.owned.push(shopSel); shop.equipped = shopSel; saveShop(); curStats = shipStats();
+      if (window.__weltraum && window.__weltraum.onClaimShip) window.__weltraum.onClaimShip(shopSel);
       shopToast("🎁 " + tr("tips.nowYours", { name: shipNameOf(d) }), "good"); celebrate(); renderShop(); achCheck && achCheck();
       flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]')); return;
     }
@@ -5450,6 +5552,7 @@
     shop.coins -= d.price; shop.owned.push(shopSel); saveShop();
     shop.equipped = shopSel; saveShop(); curStats = shipStats();
     if (window.__weltraum && window.__weltraum.onPurchaseShip) window.__weltraum.onPurchaseShip(shopSel, d.price);
+    if (window.__weltraum && window.__weltraum.onEquipShip) window.__weltraum.onEquipShip(shopSel);
     trackPlay("shop_purchase");
     shopToast("🎉 " + tr("tips.bought", { name: shipNameOf(d) }), "good"); celebrate(); renderShop();
     flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]'));
@@ -7180,6 +7283,17 @@
     missionAdd: function (st, n) { missionAdd(st, n); },
     setShip: function (id) { if (shop.owned.indexOf(id) < 0) shop.owned.push(id); shop.equipped = id; saveShop(); curStats = shipStats(); if (shopOpen) { shopSel = id; renderShop(); } },
     shipIds: function () { return SHIPS.map(function (d) { return d.id + ":" + d.price; }); },
+    drawShipOk: function (id) {
+      try {
+        var cv = document.createElement("canvas"); cv.width = 160; cv.height = 160;
+        var c = cv.getContext("2d"), old = ctx; ctx = c;
+        drawShipModel(id, 80, 80, 0.42, true);
+        ctx = old;
+        return { ok: true, bytes: cv.toDataURL().length, id: id };
+      } catch (e) { return { ok: false, id: id, error: String(e) }; }
+    },
+    openShopTab: function (ti) { shopTab = ti; renderShop.keepTab = true; if (!shopOpen) openShop(); else renderShop(); return shopTab; },
+    shopSel: function (id) { if (id) { shopSel = id; renderShop.keepTab = true; if (shopOpen) renderShop(); } return shopSel; },
     rockAt: function (dx, dy, vy, r) { var k = makeRock(ship.x + dx, ship.y + dy, r || 24, false); k.vx = 0; k.vy = vy || 0; rocks.push(k); return rocks.length - 1; },
     bombAt: function (dx, dy) { bombs.push({ x: ship.x + dx, y: ship.y + dy, vx: 0, vy: 0, r: 11, t: 0 }); },
     rocksInfo: function () { return rocks.map(function (r) { return { x: Math.round(r.x), y: Math.round(r.y), vy: Math.round(r.vy), dead: !!r.dead, chill: r.chillUntil > time }; }); },

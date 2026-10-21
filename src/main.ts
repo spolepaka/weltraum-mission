@@ -63,6 +63,8 @@ import * as aim from './lib/aim-target';
 import * as rooms from './lib/room-list';
 import * as migrate from './lib/host-migrate';
 import * as economy from './lib/economy';
+import { ROADSTERS } from './lib/roadsters';
+import { drawRoadster } from './lib/roadster-draw';
 
 export interface WeltraumApi {
   i18n: {
@@ -92,6 +94,8 @@ export interface WeltraumApi {
   }) => Promise<{ ok: boolean; reason?: string }>;
   onPurchaseShip: (shipId: string, price: number) => boolean;
   onEquipShip: (shipId: string) => void;
+  onClaimShip: (shipId: string) => void;
+  roadsters: { list: typeof ROADSTERS; draw: typeof drawRoadster };
   onPurchaseUpgrade: (upgradeId: string, price: number) => boolean;
   onSecretCode: (code: string) => { success: boolean; message: string };
   canStartLevel: (level: number) => boolean;
@@ -492,6 +496,11 @@ function installApi(client: SpacetimeClient): WeltraumApi {
     },
     onPurchaseShip: (shipId, price) => client.purchaseShip(shipId, BigInt(price)),
     onEquipShip: (shipId) => client.equipShip(shipId),
+    onClaimShip: (shipId) => {
+      client.addOwnedShip(shipId);
+      client.equipShip(shipId);
+    },
+    roadsters: { list: ROADSTERS, draw: drawRoadster },
     onPurchaseUpgrade: (upgradeId, price) => client.purchaseUpgrade(upgradeId, BigInt(price)),
     onSecretCode: (code) => client.applySecretCode(code),
     canStartLevel: (level) => {
