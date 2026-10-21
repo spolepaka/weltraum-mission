@@ -53,6 +53,7 @@ export const EN_ONLY_MARKERS = [
   'Updating the game…',
   'Roadster Thrust',
   'Founders Series',
+  'No public rooms yet',
 ] as const;
 
 export const DE_ONLY_MARKERS = [
@@ -103,6 +104,7 @@ export const DE_ONLY_MARKERS = [
   'Spiel wird aktualisiert…',
   'Fliegende Tesla Roadster',
   'Roadster Basis',
+  'Noch keine öffentlichen Räume',
 ] as const;
 
 export function markersForOtherLanguage(lang: Language): readonly string[] {

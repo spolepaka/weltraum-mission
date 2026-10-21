@@ -125,6 +125,7 @@ export interface Translations {
   roomPrivate: string;
   openRooms: string;
   noOpenRooms: string;
+  noPublicRooms: string;
   joinOpen: string;
   refreshRooms: string;
   orJoinCode: string;

@@ -67,6 +67,63 @@ export function filterJoinableRooms(rows: PublicRoomRow[], nowMs = Date.now()): 
   return out.sort((a, b) => a.level - b.level || a.hostName.localeCompare(b.hostName));
 }
 
+export function heartbeatToMs(heartbeat: unknown): number | undefined {
+  if (heartbeat == null) return undefined;
+  if (typeof heartbeat === 'number' && Number.isFinite(heartbeat)) {
+    return heartbeat > 1e14 ? Math.floor(heartbeat / 1000) : heartbeat;
+  }
+  if (typeof heartbeat === 'bigint') return Number(heartbeat / 1000n);
+  const micros = (heartbeat as { microsSinceUnixEpoch?: bigint | number }).microsSinceUnixEpoch;
+  if (typeof micros === 'bigint') return Number(micros / 1000n);
+  if (typeof micros === 'number' && Number.isFinite(micros)) return Math.floor(micros / 1000);
+  return undefined;
+}
+
+export function publicRoomFromServer(row: {
+  code?: string;
+  hostName?: string;
+  level?: number | string;
+  players?: number | string;
+  inGame?: boolean;
+  heartbeat?: unknown;
+  heartbeatMs?: number;
+}): PublicRoomRow {
+  return {
+    code: String(row.code || '').toUpperCase(),
+    hostName: sanitizeListedName(String(row.hostName || '')),
+    level: Math.max(1, Math.min(100, Math.floor(Number(row.level) || 1))),
+    players: Math.max(1, Math.min(ROOM_MAX_PLAYERS, Math.floor(Number(row.players) || 1))),
+    inGame: !!row.inGame,
+    heartbeatMs: row.heartbeatMs !== undefined ? row.heartbeatMs : heartbeatToMs(row.heartbeat),
+  };
+}
+
+export type PublicRoomEvent =
+  | { type: 'insert' | 'update'; row: PublicRoomRow }
+  | { type: 'delete'; code: string };
+
+/** Apply a live publicRoom row event to a client cache and return the joinable list. */
+export function applyPublicRoomEvent(
+  cache: Map<string, PublicRoomRow>,
+  event: PublicRoomEvent,
+  nowMs = Date.now(),
+): PublicRoomRow[] {
+  if (event.type === 'delete') {
+    cache.delete(String(event.code || '').toUpperCase());
+  } else {
+    const row = publicRoomFromServer(event.row);
+    if (row.code) cache.set(row.code, row);
+  }
+  return pruneStaleRooms(cache, nowMs);
+}
+
+export function pruneStaleRooms(cache: Map<string, PublicRoomRow>, nowMs = Date.now()): PublicRoomRow[] {
+  for (const [code, row] of [...cache.entries()]) {
+    if (row.heartbeatMs !== undefined && !isListingFresh(row.heartbeatMs, nowMs)) cache.delete(code);
+  }
+  return filterJoinableRooms([...cache.values()], nowMs);
+}
+
 export function listingPeerId(prefix: string, code: string): string {
   return prefix + String(code || '').toUpperCase();
 }

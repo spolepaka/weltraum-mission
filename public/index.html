@@ -310,7 +310,7 @@
   .mrow .mp { font-size: 14px; color: #aab4e8; }
   .mrow button { float: right; font-family: inherit; font-size: 16px; font-weight: bold; border: none; border-radius: 16px; padding: 6px 14px; background: #ffd54a; color: #2a1660; cursor: pointer; box-shadow: 0 3px 0 #b8901a; margin-top: -4px; }
   #onlineBtn { font-size: 17px; font-weight: bold; background: rgba(30,60,130,.85); border-color: #7dc8ff; }
-  #onlineScreen .panel { max-width: 560px; }
+  #onlineScreen .panel { max-width: 600px; max-height: 92vh; overflow-y: auto; }
   #onCodeShow { font-size: 54px; font-weight: bold; letter-spacing: 10px; color: #ffd54a; text-shadow: 0 0 18px rgba(255,213,74,.6); margin: 4px 0; font-family: "Courier New", monospace; }
   #onCode { font-size: 36px; width: 220px; text-align: center; letter-spacing: 8px; text-transform: uppercase; border-radius: 14px; border: 3px solid #7dc8ff; background: #0b1238; color: #ffd54a; padding: 6px; font-family: "Courier New", monospace; }
   #onLevels { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 10px 0; }
@@ -318,13 +318,17 @@
   #onLevels button.sel { background: #ffd54a; color: #2a1660; border-color: #fff; }
   #onStatus { min-height: 28px; font-size: 19px; font-weight: bold; } #onStatus.good { color: #7dffa8; } #onStatus.bad { color: #ff9a9a; }
   #onlineScreen .small { font-size: 14px; color: #aab4e8; }
-  #onVisRow, #onRoomList { margin: 10px 0; }
-  #onVisRow label { display: inline-flex; align-items: center; gap: 6px; margin: 0 8px; font-size: 16px; }
-  #onRoomRows { text-align: left; max-height: 220px; overflow-y: auto; margin: 8px 0; }
-  .roomRow { display: flex; align-items: center; gap: 8px; background: rgba(20,30,80,.65); border: 2px solid #4a6cff; border-radius: 12px; padding: 8px 10px; margin: 6px 0; }
+  #onVisRow, #onMenuVisRow, #onRoomList { margin: 6px 0; }
+  #onVisRow label, #onMenuVisRow label { display: inline-flex; align-items: center; gap: 6px; margin: 0 8px; font-size: 16px; min-height: 44px; }
+  #onRoomRows { text-align: left; max-height: 168px; overflow-y: auto; margin: 4px 0; }
+  .roomRow { display: flex; align-items: center; gap: 10px; background: rgba(20,30,80,.65); border: 2px solid #4a6cff; border-radius: 14px; padding: 10px 12px; margin: 6px 0; min-height: 52px; }
   .roomRow b { color: #ffd54a; }
-  .roomRow .meta { flex: 1; font-size: 15px; }
-  .roomRow button { font-family: inherit; font-size: 15px; font-weight: bold; border: none; border-radius: 14px; padding: 6px 12px; background: #ffd54a; color: #2a1660; cursor: pointer; }
+  .roomRow .meta { flex: 1; font-size: 16px; }
+  .roomRow button { font-family: inherit; font-size: 18px; font-weight: bold; border: none; border-radius: 16px; padding: 10px 18px; min-height: 48px; min-width: 96px; background: #ffd54a; color: #2a1660; cursor: pointer; }
+  #onEmptyRooms { font-size: 17px; color: #ffd54a; font-weight: bold; text-align: center; padding: 10px 8px; }
+  #onRefreshRooms { font-size: 16px; min-height: 44px; padding: 8px 16px; }
+  #onCodeRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 8px 0 0; }
+  #onMenu #onlineIntro, #onMenu #openRoomsLabel, #onMenu #orJoinCode { margin: 4px 0; }
   #missionToast { min-height: 26px; font-weight: bold; color: #7dffa8; }
   #coinPill { cursor: pointer; }
   #secretBox { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 6px; font-size: 20px; }
@@ -479,17 +483,24 @@
     <h1 id="onlineTitle">🌍 Play Online</h1>
     <div id="onMenu">
       <p id="onlineIntro">Fly together in the same level – on up to 5 iPads!</p>
-      <div class="btnRow"><button class="big" id="onHost">🏠 Create Room</button><button class="big" id="onJoin">🚪 Join Room</button></div>
+      <p id="openRoomsLabel">Public rooms</p>
+      <div id="onRoomList"><div id="onRoomRows"></div>
+      <div class="btnRow"><button class="alt" id="onRefreshRooms">Refresh</button></div></div>
+      <div id="onMenuVisRow" class="small">
+        <label><input type="radio" name="onMenuVis" id="onMenuVisPublic" value="public" checked> <span id="onMenuVisPublicLbl">Public</span></label>
+        <label><input type="radio" name="onMenuVis" id="onMenuVisPrivate" value="private"> <span id="onMenuVisPrivateLbl">Private</span></label>
+      </div>
+      <p class="small" id="onMenuVisHelp"></p>
+      <div class="btnRow"><button class="big" id="onHost">🏠 Create Room</button><button class="hidden" id="onJoin">🚪 Join Room</button></div>
+      <p id="orJoinCode">Or type a room code:</p>
+      <p id="enterRoomCode" class="hidden">Enter your friend's room code:</p>
+      <div id="onCodeRow">
+      <input id="onCode" maxlength="5" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" inputmode="text">
+      <button class="big" id="onGo">Connect 🔗</button>
+      </div>
     </div>
     <div id="onJoinBox" class="hidden">
-      <div id="onJoinForm">
-      <p id="openRoomsLabel">Open rooms</p>
-      <div id="onRoomList"><div id="onRoomRows"></div>
-      <div class="btnRow"><button class="big alt" id="onRefreshRooms">Refresh</button></div></div>
-      <p id="orJoinCode">Or type a room code:</p>
-      <p id="enterRoomCode">Enter your friend's room code:</p>
-      <input id="onCode" maxlength="5" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" inputmode="text">
-      <div class="btnRow"><button class="big" id="onGo">Connect 🔗</button></div></div>
+      <div id="onJoinForm"></div>
     </div>
     <div id="onRoom" class="hidden">
       <p style="margin:0" id="roomCodeLabel">Room code:</p>
@@ -3953,7 +3964,7 @@
     $("onJoinBox").classList.toggle("hidden", view !== "join");
     $("onRoom").classList.toggle("hidden", view !== "room");
     renderOnLevels(); renderRoster(); updateVisHelp();
-    if (view === "join") refreshRoomList();
+    if (view === "menu") startRoomWatch();
   }
   function onStatus(t, cls) { var e = $("onStatus"); e.innerHTML = t || ""; e.className = cls || ""; }
   function renderRoster() { // P1–P5 mit Farben
@@ -4000,7 +4011,7 @@
     audio(); $("onlineScreen").classList.remove("hidden");
     applyAskToJoin();
     if (net.role && net.connected) { onShow(net.role === "host" ? "room" : "join"); if (net.role === "guest") { $("onJoinForm").classList.add("hidden"); onStatus("✅ " + tr("tips.connectedAs", { n: net.myPid }), "good"); } else hostStatus(); }
-    else { onShow("menu"); onStatus(""); }
+    else { onShow("menu"); onStatus(""); startRoomWatch(); }
   }
   function closeOnline() { netLeave(); $("onlineScreen").classList.add("hidden"); refreshMapToggles(); }
 
@@ -4017,10 +4028,21 @@
     var m = migrateApi();
     return m && m.migratePeerId ? m.migratePeerId(NET_PREFIX, code, gen) : (NET_PREFIX + code + (gen ? "-m" + gen : ""));
   }
-  function visPublic() { var el = $("onVisPublic"); return !el || !!el.checked; }
+  function menuVisPublic() { var el = $("onMenuVisPublic"); return !el || !!el.checked; }
+  function visPublic() {
+    if ($("onMenu") && !$("onMenu").classList.contains("hidden")) return menuVisPublic();
+    var el = $("onVisPublic"); return !el || !!el.checked;
+  }
+  function syncVisFromMenu() {
+    var pub = menuVisPublic();
+    var roomPub = $("onVisPublic"), roomPriv = $("onVisPrivate");
+    if (roomPub) roomPub.checked = pub;
+    if (roomPriv) roomPriv.checked = !pub;
+  }
   function updateVisHelp() {
-    var help = $("onVisHelp"); if (!help) return;
-    help.textContent = visPublic() ? tr("tips.roomPublicHelp") : tr("tips.roomPrivateHelp");
+    var text = visPublic() ? tr("tips.roomPublicHelp") : tr("tips.roomPrivateHelp");
+    var help = $("onVisHelp"); if (help) help.textContent = text;
+    var menuHelp = $("onMenuVisHelp"); if (menuHelp) menuHelp.textContent = text;
   }
   function pushRoomListing(forceClose) {
     var st = stClient(); if (!st) return;
@@ -4042,22 +4064,41 @@
     if (net.listed) pushRoomListing(true);
     net.listed = false;
   }
-  async function refreshRoomList() {
+  var lastRoomRows = [];
+  var unsubPublicRooms = null;
+  function renderRoomRows(rows) {
     var box = $("onRoomRows"); if (!box) return;
-    box.innerHTML = "<p class='small'>" + tr("loading") + "</p>";
-    var st = stClient();
-    var rows = [];
-    try { if (st && st.listPublicRooms) rows = await st.listPublicRooms(); } catch (e) { rows = []; }
     var api = roomApi();
-    if (api && api.filterJoinableRooms) rows = api.filterJoinableRooms(rows);
-    if (!rows.length) { box.innerHTML = "<p class='small' id='noOpenRooms'>" + tr("noOpenRooms") + "</p>"; return; }
-    box.innerHTML = rows.map(function (r) {
+    if (api && api.filterJoinableRooms) rows = api.filterJoinableRooms(rows || []);
+    lastRoomRows = rows || [];
+    if (!lastRoomRows.length) {
+      box.innerHTML = "<p class='small' id='onEmptyRooms'>" + tr("noPublicRooms") + "</p>";
+      return;
+    }
+    box.innerHTML = lastRoomRows.map(function (r) {
       return "<div class='roomRow' data-code='" + r.code + "'><div class='meta'><b>" + String(r.hostName || "Pilot").slice(0, 16) + "</b><br>" +
         tr("level") + " " + r.level + " · " + r.players + "/5</div><button data-join='" + r.code + "'>" + tr("joinOpen") + "</button></div>";
     }).join("");
     Array.prototype.forEach.call(box.querySelectorAll("[data-join]"), function (btn) {
       btn.addEventListener("click", function () { audio(); joinRoom(btn.getAttribute("data-join")); });
     });
+  }
+  function startRoomWatch() {
+    var st = stClient();
+    if (st && st.onPublicRooms) {
+      if (unsubPublicRooms) { try { unsubPublicRooms(); } catch (e) {} }
+      unsubPublicRooms = st.onPublicRooms(function (rows) { renderRoomRows(rows); });
+      return;
+    }
+    refreshRoomList();
+  }
+  async function refreshRoomList() {
+    var box = $("onRoomRows"); if (!box) return;
+    if (!lastRoomRows.length) box.innerHTML = "<p class='small'>" + tr("loading") + "</p>";
+    var st = stClient();
+    var rows = lastRoomRows;
+    try { if (st && st.listPublicRooms) rows = await st.listPublicRooms(); } catch (e) { rows = lastRoomRows; }
+    renderRoomRows(rows);
   }
   function currentRosterSeats() {
     if (net.role === "host") {
@@ -4124,6 +4165,7 @@
       var peer;
       try { peer = new Peer(migratePeerName(net.code, net.gen), PEER_OPTS); } catch (e) { return; }
       net.peer = peer;
+      startRoomHeartbeat();
       peer.on("open", function () { startRoomHeartbeat(); hostStatus(); renderRoster(); });
       peer.on("connection", function (c) { attachGuest(c); });
     });
@@ -4207,11 +4249,15 @@
   function hostRoom(tries) {
     trackPlay("room_created");
     netTeardown(); net.role = "host"; net.lvl = Math.min(progress.unlocked, net.lvl || 1);
-    onShow("room"); $("onCodeShow").textContent = "· · · · ·"; onStatus("⏳ " + tr("tips.creatingRoom"));
+    syncVisFromMenu();
+    var code = genCode();
+    net.code = code; net.myPid = 1; net.hostPid = 1; net.gen = 0; net.isPublic = visPublic();
+    onShow("room"); $("onCodeShow").textContent = code; onStatus("⏳ " + tr("tips.creatingRoom"));
+    startRoomHeartbeat();
     loadPeer(function (ok) {
       if (net.role !== "host") return;
       if (!ok) { netFail("noload"); return; }
-      var code = genCode(), peer;
+      var peer;
       try { peer = new Peer(NET_PREFIX + code, PEER_OPTS); } catch (e) { netFail("noload"); return; }
       net.peer = peer;
       peer.on("open", function () {
@@ -4574,7 +4620,7 @@
 
   $("onlineBtn").addEventListener("click", function (e) { e.currentTarget.blur(); openOnline(); });
   $("onHost").addEventListener("click", function () { audio(); applyAskToJoin(); hostRoom(0); });
-  $("onJoin").addEventListener("click", function () { audio(); onShow("join"); $("onJoinForm").classList.remove("hidden"); onStatus(""); $("onCode").value = ""; setTimeout(function () { try { $("onCode").focus(); } catch (e) {} }, 50); });
+  $("onJoin").addEventListener("click", function () { audio(); onStatus(""); $("onCode").value = ""; setTimeout(function () { try { $("onCode").focus(); } catch (e) {} }, 50); });
   $("onAskJoin").addEventListener("change", function () {
     save("spaceMissionAskToJoin", $("onAskJoin").checked ? "1" : "0");
     applyAskToJoin();
@@ -4593,8 +4639,12 @@
     joinRoom(code);
   });
   if ($("onRefreshRooms")) $("onRefreshRooms").addEventListener("click", function () { audio(); refreshRoomList(); });
-  ["onVisPublic", "onVisPrivate"].forEach(function (id) {
-    if ($(id)) $(id).addEventListener("change", function () { net.isPublic = visPublic(); updateVisHelp(); if (net.role === "host") pushRoomListing(!net.isPublic); });
+  ["onVisPublic", "onVisPrivate", "onMenuVisPublic", "onMenuVisPrivate"].forEach(function (id) {
+    if ($(id)) $(id).addEventListener("change", function () {
+      if (id.indexOf("onMenu") === 0) syncVisFromMenu();
+      net.isPublic = visPublic(); updateVisHelp();
+      if (net.role === "host") pushRoomListing(!net.isPublic);
+    });
   });
   window.addEventListener("pagehide", function (e) {
     if (net.role !== "host") return;
@@ -7445,7 +7495,14 @@
       var econ = window.__weltraum && window.__weltraum.economy;
       return econ && econ.coopBossKillAward ? econ.coopBossKillAward(L, stars, collected, "normal", players) : 0;
     },
-    roomListNow: function () { return { public: visPublic(), code: net.code, hostPid: net.hostPid, gen: net.gen }; },
+    roomListNow: function () { return { public: visPublic(), code: net.code, hostPid: net.hostPid, gen: net.gen, rows: lastRoomRows.slice() }; },
+    openOnline: openOnline,
+    injectPublicRooms: function (rows) {
+      if (unsubPublicRooms) { try { unsubPublicRooms(); } catch (e) {} unsubPublicRooms = null; }
+      renderRoomRows(rows || []);
+      return $("onRoomRows") ? $("onRoomRows").innerText : "";
+    },
+    publicRoomsText: function () { return $("onRoomRows") ? $("onRoomRows").innerText : ""; },
     forceHandoff: function () { return tryHostHandoff("test"); },
     forcePromote: function () { becomeMigratedHost({ nextPid: net.myPid || 2, gen: (net.gen || 0) + 1, code: net.code, resume: { inGame: !!net.inGame } }); return { role: net.role, hostPid: net.hostPid }; },
     snapLen: function () { return snapString().length; },
@@ -7561,6 +7618,10 @@
     setTxt("onRefreshRooms", tr("refreshRooms"));
     setTxt("onVisPublicLbl", tr("roomPublic"));
     setTxt("onVisPrivateLbl", tr("roomPrivate"));
+    setTxt("onMenuVisPublicLbl", tr("roomPublic"));
+    setTxt("onMenuVisPrivateLbl", tr("roomPrivate"));
+    var emptyRooms = $("onEmptyRooms"); if (emptyRooms) emptyRooms.textContent = tr("noPublicRooms");
+    if ($("onlineScreen") && !$("onlineScreen").classList.contains("hidden") && lastRoomRows && lastRoomRows.length) renderRoomRows(lastRoomRows);
     setTxt("onGo", tr("connect") + " 🔗");
     setTxt("roomCodeLabel", tr("roomCodeLabel"));
     setTxt("friendsEnterCode", tr("friendsEnterCode"));
