@@ -16,15 +16,20 @@ import {
 } from '../src/lib/roadsters';
 import { ROADSTER_SPRITE_PAINT, drawRoadster, mockCanvasCtx, roadsterDrawOpts } from '../src/lib/roadster-draw';
 import {
+  ROADSTER_ROLL_INVULN_GRACE,
   boostCooldown,
   boostDuration,
   boostInvuln,
   canStartBoost,
   flipsOnBoost,
+  isRollInvulnerable,
   isUnderside,
+  rockCollisionDuringRoll,
   rollDuration,
+  rollEase,
   rollScaleX,
   startRoadsterBoost,
+  steerJetSign,
 } from '../src/lib/roadster-boost';
 import { equipShipLocal, purchaseShipLocal, salePrice } from '../src/lib/shop-ships';
 
@@ -223,7 +228,8 @@ describe('Tesla Roadster rendering', () => {
     for (const id of ROADSTER_IDS) {
       const ctx = mockCanvasCtx();
       expect(() => drawRoadster(ctx, id, 0.42, ['230,250,255', '90,180,255', '30,70,200'], true)).not.toThrow();
-      expect(() => drawRoadster(ctx, id, 1.7, ['230,250,255', '90,180,255', '30,70,200'], false)).not.toThrow();
+      expect(() => drawRoadster(ctx, id, 1.7, ['230,250,255', '90,180,255', '30,70,200'], false, -0.8, null, false, false, true)).not.toThrow();
+      expect(() => drawRoadster(ctx, id, 0.4, ['230,250,255', '90,180,255', '30,70,200'], true, 0.9, null, true, true, true)).not.toThrow();
     }
     expect(() => drawRoadster(mockCanvasCtx(), 'not-a-roadster', 0, ['0,0,0', '0,0,0', '0,0,0'])).toThrow(/Unknown roadster/);
   });
@@ -236,38 +242,77 @@ describe('Tesla Roadster rendering', () => {
 });
 
 describe('Tesla Roadster rocket boost / barrel roll', () => {
-  it('shortens cooldown on higher trims and keeps roll under 0.6 s', () => {
-    expect(boostCooldown('beepbuggy')).toBeGreaterThan(boostCooldown('cloudcoupe'));
-    expect(boostCooldown('cloudcoupe')).toBeGreaterThan(boostCooldown('apexflash'));
+  it('shortens cooldown on higher trims and eases a 0.9–1.1 s roll', () => {
+    expect(boostCooldown('beepbuggy')).toBe(4.2);
+    expect(boostCooldown('cloudcoupe')).toBe(3.2);
+    expect(boostCooldown('shadowspeeder')).toBe(2.6);
+    expect(boostCooldown('chromewasp')).toBe(2.1);
+    expect(boostCooldown('apexflash')).toBe(1.6);
     expect(boostDuration('apexflash')).toBeGreaterThan(boostDuration('beepbuggy'));
-    expect(rollDuration()).toBeGreaterThanOrEqual(0.4);
-    expect(rollDuration()).toBeLessThanOrEqual(0.6);
-    expect(boostInvuln(false)).toBeGreaterThanOrEqual(0.35);
-    expect(boostInvuln(true)).toBeGreaterThanOrEqual(boostInvuln(false));
+    expect(rollDuration()).toBeGreaterThanOrEqual(0.9);
+    expect(rollDuration()).toBeLessThanOrEqual(1.1);
+    expect(rollEase(0)).toBe(0);
+    expect(rollEase(1)).toBe(1);
+    expect(rollEase(0.5)).toBeCloseTo(0.5, 5);
+    expect(rollEase(0.25)).toBeLessThan(0.25);
+    expect(rollEase(0.75)).toBeGreaterThan(0.75);
+    expect(boostInvuln(true)).toBe(rollDuration() + ROADSTER_ROLL_INVULN_GRACE);
+    expect(boostInvuln(true)).toBeGreaterThan(boostInvuln(false));
     expect(canStartBoost(0)).toBe(true);
     expect(canStartBoost(0.2)).toBe(false);
+    expect(boostCooldown('apexflash')).toBeGreaterThan(boostInvuln(true));
+  });
+
+  it('never adds lateral boost drift and ignores last steer', () => {
+    expect(startRoadsterBoost('apexflash', 1, false).vx).toBe(0);
+    expect(startRoadsterBoost('beepbuggy', -1, true).vx).toBe(0);
+    expect(startRoadsterBoost('beepbuggy', 0, false).vx).toBe(0);
+    expect(startRoadsterBoost('starter', 1, false).vx).toBe(0);
+    expect(html).not.toContain('ship.x += (ship.boostVx');
+    expect(html).not.toContain('ship.x < W / 2 ? -1 : 1');
+  });
+
+  it('gives full i-frames for the roll so asteroids and bullets pass through', () => {
+    expect(isRollInvulnerable(0.4, 0)).toBe(true);
+    expect(isRollInvulnerable(0.001, 0)).toBe(true);
+    expect(isRollInvulnerable(0, 0)).toBe(false);
+    expect(isRollInvulnerable(1, 0)).toBe(false);
+    expect(isRollInvulnerable(0, 0.2)).toBe(true);
+    expect(rockCollisionDuringRoll(isRollInvulnerable(0.5, 0))).toBe('pass');
+    expect(rockCollisionDuringRoll(isRollInvulnerable(0, 0))).toBe('hurt');
+    expect(html).toContain('roadsterSafe');
+    expect(html).toContain('!roadsterSafe()');
+  });
+
+  it('fires side jets on the opposite side of travel', () => {
+    expect(steerJetSign(0.6)).toBe(-1);
+    expect(steerJetSign(-0.6)).toBe(1);
+    expect(steerJetSign(0)).toBe(0);
+    expect(html).toContain('jetSign');
+    expect(html).toContain('ship.bank');
   });
 
   it('flips on boost for Thrust+ and rolls through a dark underside', () => {
     expect(flipsOnBoost('beepbuggy')).toBe(false);
     expect(flipsOnBoost('shadowspeeder')).toBe(true);
     expect(flipsOnBoost('apexflash')).toBe(true);
+    expect(flipsOnBoost('starter')).toBe(false);
     expect(rollScaleX(2, 0)).toBeCloseTo(1, 5);
-    expect(rollScaleX(2, 0.25)).toBeCloseTo(0, 5);
     expect(rollScaleX(2, 0.5)).toBeCloseTo(-1, 5);
     expect(isUnderside(rollScaleX(2, 0.5))).toBe(true);
     const go = startRoadsterBoost('apexflash', 1, false);
     expect(go.roll).toBe(true);
-    expect(go.invuln).toBeGreaterThan(0);
-    expect(go.vx).toBeGreaterThan(0);
+    expect(go.invuln).toBe(1.15);
+    expect(go.rollDur).toBe(1);
     const forced = startRoadsterBoost('beepbuggy', -1, true);
     expect(forced.roll).toBe(true);
     expect(forced.invuln).toBe(boostInvuln(true));
-    expect(forced.vx).toBeLessThan(0);
     expect(startRoadsterBoost('beepbuggy', 0, false).roll).toBe(false);
+    expect(startRoadsterBoost('starter', 1, false).roll).toBe(false);
     expect(html).toContain('tryRoadsterBoost');
     expect(html).toContain('boostBtn');
     expect(html).toContain('tapBoost');
     expect(html).toContain('rollU');
+    expect(html).toContain('roadsterHitCheck');
   });
 });

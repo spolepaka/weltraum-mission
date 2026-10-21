@@ -87,12 +87,11 @@ for (const id of IDS) {
 
 const flipUrls = await page.evaluate(async () => {
   const api = window.__weltraum.roadsters;
-  const paint = 'chrome';
   const img = await new Promise((res) => {
     const im = new Image();
     im.onload = () => res(im);
     im.onerror = () => res(null);
-    im.src = `/ships/roadster_${paint}.png`;
+    im.src = '/ships/roadster_chrome.png';
   });
   const flame = ['230,250,255', '90,180,255', '30,70,200'];
   const frames = [];
@@ -109,34 +108,104 @@ const flipUrls = await page.evaluate(async () => {
     c.save();
     c.translate(140, 200);
     c.scale((sx || 0.04) * 3.2, 3.2);
-    api.draw(c, 'apexflash', 0.42, flame, true, 0.4, img, true, under);
+    api.draw(c, 'apexflash', 0.42, flame, true, 0, img, true, under, true);
     c.restore();
     frames.push(cv.toDataURL('image/png'));
   }
   return frames;
 });
 flipUrls.forEach((url, i) => {
-  writeFileSync(join(OUT, `tesla_roadsters_flip_${i}.png`), Buffer.from(url.split(',')[1], 'base64'));
+  writeFileSync(join(OUT, `tesla_roadsters_slow_flip_${i}.png`), Buffer.from(url.split(',')[1], 'base64'));
 });
+
+const jetUrls = await page.evaluate(async () => {
+  const api = window.__weltraum.roadsters;
+  const img = await new Promise((res) => {
+    const im = new Image();
+    im.onload = () => res(im);
+    im.onerror = () => res(null);
+    im.src = '/ships/roadster_red.png';
+  });
+  const flame = ['230,250,255', '90,180,255', '30,70,200'];
+  const out = {};
+  for (const [name, bank] of [['left', -1], ['right', 1]]) {
+    const cv = document.createElement('canvas');
+    cv.width = 420;
+    cv.height = 420;
+    const c = cv.getContext('2d');
+    c.fillStyle = '#121018';
+    c.fillRect(0, 0, 420, 420);
+    c.save();
+    c.translate(210, 200);
+    c.scale(3.4, 3.4);
+    api.draw(c, 'beepbuggy', 0.5, flame, true, bank, img, false, false, false);
+    c.restore();
+    out[name] = cv.toDataURL('image/png');
+  }
+  return out;
+});
+writeFileSync(join(OUT, 'tesla_roadsters_steer_left.png'), Buffer.from(jetUrls.left.split(',')[1], 'base64'));
+writeFileSync(join(OUT, 'tesla_roadsters_steer_right.png'), Buffer.from(jetUrls.right.split(',')[1], 'base64'));
 
 await page.evaluate(() => {
   const g = window.__spaceGame;
   g.setShip('apexflash');
-  g.protectP1?.();
   g.startLevel(1);
 });
 await page.waitForTimeout(400);
-await page.evaluate(() => window.__spaceGame.roadsterBoost(true));
-await page.waitForTimeout(120);
-await page.screenshot({ path: join(OUT, 'tesla_roadsters_flip_ingame.png'), fullPage: false });
+const before = await page.evaluate(() => {
+  const g = window.__spaceGame;
+  g.pauseSpawns();
+  g.clearHazards();
+  g.setShield(false);
+  const st = g.roadsterBoostState();
+  const ok = g.roadsterBoost(true);
+  g.rockAt(28, -6, 0, 32);
+  const hit = g.roadsterHitCheck();
+  return { x: st.x, lives: g.shop().lives, ok, boosted: g.roadsterBoostState(), hit };
+});
+await page.screenshot({ path: join(OUT, 'tesla_roadsters_flip_asteroid_ingame.png'), fullPage: false });
+const live = await page.evaluate(() => {
+  const g = window.__spaceGame;
+  const hit = g.roadsterHitCheck();
+  const st = g.roadsterBoostState();
+  return { lives: g.shop().lives, hit, x: st.x, vx: st.vx };
+});
+console.log('asteroid-flip', JSON.stringify({ before, live }));
+if (!before.ok || !before.hit || !before.hit.safe || before.hit.lives < before.lives || live.lives < before.lives || !live.hit.safe) {
+  console.error('roll failed to protect against asteroid', before, live);
+  process.exit(1);
+}
+if (Math.abs(live.x - before.x) > 8 || live.vx !== 0) {
+  console.error('lateral drift during flip', before, live);
+  process.exit(1);
+}
+
+const stepUs = [0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.92, 0.99];
+for (let i = 0; i < stepUs.length; i++) {
+  await page.evaluate((u) => {
+    const g = window.__spaceGame;
+    g.pauseSpawns();
+    g.clearHazards();
+    g.setShield(false);
+    g.setRoll(u, 2);
+    g.rockAt(28, -6, 0, 32);
+  }, stepUs[i]);
+  await page.screenshot({ path: join(OUT, `tesla_roadsters_asteroid_flip_${i}.png`), fullPage: false });
+}
+
 await page.evaluate(() => {
   window.__spaceGame.setShip('beepbuggy');
-  window.__spaceGame.protectP1?.();
 });
 await page.waitForTimeout(80);
-await page.evaluate(() => window.__spaceGame.roadsterBoost(false));
-await page.waitForTimeout(80);
-await page.screenshot({ path: join(OUT, 'tesla_roadsters_boost_beepbuggy.png'), fullPage: false });
+await page.keyboard.down('ArrowLeft');
+await page.waitForTimeout(220);
+await page.screenshot({ path: join(OUT, 'tesla_roadsters_steer_left_ingame.png'), fullPage: false });
+await page.keyboard.up('ArrowLeft');
+await page.keyboard.down('ArrowRight');
+await page.waitForTimeout(220);
+await page.screenshot({ path: join(OUT, 'tesla_roadsters_steer_right_ingame.png'), fullPage: false });
+await page.keyboard.up('ArrowRight');
 
 await browser.close();
 console.log('wrote screenshots to', OUT);

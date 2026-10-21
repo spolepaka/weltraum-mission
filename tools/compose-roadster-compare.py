@@ -67,10 +67,10 @@ x += white.size[0] + PAD
 pair.alpha_composite(red, (x, PAD))
 pd.text((x, PAD + oh + 8), "Roadster / Multi-Coat Red", fill=(220, 220, 224), font=font)
 pair.convert("RGB").save(ART / "tesla_roadsters_ref_vs_base.png", quality=92)
-# Flip / boost frame strip from the large draw-API frames (not full HUD shots).
-frames = [ART / f"tesla_roadsters_flip_{i}.png" for i in range(8)]
-frames = [p for p in frames if p.exists()]
-if frames:
+def write_strip(paths, out_name, labels):
+    frames = [p for p in paths if p.exists()]
+    if not frames:
+        return
     thumbs = [Image.open(p).convert("RGB") for p in frames]
     th = 280
     tw = int(th * thumbs[0].size[0] / thumbs[0].size[1])
@@ -78,12 +78,22 @@ if frames:
     strip = Image.new("RGB", (PAD + len(thumbs) * (tw + 8), th + PAD * 2 + 22), (18, 18, 22))
     d2 = ImageDraw.Draw(strip)
     x = PAD
-    labels = ["0°", "51°", "103°", "154°", "206° underside", "257°", "309°", "360°"]
     for i, im in enumerate(thumbs):
         strip.paste(im, (x, PAD))
         d2.text((x + 6, PAD + th + 4), labels[i] if i < len(labels) else f"f{i}", fill=(200, 210, 220), font=font)
         x += tw + 8
-    strip.save(ART / "tesla_roadsters_flip_strip.png", quality=92)
-    print("wrote flip strip", strip.size)
+    strip.save(ART / out_name, quality=92)
+    print("wrote", out_name, strip.size)
+
+write_strip(
+    [ART / f"tesla_roadsters_slow_flip_{i}.png" for i in range(8)],
+    "tesla_roadsters_slow_flip_strip.png",
+    ["0°", "eased", "edge", "under", "under", "edge", "eased", "360°"],
+)
+write_strip(
+    [ART / f"tesla_roadsters_asteroid_flip_{i}.png" for i in range(8)],
+    "tesla_roadsters_asteroid_flip_strip.png",
+    ["boost", "roll", "safe", "under", "pass", "pass", "settle", "done"],
+)
 
 print("wrote compare", out.size, pair.size)
