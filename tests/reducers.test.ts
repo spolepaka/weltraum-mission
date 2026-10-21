@@ -12,7 +12,8 @@ const VALID_SHIPS = new Set([
   'starter', 'blitz', 'komet', 'doppel', 'eis', 'falke', 'feuer', 'stern',
   'titan', 'lanze', 'koenig', 'nova', 'quanten', 'uni', 'rochen', 'phoenix',
   'hammer', 'zwilling', 'gravitron', 'spektral', 'segler', 'schatten',
-  'drache', 'omega', 'frostwal', 'lindwurm', 'hydra', 'regenbogen', 'kaiserbrecher'
+  'drache', 'omega', 'frostwal', 'lindwurm', 'hydra', 'regenbogen', 'kaiserbrecher',
+  'beepbuggy', 'cloudcoupe', 'shadowspeeder', 'chromewasp', 'apexflash'
 ]);
 
 const VALID_ACHIEVEMENTS = new Set([
@@ -64,6 +65,8 @@ describe('Ship Validation', () => {
     expect(validateShip('starter')).toBe(true);
     expect(validateShip('omega')).toBe(true);
     expect(validateShip('kaiserbrecher')).toBe(true);
+    expect(validateShip('beepbuggy')).toBe(true);
+    expect(validateShip('apexflash')).toBe(true);
   });
 
   it('rejects invalid ships', () => {

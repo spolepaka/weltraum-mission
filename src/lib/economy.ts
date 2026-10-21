@@ -33,6 +33,13 @@ export const SHIP_PRICES: Record<string, number> = {
   frostwal: 0,
   lindwurm: 0,
   hydra: 0,
+  regenbogen: 0,
+  kaiserbrecher: 0,
+  beepbuggy: 900,
+  cloudcoupe: 6000,
+  shadowspeeder: 22000,
+  chromewasp: 45000,
+  apexflash: 148000,
 };
 
 export function isBossLevel(level: number): boolean {

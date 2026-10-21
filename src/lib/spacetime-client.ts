@@ -10,7 +10,8 @@ import {
 import type { Identity } from 'spacetimedb';
 import { validateLevelResult, type LevelResultInput } from './validation';
 import { mergeCoins, coinDeltaToPush } from './coin-ledger';
-import { clampLevelCoins, maxCoinsForLevel, MAX_LEVEL } from './economy';
+import { clampLevelCoins, maxCoinsForLevel, MAX_LEVEL, SHIP_PRICES } from './economy';
+import { salePrice } from './shop-ships';
 import { filterJoinableRooms, type PublicRoomRow } from './room-list';
 import { isAutomatedClient } from './geo-privacy';
 import {
@@ -653,19 +654,28 @@ class SpacetimeClient {
 
   purchaseShip(shipId: string, price: bigint): boolean {
     console.log('[SpacetimeDB] purchaseShip:', shipId, price);
+    const catalog = salePrice(SHIP_PRICES, shipId);
+    if (catalog === null) {
+      return false;
+    }
+    const cost = BigInt(catalog);
     const data = this.getLocalData();
-    if (data.coins < price) {
+    if (data.coins < cost) {
       return false;
     }
     if (data.ownedShips.includes(shipId)) {
       return false;
     }
-    data.coins -= price;
+    data.coins -= cost;
     data.ownedShips.push(shipId);
+    data.equippedShip = shipId;
     this.saveLocalData(data);
 
     this.queueOrCallReducer(() => {
-      this.connection?.reducers.purchaseShip({ shipId, price: BigInt(price) });
+      this.connection?.reducers.purchaseShip({ shipId, price: cost });
+    });
+    this.queueOrCallReducer(() => {
+      this.connection?.reducers.equipShip({ shipId });
     });
     return true;
   }

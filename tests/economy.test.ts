@@ -35,6 +35,8 @@ describe('coin economy', () => {
     expect(maxCoinsForLevel(1)).toBeLessThan(SHIP_PRICES.titan);
     expect(maxCoinsForLevel(10)).toBeLessThan(SHIP_PRICES.nova);
     expect(maxCoinsForLevel(99)).toBeLessThan(SHIP_PRICES.phoenix);
+    expect(SHIP_PRICES.apexflash).toBeGreaterThan(expectedCoinsForLevel(100) * 10);
+    expect(SHIP_PRICES.beepbuggy).toBe(900);
     expect(maxCoinsForLevel(99)).toBeGreaterThan(7000);
     expect(clampLevelCoins(999999, 99)).toBe(maxCoinsForLevel(99));
   });

@@ -2,6 +2,52 @@
 
 export const MAX_LEVEL = 100;
 
+/** Catalog prices. 0 = starter or unlock-reward (not for sale). */
+export const SHIP_PRICES: Record<string, number> = {
+  starter: 0,
+  blitz: 150,
+  komet: 250,
+  doppel: 400,
+  eis: 600,
+  falke: 800,
+  feuer: 1000,
+  stern: 1200,
+  titan: 1500,
+  lanze: 2000,
+  koenig: 3000,
+  nova: 5000,
+  quanten: 8000,
+  uni: 12000,
+  rochen: 15000,
+  phoenix: 20000,
+  hammer: 30000,
+  zwilling: 38000,
+  gravitron: 52000,
+  spektral: 65000,
+  segler: 85000,
+  schatten: 105000,
+  drache: 125000,
+  omega: 160000,
+  frostwal: 0,
+  lindwurm: 0,
+  hydra: 0,
+  regenbogen: 0,
+  kaiserbrecher: 0,
+  beepbuggy: 900,
+  cloudcoupe: 6000,
+  shadowspeeder: 22000,
+  chromewasp: 45000,
+  apexflash: 148000,
+};
+
+/** Paid catalog price, or null if the id is unknown / not for sale. */
+export function salePrice(shipId: string): number | null {
+  if (!Object.prototype.hasOwnProperty.call(SHIP_PRICES, shipId)) return null;
+  const p = SHIP_PRICES[shipId];
+  if (!Number.isFinite(p) || p <= 0) return null;
+  return p;
+}
+
 export function isBossLevel(level: number): boolean {
   return level > 0 && (level % 3 === 0 || level === 100);
 }
