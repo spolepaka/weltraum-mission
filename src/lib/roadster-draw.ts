@@ -1,7 +1,8 @@
 /**
- * Canvas Sky Roadster silhouettes (top-down flying sports cars).
- * Used by unit tests with a mock 2d context; the live game draws the same
- * shapes from public/index.html `roadsterKit` so shop + multiplayer match.
+ * 2nd-gen Tesla Roadster silhouettes (top-down, nose up).
+ * Official aerial: long rounded-rectangle, gold-glazed canopy over most
+ * of the roof, short hood, slim nose light bar, T badge, flared haunches,
+ * full-width red tail bar, gold-rimmed cold-gas nozzles, tucked aero wheels.
  */
 
 export interface RoadsterDrawOpts {
@@ -10,103 +11,109 @@ export interface RoadsterDrawOpts {
   accent: string;
   glass: string;
   glow: string;
-  stripe?: string;
-  core?: string;
-  len: number;
-  wide: number;
-  rear: number;
-  bodyW: number;
+  badge: string;
+  hw: number;
   canopyW: number;
   canopyH: number;
   jets: Array<[number, number, number, number]>;
-  pods?: number;
-  canard?: boolean;
+  steerJets?: Array<[number, number, number, number]>;
+  nozzles: number[];
+  nozzleRim: string;
+  wing?: boolean;
+  carbon?: boolean;
+  plate?: boolean;
+  wheelGlowOn?: boolean;
   aura?: [number, string, string];
 }
 
 const VARIANTS: Record<string, RoadsterDrawOpts> = {
   beepbuggy: {
-    paint: ['#ff8a6a', '#e03a2a', '#8a1210'],
-    edge: '#5a0808',
-    accent: '#ffd54a',
-    glass: '#3a8ad8',
-    glow: '#ff7a5a',
-    len: 34,
-    wide: 22,
-    rear: 16,
-    bodyW: 11,
-    canopyW: 6.5,
-    canopyH: 9,
-    jets: [[-7, 28, 14, 4], [7, 28, 14, 4]],
+    paint: ['#d42a2f', '#a81c24', '#5c1014'],
+    edge: '#3a080c',
+    accent: '#ff4a3a',
+    glass: '#c9a44a',
+    glow: '#ff4a3a',
+    badge: '#1a1a1a',
+    hw: 15.2,
+    canopyW: 12.6,
+    canopyH: 19.2,
+    jets: [[-5, 28, 16, 3.2], [5, 28, 16, 3.2]],
+    nozzles: [-5, 5],
+    nozzleRim: '#c9a44a',
+    plate: true,
   },
   cloudcoupe: {
-    paint: ['#ffffff', '#e8eef8', '#b8c4d8'],
-    edge: '#6a7a98',
+    paint: ['#f7f8fb', '#dfe3ea', '#a8b0bc'],
+    edge: '#7a8494',
     accent: '#7dffea',
-    glass: '#2a9ad8',
+    glass: '#c9a44a',
     glow: '#7dffea',
-    stripe: '#7dffea',
-    len: 42,
-    wide: 26,
-    rear: 18,
-    bodyW: 12,
-    canopyW: 7.5,
-    canopyH: 11,
-    jets: [[-10, 30, 16, 4.5], [0, 32, 18, 5], [10, 30, 16, 4.5]],
-    canard: true,
-    aura: [48, 'rgba(125,255,234,.18)', 'rgba(125,255,234,0)'],
+    badge: '#222',
+    hw: 15.5,
+    canopyW: 12.8,
+    canopyH: 19.4,
+    jets: [[-7, 28, 17, 3.2], [0, 30, 19, 3.6], [7, 28, 17, 3.2]],
+    steerJets: [[-17, 4, 10, 2.2], [17, 4, 10, 2.2]],
+    nozzles: [-7, 0, 7],
+    nozzleRim: '#c9a44a',
+    plate: true,
+    aura: [36, 'rgba(125,255,234,.12)', 'rgba(125,255,234,0)'],
   },
   shadowspeeder: {
-    paint: ['#3a3a48', '#15151c', '#050508'],
-    edge: '#ff4a6a',
-    accent: '#ff4a6a',
-    glass: '#4a1020',
-    glow: '#ff4a6a',
-    stripe: '#ff2a4a',
-    len: 44,
-    wide: 28,
-    rear: 20,
-    bodyW: 11,
-    canopyW: 6.5,
-    canopyH: 10,
-    jets: [[-12, 30, 15, 3.5], [-4, 32, 17, 3.8], [4, 32, 17, 3.8], [12, 30, 15, 3.5]],
-    pods: 20,
+    paint: ['#2a2a2e', '#121214', '#050506'],
+    edge: '#c9a44a',
+    accent: '#c9a44a',
+    glass: '#b8923a',
+    glow: '#c9a44a',
+    badge: '#c9a44a',
+    hw: 15.8,
+    canopyW: 13,
+    canopyH: 19.6,
+    jets: [[-8.5, 28, 17, 3], [-3, 29, 18, 3.2], [3, 29, 18, 3.2], [8.5, 28, 17, 3]],
+    steerJets: [[-18, 2, 9, 2], [18, 2, 9, 2]],
+    nozzles: [-8.5, -3, 3, 8.5],
+    nozzleRim: '#c9a44a',
+    plate: true,
+    wheelGlowOn: true,
   },
   chromewasp: {
-    paint: ['#f4f7ff', '#c8d2e4', '#7a8498'],
-    edge: '#ffe066',
-    accent: '#ffe066',
-    glass: '#1a6aaa',
-    glow: '#ffe066',
-    core: '#ffe066',
-    len: 46,
-    wide: 30,
-    rear: 22,
-    bodyW: 10,
-    canopyW: 7,
-    canopyH: 12,
-    jets: [[-14, 28, 14, 3.5], [-6, 32, 18, 4.5], [6, 32, 18, 4.5], [14, 28, 14, 3.5]],
-    canard: true,
-    aura: [52, 'rgba(255,224,102,.16)', 'rgba(255,224,102,0)'],
+    paint: ['#8a929c', '#4a525c', '#1c2026'],
+    edge: '#9ad0ff',
+    accent: '#9ad0ff',
+    glass: '#c9a44a',
+    glow: '#9ad0ff',
+    badge: '#e8eef5',
+    hw: 16.2,
+    canopyW: 13.2,
+    canopyH: 19.8,
+    jets: [[-9.5, 28, 17, 3], [-3.2, 30, 19, 3.4], [3.2, 30, 19, 3.4], [9.5, 28, 17, 3]],
+    steerJets: [[-19, 0, 11, 2.2], [19, 0, 11, 2.2], [-15, 12, 8, 2], [15, 12, 8, 2]],
+    nozzles: [-9.5, -3.2, 3.2, 9.5],
+    nozzleRim: '#e8c36a',
+    carbon: true,
+    plate: true,
+    wheelGlowOn: true,
+    aura: [40, 'rgba(154,208,255,.12)', 'rgba(154,208,255,0)'],
   },
   apexflash: {
-    paint: ['#ff6a4a', '#c82018', '#4a0808'],
-    edge: '#ffd54a',
-    accent: '#ffd54a',
-    glass: '#1a4a8a',
-    glow: '#ffd54a',
-    stripe: '#ffd54a',
-    core: '#ffffff',
-    len: 48,
-    wide: 32,
-    rear: 24,
-    bodyW: 13,
-    canopyW: 8,
-    canopyH: 13,
-    jets: [[-14, 30, 16, 4], [-6, 33, 20, 5], [6, 33, 20, 5], [14, 30, 16, 4], [0, 36, 22, 6]],
-    pods: 22,
-    canard: true,
-    aura: [62, 'rgba(255,213,74,.22)', 'rgba(255,90,20,0)'],
+    paint: ['#f0e6c8', '#c5c0b0', '#6a6860'],
+    edge: '#ffe066',
+    accent: '#ffe066',
+    glass: '#d4b45a',
+    glow: '#ffe066',
+    badge: '#111',
+    hw: 16.6,
+    canopyW: 13.5,
+    canopyH: 20,
+    jets: [[-10.5, 28, 18, 3.2], [-4, 31, 21, 3.8], [4, 31, 21, 3.8], [10.5, 28, 18, 3.2], [0, 34, 22, 4.2]],
+    steerJets: [[-20, -2, 12, 2.3], [20, -2, 12, 2.3], [-16, 10, 9, 2.1], [16, 10, 9, 2.1]],
+    nozzles: [-10.5, -4, 4, 10.5],
+    nozzleRim: '#ffe066',
+    wing: true,
+    carbon: true,
+    plate: true,
+    wheelGlowOn: true,
+    aura: [44, 'rgba(255,224,102,.14)', 'rgba(255,90,20,0)'],
   },
 };
 
@@ -127,6 +134,7 @@ type Ctx = {
   fill(): void;
   stroke(): void;
   fillRect(x: number, y: number, w: number, h: number): void;
+  fillText?(text: string, x: number, y: number): void;
   createLinearGradient(x0: number, y0: number, x1: number, y1: number): { addColorStop(o: number, c: string): void };
   createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): { addColorStop(o: number, c: string): void };
   fillStyle: unknown;
@@ -135,6 +143,9 @@ type Ctx = {
   globalAlpha: number;
   shadowColor: string;
   shadowBlur: number;
+  font?: string;
+  textAlign?: string;
+  textBaseline?: string;
 };
 
 function poly(ctx: Ctx, pts: number[]): void {
@@ -208,105 +219,160 @@ function softAura(ctx: Ctx, r: number, c1: string, c2: string): void {
   ctx.fill();
 }
 
-/**
- * Draw one Sky Roadster at the origin. `flame` is "r,g,b" triples like the game.
- * Throws if the id is unknown so tests catch missing designs.
- */
+function teslaT(ctx: Ctx, x: number, y: number, col: string): void {
+  ctx.fillStyle = col;
+  ctx.fillRect(x - 4, y, 8, 1.6);
+  ctx.fillRect(x - 0.9, y, 1.8, 6.2);
+}
+
+/** Official 2nd-gen top view: long rounded-rectangle, wide blunt nose, flared hips. */
+function bodyPath(ctx: Ctx, hw: number): void {
+  ctx.beginPath();
+  ctx.moveTo(0, -34);
+  ctx.quadraticCurveTo(hw * 0.84, -34.5, hw * 0.98, -27);
+  ctx.quadraticCurveTo(hw + 0.15, -12, hw + 0.25, 2);
+  ctx.quadraticCurveTo(hw + 1.8, 16, hw + 0.4, 25);
+  ctx.lineTo(-hw - 0.4, 25);
+  ctx.quadraticCurveTo(-hw - 1.8, 16, -hw - 0.25, 2);
+  ctx.quadraticCurveTo(-hw - 0.15, -12, -hw * 0.98, -27);
+  ctx.quadraticCurveTo(-hw * 0.84, -34.5, 0, -34);
+  ctx.closePath();
+}
+
 export function drawRoadster(
   ctx: Ctx,
   id: string,
   t: number,
   flame: string[],
   fx = true,
+  bank = 0,
 ): void {
   const o = VARIANTS[id];
   if (!o) throw new Error(`Unknown roadster design: ${id}`);
-  const p = 0.5 + 0.5 * Math.sin(t * 5);
+  const p = 0.5 + 0.5 * Math.sin(t * 6);
   const c = o.paint;
+  const hw = o.hw;
   if (fx && o.aura) softAura(ctx, o.aura[0], o.aura[1], o.aura[2]);
-  o.jets.forEach((e, i) => flameAt(ctx, e[0], e[1], e[2] + p * 3, e[3], flame, t, i * 1.2));
-
-  ctx.fillStyle = '#1a1a22';
-  poly(ctx, [-o.rear, 18, o.rear, 18, o.rear - 4, 28, -o.rear + 4, 28]);
-  ctx.fill();
-
-  const drawSide = (s: number) => {
-    ctx.fillStyle = lgH(ctx, s * 6, s * o.wide, [c[2], c[1], c[0]]);
-    ctx.strokeStyle = o.edge;
-    ctx.lineWidth = 1.6;
-    poly(ctx, [s * 8, -6, s * o.wide, 4, s * o.wide, 20, s * (o.wide - 6), 26, s * 10, 22]);
-    ctx.fill();
-    ctx.stroke();
-    ctx.strokeStyle = o.accent;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(s * 10, 2);
-    ctx.lineTo(s * (o.wide - 5), 12);
-    ctx.stroke();
-    glowDot(ctx, s * (o.wide - 3), 8, 2.2 + p * 0.8, o.glow, 10);
-    if (o.canard) {
-      ctx.fillStyle = c[1];
-      poly(ctx, [s * 6, -16, s * 18, -22, s * 16, -14, s * 6, -10]);
-      ctx.fill();
-    }
-    if (o.pods) {
-      ctx.fillStyle = '#2a2f45';
-      ctx.fillRect(s * o.pods - 2.2, -12, 4.4, 18);
-      ctx.fillStyle = o.accent;
-      ctx.fillRect(s * o.pods - 1.4, -16, 2.8, 5);
-      glowDot(ctx, s * o.pods, -16, 1.8 + p, o.glow, 8);
-    }
-  };
-  drawSide(-1);
-  drawSide(1);
-
-  const L = o.len;
-  const bw = o.bodyW;
-  ctx.beginPath();
-  ctx.moveTo(0, -L);
-  ctx.quadraticCurveTo(bw * 0.55, -L * 0.75, bw * 0.85, -L * 0.35);
-  ctx.lineTo(bw, 8);
-  ctx.quadraticCurveTo(bw + 2, 20, bw - 3, 24);
-  ctx.lineTo(-(bw - 3), 24);
-  ctx.quadraticCurveTo(-(bw + 2), 20, -bw, 8);
-  ctx.lineTo(-bw * 0.85, -L * 0.35);
-  ctx.quadraticCurveTo(-bw * 0.55, -L * 0.75, 0, -L);
-  ctx.closePath();
-  ctx.fillStyle = lgH(ctx, -bw, bw, [c[2], c[0], c[1], c[0], c[2]]);
-  ctx.fill();
-  ctx.strokeStyle = o.edge;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  if (o.stripe) {
-    ctx.fillStyle = o.stripe;
-    ctx.globalAlpha = 0.85;
-    poly(ctx, [-2.2, -L + 4, 2.2, -L + 4, 3, 18, -3, 18]);
-    ctx.fill();
-    ctx.globalAlpha = 1;
+  o.jets.forEach((e, i) => flameAt(ctx, e[0], e[1], e[2] + p * 4, e[3], flame, t, i * 1.1));
+  if (o.steerJets) {
+    const leftOn = bank < -0.08 || Math.sin(t * 2.1) < -0.35;
+    const rightOn = bank > 0.08 || Math.sin(t * 2.1) > 0.35;
+    o.steerJets.forEach((e, i) => {
+      if ((e[0] < 0 && leftOn) || (e[0] > 0 && rightOn)) {
+        flameAt(ctx, e[0], e[1], e[2], e[3], flame, t, 4 + i);
+      }
+    });
   }
 
-  ctx.fillStyle = lgV(ctx, -L * 0.42, -L * 0.08, ['rgba(230,250,255,.95)', o.glass]);
-  ctx.beginPath();
-  ctx.ellipse(0, -L * 0.22, o.canopyW, o.canopyH, 0, 0, 7);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,.55)';
-  ctx.lineWidth = 1.2;
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,.45)';
-  ctx.beginPath();
-  ctx.ellipse(-2, -L * 0.28, 2.2, 3.5, -0.3, 0, 7);
+  ctx.fillStyle = '#0a0a0c';
+  poly(ctx, [-hw + 3, 20, hw - 3, 20, hw - 5, 29, -hw + 5, 29]);
   ctx.fill();
 
-  glowDot(ctx, -5, -L + 6, 1.6 + p * 0.5, '#fff6c8', 8);
-  glowDot(ctx, 5, -L + 6, 1.6 + p * 0.5, '#fff6c8', 8);
-  if (o.core) glowDot(ctx, 0, 10, 3 + p * 2, o.core, 12);
+  o.nozzles.forEach((nx) => {
+    ctx.fillStyle = '#141416';
+    ctx.beginPath();
+    ctx.arc(nx, 26.4, 2.45, 0, 7);
+    ctx.fill();
+    ctx.strokeStyle = o.nozzleRim;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(190,230,255,.45)';
+    ctx.beginPath();
+    ctx.arc(nx, 26.4, 1.2, 0, 7);
+    ctx.fill();
+  });
+
+  const wheel = (x: number, y: number, wr: number) => {
+    ctx.fillStyle = '#101012';
+    ctx.beginPath();
+    ctx.ellipse(x, y, wr * 0.48, wr, 0, 0, 7);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(220,230,240,.62)';
+    ctx.lineWidth = 1.15;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(200,210,220,.3)';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(x - wr * 0.22, y - wr * 0.5);
+    ctx.lineTo(x + wr * 0.22, y + wr * 0.5);
+    ctx.stroke();
+    if (o.wheelGlowOn) glowDot(ctx, x, y, 1.2 + p * 0.45, o.glow, 8);
+  };
+  wheel(-hw - 1.5, -9, 5.1);
+  wheel(hw + 1.5, -9, 5.1);
+  wheel(-hw - 2.1, 14, 5.7);
+  wheel(hw + 2.1, 14, 5.7);
+
+  bodyPath(ctx, hw);
+  ctx.fillStyle = lgH(ctx, -hw, hw, [c[2], c[1], c[0], c[1], c[2]]);
+  ctx.fill();
+  ctx.strokeStyle = o.edge;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(0,0,0,.18)';
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(0, -32);
+  ctx.lineTo(0, -16);
+  ctx.stroke();
+
+  ctx.fillStyle = lgV(ctx, -16, 20, ['#f3d98a', o.glass, '#7a5818']);
+  ctx.beginPath();
+  ctx.ellipse(0, 2.2, o.canopyW, o.canopyH, 0, 0, 7);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(232,195,106,.85)';
+  ctx.lineWidth = 1.35;
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.28)';
+  ctx.beginPath();
+  ctx.ellipse(-3.8, -4, 3.6, 6.2, -0.22, 0, 7);
+  ctx.fill();
+
+  ctx.fillStyle = '#f4f7fb';
+  ctx.fillRect(-hw * 0.72, -32.6, hw * 1.44, 1.85);
+  glowDot(ctx, -hw * 0.48, -31.7, 1.2 + p * 0.35, '#ffffff', 7);
+  glowDot(ctx, hw * 0.48, -31.7, 1.2 + p * 0.35, '#ffffff', 7);
+  teslaT(ctx, 0, -29.6, o.badge);
+
+  ctx.save();
+  ctx.fillStyle = '#ff1a1a';
+  ctx.shadowColor = '#ff3a3a';
+  ctx.shadowBlur = 8;
+  ctx.fillRect(-hw + 1.6, 23.6, hw * 2 - 3.2, 1.75);
+  ctx.restore();
+
+  if (o.plate) {
+    ctx.fillStyle = '#f2f2f2';
+    ctx.fillRect(-5.4, 25.4, 10.8, 3.3);
+    ctx.fillStyle = '#333';
+    if (ctx.fillText) {
+      ctx.font = 'bold 2.3px Trebuchet MS, Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('RDSTR', 0, 27.1);
+    }
+  }
+
+  if (o.wing) {
+    ctx.fillStyle = '#1a1a1c';
+    poly(ctx, [-hw - 7, 18.4, hw + 7, 18.4, hw + 8.2, 22.2, -hw - 8.2, 22.2]);
+    ctx.fill();
+    ctx.strokeStyle = o.accent;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  if (o.carbon) {
+    ctx.fillStyle = 'rgba(16,16,20,.42)';
+    poly(ctx, [-hw + 4, 10, hw - 4, 10, hw - 5, 14.4, -hw + 5, 14.4]);
+    ctx.fill();
+  }
 }
 
 export function mockCanvasCtx(): Ctx {
   const noop = (): void => undefined;
   const grad = { addColorStop: noop };
-  const ctx = {
+  return {
     save: noop,
     restore: noop,
     beginPath: noop,
@@ -319,14 +385,17 @@ export function mockCanvasCtx(): Ctx {
     fill: noop,
     stroke: noop,
     fillRect: noop,
+    fillText: noop,
     createLinearGradient: () => grad,
     createRadialGradient: () => grad,
-    fillStyle: '#000' as unknown,
-    strokeStyle: '#000' as unknown,
+    fillStyle: '#000',
+    strokeStyle: '#000',
     lineWidth: 1,
     globalAlpha: 1,
     shadowColor: '',
     shadowBlur: 0,
+    font: '',
+    textAlign: 'center',
+    textBaseline: 'middle',
   };
-  return ctx;
 }

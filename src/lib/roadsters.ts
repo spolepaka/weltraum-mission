@@ -1,6 +1,7 @@
 /**
- * Sky Roadsters shop category. Fun original names — never "Tesla" or logos.
+ * Tesla Roadster hangar category (2nd-gen flying Roadster).
  * Keep HTML SHIPS[] / DESIGNS / server VALID_SHIPS in lockstep with this list.
+ * Ship ids stay beepbuggy…apexflash so existing saves and the unreleased shop stay valid.
  */
 
 export const ROADSTER_TAB = 5;
@@ -18,7 +19,6 @@ export type RoadsterId = (typeof ROADSTER_IDS)[number];
 
 export interface RoadsterDef {
   id: RoadsterId;
-  /** Shop tab index (Sky Roadsters). */
   tier: typeof ROADSTER_TAB;
   price: number;
   hearts: number;
@@ -31,9 +31,12 @@ export interface RoadsterDef {
   perk2: string;
   bullet: string;
   flame: [string, string, string];
-  paint: 'red' | 'white' | 'black' | 'silver' | 'crimson';
+  paint: 'red' | 'white' | 'black' | 'silver' | 'chrome';
   glow: string;
+  trim: string;
 }
+
+const ROCKET_FLAME: [string, string, string] = ['230,250,255', '90,180,255', '30,70,200'];
 
 export const ROADSTERS: readonly RoadsterDef[] = [
   {
@@ -49,9 +52,10 @@ export const ROADSTERS: readonly RoadsterDef[] = [
     perk: '',
     perk2: '',
     bullet: '#ff6a5a',
-    flame: ['255,220,180', '255,90,70', '180,20,20'],
+    flame: ROCKET_FLAME,
     paint: 'red',
-    glow: '#ff7a5a',
+    glow: '#ff4a3a',
+    trim: 'base',
   },
   {
     id: 'cloudcoupe',
@@ -66,9 +70,10 @@ export const ROADSTERS: readonly RoadsterDef[] = [
     perk: '',
     perk2: 'dash',
     bullet: '#e8f6ff',
-    flame: ['240,252,255', '140,210,255', '60,140,255'],
+    flame: ROCKET_FLAME,
     paint: 'white',
     glow: '#7dffea',
+    trim: 'plus',
   },
   {
     id: 'shadowspeeder',
@@ -83,9 +88,10 @@ export const ROADSTERS: readonly RoadsterDef[] = [
     perk: 'pierce',
     perk2: '',
     bullet: '#ff4a5a',
-    flame: ['255,180,190', '255,60,90', '80,0,20'],
+    flame: ROCKET_FLAME,
     paint: 'black',
-    glow: '#ff4a6a',
+    glow: '#c9a44a',
+    trim: 'performance',
   },
   {
     id: 'chromewasp',
@@ -100,9 +106,10 @@ export const ROADSTERS: readonly RoadsterDef[] = [
     perk: 'homing',
     perk2: '',
     bullet: '#d8e8ff',
-    flame: ['255,255,255', '200,220,255', '140,160,200'],
+    flame: ROCKET_FLAME,
     paint: 'silver',
-    glow: '#ffe066',
+    glow: '#9ad0ff',
+    trim: 'spacex',
   },
   {
     id: 'apexflash',
@@ -117,9 +124,10 @@ export const ROADSTERS: readonly RoadsterDef[] = [
     perk: 'homing',
     perk2: 'pulse',
     bullet: '#ffd54a',
-    flame: ['255,255,230', '255,180,60', '255,60,20'],
-    paint: 'crimson',
-    glow: '#ffd54a',
+    flame: ['255,255,255', '140,210,255', '40,90,220'],
+    paint: 'chrome',
+    glow: '#ffe066',
+    trim: 'founders',
   },
 ] as const;
 
@@ -141,12 +149,29 @@ export function roadsterById(id: string): RoadsterDef | undefined {
   return ROADSTERS.find((r) => r.id === id);
 }
 
-/** Brand tokens that must never appear in ship copy, ids, or art comments. */
-export const FORBIDDEN_ROADSTER_MARKS = [
-  'tesla',
-  'cybertruck',
-  'starman',
-  'spacex',
-  'elon',
-  'musk',
-] as const;
+/** Owner-requested Tesla naming must appear in EN/DE copy. */
+export const TESLA_ROADSTER_MARKS = ['tesla', 'roadster', 'spacex'] as const;
+
+/** Trim names stay Tesla-style; ids stay beepbuggy…apexflash. */
+export const ROADSTER_TRIM = {
+  beepbuggy: { en: 'Roadster Base', de: 'Roadster Basis' },
+  cloudcoupe: { en: 'Roadster Plus', de: 'Roadster-Plus' },
+  shadowspeeder: { en: 'Roadster Performance', de: 'Roadster-Performance' },
+  chromewasp: { en: 'Roadster SpaceX Package', de: 'Roadster SpaceX-Paket' },
+  apexflash: { en: 'Roadster Founders Series', de: 'Roadster Founders-Serie' },
+} as const;
+
+/** Safe no-op: ids never changed. Keep for any future rename. */
+const ROADSTER_ID_ALIASES: Record<string, RoadsterId> = {
+  beepbuggy: 'beepbuggy',
+  cloudcoupe: 'cloudcoupe',
+  shadowspeeder: 'shadowspeeder',
+  chromewasp: 'chromewasp',
+  apexflash: 'apexflash',
+};
+
+export function canonicalRoadsterId(id: string): RoadsterId | undefined {
+  const mapped = ROADSTER_ID_ALIASES[id];
+  if (mapped) return mapped;
+  return isRoadsterId(id) ? id : undefined;
+}

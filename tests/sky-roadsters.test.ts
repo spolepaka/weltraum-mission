@@ -5,11 +5,13 @@ import { de } from '../src/i18n/de';
 import { SHIP_PRICES, expectedCoinsForLevel, maxCoinsForLevel } from '../src/lib/economy';
 import { salePrice as serverSalePrice, SHIP_PRICES as serverPrices } from '../server/spacetimedb/src/economy';
 import {
-  FORBIDDEN_ROADSTER_MARKS,
   ROADSTER_IDS,
   ROADSTER_PRICES,
   ROADSTER_TAB,
+  ROADSTER_TRIM,
   ROADSTERS,
+  TESLA_ROADSTER_MARKS,
+  canonicalRoadsterId,
   isRoadsterId,
 } from '../src/lib/roadsters';
 import { drawRoadster, mockCanvasCtx, roadsterDrawOpts } from '../src/lib/roadster-draw';
@@ -44,7 +46,7 @@ function blob(...parts: string[]): string {
   return parts.join('\n').toLowerCase();
 }
 
-describe('Sky Roadsters catalogue', () => {
+describe('Tesla Roadster catalogue', () => {
   it('has five roadsters on a cheap → top ladder', () => {
     expect(ROADSTERS).toHaveLength(5);
     expect(ROADSTER_IDS).toEqual(['beepbuggy', 'cloudcoupe', 'shadowspeeder', 'chromewasp', 'apexflash']);
@@ -92,32 +94,38 @@ describe('Sky Roadsters catalogue', () => {
       expect(numField(block, 'regen')).toBe(r.regen);
       expect(numField(block, 'tier')).toBe(ROADSTER_TAB);
       expect(html).toMatch(new RegExp(`DESIGNS\\.${r.id}\\s*=\\s*function`));
-      expect(en.ships[r.id]?.name).toBeTruthy();
-      expect(de.ships[r.id]?.name).toBeTruthy();
+      expect(en.ships[r.id]?.name).toBe(ROADSTER_TRIM[r.id].en);
+      expect(de.ships[r.id]?.name).toBe(ROADSTER_TRIM[r.id].de);
       expect(en.ships[r.id].name).not.toBe(de.ships[r.id].name);
       expect(serverSrc).toContain(`'${r.id}'`);
     }
     expect(html).toContain('["🏎️", "tabRoadster"]');
-    expect(en.tips.tabRoadster).toBe('Sky Roadsters');
-    expect(de.tips.tabRoadster).toBe('Himmels-Roadster');
+    expect(en.tips.tabRoadster).toBe('Tesla Roadster');
+    expect(de.tips.tabRoadster).toBe('Fliegende Tesla Roadster');
     expect(html).toContain('function roadsterKit');
+    expect(html).toContain('function teslaT');
+    expect(html).toContain('RDSTR');
     expect(html).toContain('perk2: "dash"');
     expect(html).toContain('perk2: "pulse"');
     expect(html).toContain('p2k === "dash"');
     expect(html).toContain('p2k === "pulse"');
   });
 
-  it('never uses Tesla or related brand marks', () => {
+  it('uses Tesla / Roadster / SpaceX naming in EN and DE copy', () => {
     const text = blob(
       html,
       JSON.stringify(en.ships),
       JSON.stringify(de.ships),
+      en.tips.tabRoadster,
+      de.tips.tabRoadster,
       JSON.stringify(ROADSTERS),
-      ROADSTER_IDS.join(' '),
+      JSON.stringify(ROADSTER_TRIM),
     );
-    for (const mark of FORBIDDEN_ROADSTER_MARKS) {
-      expect(text, mark).not.toContain(mark);
+    for (const mark of TESLA_ROADSTER_MARKS) {
+      expect(text, mark).toContain(mark);
     }
+    expect(canonicalRoadsterId('beepbuggy')).toBe('beepbuggy');
+    expect(canonicalRoadsterId('not-a-car')).toBeUndefined();
   });
 
   it('paints and specials are distinct', () => {
@@ -126,10 +134,12 @@ describe('Sky Roadsters catalogue', () => {
     expect(new Set(ROADSTERS.map((r) => r.glow)).size).toBeGreaterThanOrEqual(4);
     expect(roadsterDrawOpts('beepbuggy')!.jets).toHaveLength(2);
     expect(roadsterDrawOpts('apexflash')!.jets.length).toBeGreaterThan(roadsterDrawOpts('beepbuggy')!.jets.length);
+    expect(roadsterDrawOpts('apexflash')!.wing).toBe(true);
+    expect(roadsterDrawOpts('beepbuggy')!.wing).toBeFalsy();
   });
 });
 
-describe('Sky Roadster purchase / equip', () => {
+describe('Tesla Roadster purchase / equip', () => {
   it('buys, auto-equips, and rejects bad cases', () => {
     const shop = { coins: 899, owned: ['starter'], equipped: 'starter' };
     const failCash = purchaseShipLocal(shop, 'beepbuggy', SHIP_PRICES, VALID);
@@ -186,12 +196,12 @@ describe('Sky Roadster purchase / equip', () => {
   });
 });
 
-describe('Sky Roadster rendering', () => {
+describe('Tesla Roadster rendering', () => {
   it('draws every roadster without throwing', () => {
     for (const id of ROADSTER_IDS) {
       const ctx = mockCanvasCtx();
-      expect(() => drawRoadster(ctx, id, 0.42, ['255,255,255', '255,180,60', '255,60,20'], true)).not.toThrow();
-      expect(() => drawRoadster(ctx, id, 1.7, ['255,255,255', '255,180,60', '255,60,20'], false)).not.toThrow();
+      expect(() => drawRoadster(ctx, id, 0.42, ['230,250,255', '90,180,255', '30,70,200'], true)).not.toThrow();
+      expect(() => drawRoadster(ctx, id, 1.7, ['230,250,255', '90,180,255', '30,70,200'], false)).not.toThrow();
     }
     expect(() => drawRoadster(mockCanvasCtx(), 'not-a-roadster', 0, ['0,0,0', '0,0,0', '0,0,0'])).toThrow(/Unknown roadster/);
   });
