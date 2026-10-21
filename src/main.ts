@@ -71,10 +71,13 @@ import {
   boostInvuln,
   canStartBoost,
   flipsOnBoost,
+  isRollInvulnerable,
   isUnderside,
   rollDuration,
+  rollEase,
   rollScaleX,
   startRoadsterBoost,
+  steerJetSign,
 } from './lib/roadster-boost';
 
 export interface WeltraumApi {
@@ -113,7 +116,10 @@ export interface WeltraumApi {
       start: typeof startRoadsterBoost;
       can: typeof canStartBoost;
       scaleX: typeof rollScaleX;
+      ease: typeof rollEase;
       underside: typeof isUnderside;
+      safe: typeof isRollInvulnerable;
+      jetSign: typeof steerJetSign;
       cd: typeof boostCooldown;
       dur: typeof boostDuration;
       invuln: typeof boostInvuln;
@@ -532,7 +538,10 @@ function installApi(client: SpacetimeClient): WeltraumApi {
         start: startRoadsterBoost,
         can: canStartBoost,
         scaleX: rollScaleX,
+        ease: rollEase,
         underside: isUnderside,
+        safe: isRollInvulnerable,
+        jetSign: steerJetSign,
         cd: boostCooldown,
         dur: boostDuration,
         invuln: boostInvuln,

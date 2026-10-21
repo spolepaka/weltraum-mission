@@ -1965,7 +1965,7 @@
       d.vx += (want - d.vx) * Math.min(1, dt * (d.missile ? 1.1 : 1.5));
       var dk = d.chillUntil > time ? 0.4 : 1; d.x += d.vx * dt * dk; d.y += (d.missile ? 115 : 75) * ss * dt * dk;
       if (d.y > H + 30) d.dead = true;
-      if (state === "play" && !d.dead) eachPlayer(function () { if (!d.dead && state === "play" && hit(d.x, d.y, 15, ship.x, ship.y, curStats.hitR || 22) && invuln <= 0) { d.dead = true; explode(d.x, d.y, 16, FIRE); hurt(d.x, d.y); } });
+      if (state === "play" && !d.dead) eachPlayer(function () { if (!d.dead && state === "play" && hit(d.x, d.y, 15, ship.x, ship.y, curStats.hitR || 22) && !roadsterSafe()) { d.dead = true; explode(d.x, d.y, 16, FIRE); hurt(d.x, d.y); } });
     });
     drones = drones.filter(function (d) { return !d.dead; });
   }
@@ -2139,7 +2139,7 @@
         if (state !== "play" || ship.down) return;
         var dx = w.x - ship.x, dy = w.y - ship.y, d = Math.sqrt(dx * dx + dy * dy) + 1;
         if (!(curPid > 1 && net.role === "host" && netOnline()) && d < 380) ship.x += dx / d * (w.mini ? 95 : 150) * Math.min(1, 140 / (d + 30)) * dt;
-        if (d < w.r * 0.85 + (curStats.hitR || 22) && invuln <= 0) { hurt(ship.x, ship.y); if (w.mini) { w.dead = true; explode(w.x, w.y, 20, PURPLE, 160); } }
+        if (d < w.r * 0.85 + (curStats.hitR || 22) && !roadsterSafe()) { hurt(ship.x, ship.y); if (w.mini) { w.dead = true; explode(w.x, w.y, 20, PURPLE, 160); } }
       });
     });
     wells = wells.filter(function (w) { return !w.dead && w.y < H + 90 && (w.warn > 0 || (w.x > -60 && w.x < W + 60)); });
@@ -2170,9 +2170,15 @@
   }
 
   // ---------- Treffer am Spieler ----------
+  function roadsterSafe() {
+    if (ship && ship.rollU > 0 && ship.rollU < 1) return true;
+    if (invuln > 0) return true;
+    var api = window.__weltraum && window.__weltraum.roadsters && window.__weltraum.roadsters.boost;
+    return !!(api && typeof api.safe === "function" && api.safe(ship && ship.rollU || 0, invuln));
+  }
   function hurt(x, y) {
     if (trainOn) { invuln = 0.35; explode(x, y, 16, CYAN); return; }
-    if (invuln > 0) return;
+    if (roadsterSafe()) return;
     if (curStats.perk === "phase" && state === "play" && !ship.down && Math.random() < 0.4) { phaseDodge(); return; }
     if (shield) { shield = false; invuln = 1.2; explode(ship.x, ship.y, 24, CYAN); SFX.shield(); showMsg("🛡️ " + tr("tips.shieldSaved"), "good", 1.2); updatePower(); return; }
     lives--; invuln = 2; shake = 0.4; heartsLostRun++; comboBreak();
@@ -2248,15 +2254,25 @@
       if (ship.boostCd > 0) ship.boostCd -= dt;
       if (ship.boostLeft > 0) {
         ship.boostLeft -= dt;
-        ship.x += (ship.boostVx || 0) * dt;
         var bu = Math.max(0, ship.boostLeft);
         ship.boostY = -((ship.boostLift || 40) * (bu / Math.max(0.05, ship.boostDur || 0.3)));
         particles.push({ x: ship.x + rnd(-8, 8), y: ship.y + 26, vx: rnd(-18, 18), vy: rnd(90, 200), life: 0.45, max: 0.45, r: rnd(3, 8), c: pick(["#ffffff", "#e8eef5", "#b8c4d4"]) });
         if (ship.boostLeft <= 0) { ship.boostLeft = 0; ship.boostY = 0; ship.boostVx = 0; }
       }
       if (ship.rollU > 0 && ship.rollU < 1) {
-        ship.rollU += dt / (ship.rollDur || 0.5);
+        ship.rollU += dt / (ship.rollDur || 1);
+        invuln = Math.max(invuln, (1 - ship.rollU) * (ship.rollDur || 1) + 0.15);
         if (ship.rollU >= 1) ship.rollU = 0;
+      }
+      if (rg && typeof rg.bank === "number") ship.bank = rg.bank;
+      else ship.bank = (ship.x - (ship.prevX || ship.x)) / Math.max(dt, 0.0001);
+      if (ROADSTER_KIT[roadsterIdNow()] && Math.abs(ship.bank || 0) > 18) {
+        var jetApi = window.__weltraum && window.__weltraum.roadsters && window.__weltraum.roadsters.boost;
+        var jSign = jetApi && jetApi.jetSign ? jetApi.jetSign(ship.bank / 280) : (ship.bank > 0 ? -1 : 1);
+        var jStr = Math.min(1, Math.abs(ship.bank) / 280);
+        if (jSign && Math.random() < 0.85 * jStr) {
+          particles.push({ x: ship.x + jSign * 24, y: ship.y + rnd(2, 16), vx: jSign * rnd(50, 110) * jStr, vy: rnd(-16, 18), life: 0.18 + 0.14 * jStr, max: 0.32, r: rnd(2.2, 5.5) * (0.6 + jStr), c: pick(["#ffffff", "#e8f4ff", "#9ad0ff"]) });
+        }
       }
       if (rg && rg.rboostOnce) { rg.rboostOnce = false; tryRoadsterBoost(false); }
       ship.x = Math.max(ship.w / 2 + 4, Math.min(W - ship.w / 2 - 4, ship.x));
@@ -2409,8 +2425,9 @@
       var sr = curStats.hitR || 22;
       rocks.forEach(function (r) {
         if (!r.dead && hit(r.x, r.y, r.r * 0.85, ship.x, ship.y, sr)) {
-          if (r.ice) { r.dead = true; freezeShip(); }
-          else if (invuln <= 0) { r.dead = true; hurt(r.x, r.y); }
+          if (roadsterSafe()) { /* pass through while rolling */ }
+          else if (r.ice) { r.dead = true; freezeShip(); }
+          else { r.dead = true; hurt(r.x, r.y); }
         }
       });
       mines.forEach(function (m) { if (!m.dead && hit(m.x, m.y, m.r, ship.x, ship.y, sr)) mineBoom(m); });
@@ -2428,9 +2445,9 @@
           return false;
         });
       }
-      ufos.forEach(function (u) { if (!u.dead && hit(u.x, u.y, u.r * 0.8, ship.x, ship.y, sr)) { if (invuln <= 0) { u.dead = true; hurt(u.x, u.y); } } });
-      bombs.forEach(function (b) { if (!b.dead && hit(b.x, b.y, b.r, ship.x, ship.y, sr)) { if (invuln <= 0) { b.dead = true; hurt(b.x, b.y); } } });
-      comets.forEach(function (c) { if (!c.dead && hit(c.x, c.y, c.r, ship.x, ship.y, sr)) { if (invuln <= 0) { c.dead = true; hurt(c.x, c.y); } } });
+      ufos.forEach(function (u) { if (!u.dead && hit(u.x, u.y, u.r * 0.8, ship.x, ship.y, sr)) { if (!roadsterSafe()) { u.dead = true; hurt(u.x, u.y); } } });
+      bombs.forEach(function (b) { if (!b.dead && hit(b.x, b.y, b.r, ship.x, ship.y, sr)) { if (!roadsterSafe()) { b.dead = true; hurt(b.x, b.y); } } });
+      comets.forEach(function (c) { if (!c.dead && hit(c.x, c.y, c.r, ship.x, ship.y, sr)) { if (!roadsterSafe()) { c.dead = true; hurt(c.x, c.y); } } });
       holes.forEach(function (h) { if (state === "play" && hit(h.x, h.y, h.r * 0.9, ship.x, ship.y, sr * 0.8)) suckIntoHole(h); });
       stars.forEach(function (s) {
         if (!s.dead && hit(s.x, s.y, 22, ship.x, ship.y, sr + 4)) {
@@ -2676,19 +2693,29 @@
       ctx.save(); ctx.translate(ship.x, ship.y); ctx.rotate(sucked.spin); ctx.scale(ssc, ssc * (1 + sk * 0.8)); ctx.translate(-ship.x, -ship.y);
       drawShip(); ctx.restore();
     }
-    if (ship && state === "play" && !(invuln > 0 && Math.floor(invuln * 10) % 2 === 0)) {
+    var rolling = !!(ship && ship.rollU > 0 && ship.rollU < 1);
+    if (ship && state === "play" && (rolling || !(invuln > 0 && Math.floor(invuln * 10) % 2 === 0))) {
       // Rakete neigt und streckt sich zum Schwarzen Loch hin
       var pt = Math.max(-1, Math.min(1, (ship.pull || 0) / 430));
       ship.tilt = (ship.tilt || 0) + (pt * 0.5 - (ship.tilt || 0)) * 0.15;
       var at = Math.abs(ship.tilt);
       var rollSx = 1;
-      if (ship.rollU > 0 && ship.rollU < 1) {
+      if (rolling) {
         var bapi = window.__weltraum && window.__weltraum.roadsters && window.__weltraum.roadsters.boost;
         rollSx = bapi ? bapi.scaleX(ship.rollTurns || 1, ship.rollU) : Math.cos(ship.rollU * Math.PI);
       }
       ctx.save(); ctx.translate(ship.x, ship.y); ctx.rotate(ship.tilt); ctx.scale((1 - at * 0.25) * rollSx, 1 + at * 0.35); ctx.translate(-ship.x, -ship.y);
       drawShip();
       ctx.restore();
+      if (rolling) {
+        ctx.save();
+        var glint = 0.4 + 0.28 * Math.sin(flameT * 11);
+        ctx.globalAlpha = glint;
+        ctx.strokeStyle = "rgba(190,230,255,.95)"; ctx.shadowColor = "#9ad0ff"; ctx.shadowBlur = 18; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(ship.x, ship.y, 38, 52, 0, 0, 7); ctx.stroke();
+        ctx.globalAlpha = glint * 0.22; ctx.fillStyle = "rgba(160,210,255,.35)"; ctx.fill();
+        ctx.restore();
+      }
       if (curStats.perk2 === "clone") { ctx.save(); ctx.globalAlpha = 0.38 + 0.1 * Math.sin(flameT * 6); drawShipModel(curShip().id, W - ship.x, ship.y, flameT, false); ctx.restore(); }
       if (frozen > 0) {
         ctx.save(); ctx.globalAlpha = Math.min(1, frozen) * 0.75;
@@ -4318,6 +4345,7 @@
         net.stats.inRx++;
         if (typeof m.x === "number" && isFinite(m.x)) g.rx = m.x;
         g.rfire = !!m.f; if (m.o) g.rfireOnce = true; if (m.b) g.rboostOnce = true;
+        if (typeof m.s === "number" && isFinite(m.s)) g.bank = m.s;
       }
     } else if (net.role === "guest") {
       if (m.t === "bye") { beginHostRecovery(); return; }
@@ -4380,7 +4408,7 @@
   // ---------- Host: Schnappschüsse ----------
   var SNAP_ARRAYS = ["bullets", "rocks", "ufos", "bombs", "stars", "powers", "comets", "holes", "beams", "drones", "mines", "coinsArr", "swallows", "wells"];
   function snapArrays() { return { bullets: bullets, rocks: rocks, ufos: ufos, bombs: bombs, stars: stars, powers: powers, comets: comets, holes: holes, beams: beams, drones: drones, mines: mines, coinsArr: coinsArr, swallows: swallows, wells: wells }; }
-  function pInfo(o) { var s = o.ship; return { x: s.x, y: s.y, dn: s.down || 0, tl: s.tilt || 0, pl: s.pull || 0, l: o.lives, i: o.invuln, sh: o.shield ? 1 : 0, tr: o.triple, la: o.laser, mg: o.magnet, fz: o.frozen, rg: o.regenT, bo: s.boostLeft || 0, rl: s.rollU || 0, rt: s.rollTurns || 0, by: s.boostY || 0 }; }
+  function pInfo(o) { var s = o.ship; return { x: s.x, y: s.y, dn: s.down || 0, tl: s.tilt || 0, pl: s.pull || 0, l: o.lives, i: o.invuln, sh: o.shield ? 1 : 0, tr: o.triple, la: o.laser, mg: o.magnet, fz: o.frozen, rg: o.regenT, bo: s.boostLeft || 0, rl: s.rollU || 0, rt: s.rollTurns || 0, by: s.boostY || 0, bk: s.bank || 0 }; }
   var SNAP_SKIP = { hits: 1, burnDmg: 1, chilled: 1 };
   function snapString() {
     var A = snapArrays();
@@ -4408,7 +4436,7 @@
       if (net.inT <= 0) {
         net.inT = 1 / 30;
         var firing = fireFingerCount() > 0 || !!kb.fire;
-        netSend({ t: "i", x: net.myX === null ? null : r1(net.myX), f: firing ? 1 : 0, o: net.tapFire ? 1 : 0, b: net.tapBoost ? 1 : 0 }); net.tapFire = false; net.tapBoost = false;
+        netSend({ t: "i", x: net.myX === null ? null : r1(net.myX), f: firing ? 1 : 0, o: net.tapFire ? 1 : 0, b: net.tapBoost ? 1 : 0, s: r1(steerDir(1)) }); net.tapFire = false; net.tapBoost = false;
       }
     } else if (net.inT <= 0) { net.inT = 1; netSend({ t: "p" }); }
   }
@@ -4444,7 +4472,7 @@
     });
   }
   function mkP(pi, x) {
-    return { ship: { x: x, y: pi.y, w: 46, h: 64, down: pi.dn || 0, tilt: pi.tl, pull: pi.pl, boostLeft: pi.bo || 0, rollU: pi.rl || 0, rollTurns: pi.rt || 0, boostY: pi.by || 0 }, lives: pi.l, invuln: pi.i, shield: !!pi.sh, triple: pi.tr, laser: pi.la, magnet: pi.mg, fireCooldown: 0, frozen: pi.fz, regenT: pi.rg, touchTarget: null };
+    return { ship: { x: x, y: pi.y, w: 46, h: 64, down: pi.dn || 0, tilt: pi.tl, pull: pi.pl, boostLeft: pi.bo || 0, rollU: pi.rl || 0, rollTurns: pi.rt || 0, boostY: pi.by || 0, bank: pi.bk || 0 }, lives: pi.l, invuln: pi.i, shield: !!pi.sh, triple: pi.tr, laser: pi.la, magnet: pi.mg, fireCooldown: 0, frozen: pi.fz, regenT: pi.rg, touchTarget: null };
   }
   var lastGuestHud = "";
   function guestFrame(dt) {
@@ -5415,10 +5443,15 @@
     ctx.fillRect(x - 0.75, y, 1.5, 5.2);
   }
   function roadsterBank() {
-    var b = 0;
-    try { if (typeof steerDir === "function") b = steerDir() || 0; } catch (e) {}
-    try { if (typeof ship !== "undefined" && ship && ship.tilt) b = b || ship.tilt; } catch (e2) {}
-    return b;
+    try {
+      if (typeof ship !== "undefined" && ship && typeof ship.bank === "number" && Math.abs(ship.bank) > 0.01) {
+        var n = ship.bank;
+        if (Math.abs(n) > 2) n = n / 280;
+        return Math.max(-1.5, Math.min(1.5, n));
+      }
+    } catch (e) {}
+    try { if (typeof steerDir === "function") return steerDir() || 0; } catch (e2) {}
+    return 0;
   }
   function roadsterKit(t, d, fx, o) {
     var p = 0.5 + 0.5 * Math.sin(t * 6), c = o.paint, hw = o.hw;
@@ -5426,11 +5459,13 @@
     (o.jets || []).forEach(function (e, i) { flameAt(e[0], e[1], e[2] + p * 4, e[3], d.flame, t, i * 1.1); });
     if (o.steerJets) {
       var bank = roadsterBank();
-      var leftOn = bank < -0.08 || Math.sin(t * 2.1) < -0.35;
-      var rightOn = bank > 0.08 || Math.sin(t * 2.1) > 0.35;
-      o.steerJets.forEach(function (e, i) {
-        if ((e[0] < 0 && leftOn) || (e[0] > 0 && rightOn)) flameAt(e[0], e[1], e[2], e[3], d.flame, t, 4 + i);
-      });
+      var sign = bank > 0.04 ? -1 : bank < -0.04 ? 1 : 0;
+      var str = Math.min(1.45, Math.abs(bank));
+      if (sign) {
+        o.steerJets.forEach(function (e, i) {
+          if ((e[0] < 0 && sign < 0) || (e[0] > 0 && sign > 0)) flameAt(e[0], e[1], e[2] * (0.75 + 0.85 * str), e[3], d.flame, t, 4 + i);
+        });
+      }
     }
     ctx.fillStyle = "#0a0a0c"; poly([-hw + 3, 20, hw - 3, 20, hw - 5, 29, -hw + 5, 29]); ctx.fill();
     (o.nozzles || []).forEach(function (nx) {
@@ -5492,14 +5527,11 @@
     var api = window.__weltraum && window.__weltraum.roadsters && window.__weltraum.roadsters.boost;
     if (!api || !ROADSTER_KIT[id] || !ship || ship.down) return false;
     if (!api.can(ship.boostCd || 0)) return false;
-    var steer = 0;
-    try { steer = steerDir(curPid === 2 ? 2 : 1); } catch (e1) {}
-    if (!steer) steer = ship.x < W / 2 ? -1 : 1;
-    var spec = api.start(id, steer, !!forceFlip);
+    var spec = api.start(id, 0, !!forceFlip);
     ship.boostCd = spec.cd;
     ship.boostLeft = spec.dur;
     ship.boostDur = spec.dur;
-    ship.boostVx = spec.vx;
+    ship.boostVx = 0;
     ship.boostLift = spec.lift;
     ship.boostY = 0;
     if (spec.roll) { ship.rollU = 0.001; ship.rollTurns = spec.turns; ship.rollDur = spec.rollDur; }
@@ -5511,7 +5543,6 @@
     showMsg("🚀 " + tr("tips.roadsterBoost"), "good", 0.7);
     if (isGuest()) net.tapBoost = true;
     if (curPid > 1 && net.role === "host" && netOnline()) tpNotify();
-    if (touchTarget !== null) { dragOffset += (ship.boostVx || 0) * 0.05; }
     return true;
   }
   function drawTeslaRoadster(id, t, d, fx) {
@@ -5519,11 +5550,12 @@
     var img = ROADSTER_IMG[id];
     var boosting = !!(typeof ship !== "undefined" && ship && ship.boostLeft > 0);
     var under = false;
-    if (api && api.boost && ship && ship.rollU > 0 && ship.rollU < 1) {
+    var shimmer = !!(ship && ship.rollU > 0 && ship.rollU < 1);
+    if (api && api.boost && shimmer) {
       under = api.boost.underside(api.boost.scaleX(ship.rollTurns || 1, ship.rollU));
     }
     if (api && typeof api.draw === "function") {
-      try { api.draw(ctx, id, t, d.flame, fx !== false, roadsterBank(), img, boosting, under); return; } catch (e) {}
+      try { api.draw(ctx, id, t, d.flame, fx !== false, roadsterBank(), img, boosting, under, shimmer); return; } catch (e) {}
     }
     roadsterKit(t, d, fx, ROADSTER_KIT[id]);
   }
@@ -7425,7 +7457,23 @@
     missionAdd: function (st, n) { missionAdd(st, n); },
     setShip: function (id) { if (shop.owned.indexOf(id) < 0) shop.owned.push(id); shop.equipped = id; saveShop(); curStats = shipStats(); if (shopOpen) { shopSel = id; renderShop(); } },
     roadsterBoost: function (flip) { return tryRoadsterBoost(!!flip); },
-    roadsterBoostState: function () { return ship ? { cd: ship.boostCd || 0, left: ship.boostLeft || 0, roll: ship.rollU || 0, invuln: invuln, y: ship.y, x: ship.x } : null; },
+    roadsterBoostState: function () { return ship ? { cd: ship.boostCd || 0, left: ship.boostLeft || 0, roll: ship.rollU || 0, invuln: invuln, y: ship.y, x: ship.x, bank: ship.bank || 0, vx: ship.boostVx || 0 } : null; },
+    roadsterHitCheck: function () {
+      var before = lives;
+      shipCollide();
+      return { lives: lives, before: before, roll: ship.rollU || 0, invuln: invuln, safe: roadsterSafe(), x: ship.x, shield: shield };
+    },
+    clearHazards: function () { rocks = []; bombs = []; drones = []; ufos = []; comets = []; mines = []; },
+    setShield: function (v) { shield = !!v; },
+    pauseSpawns: function () { spawnTimer = 999; starTimer = 999; ufoTimer = 999; powerTimer = 999; },
+    setRoll: function (u, turns) {
+      if (!ship) return false;
+      ship.rollU = Math.max(0.001, Math.min(0.999, u));
+      ship.rollTurns = turns || ship.rollTurns || 2;
+      ship.rollDur = 1;
+      invuln = Math.max(invuln, 1.15);
+      return true;
+    },
     shipIds: function () { return SHIPS.map(function (d) { return d.id + ":" + d.price; }); },
     drawShipOk: function (id) {
       try {

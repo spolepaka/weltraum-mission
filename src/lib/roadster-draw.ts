@@ -37,7 +37,7 @@ const VARIANTS: Record<string, RoadsterDrawOpts> = {
     badge: '#1a1a1a',
     hw: 14.6,
     jets: [[-7.2, 31.4, 13, 2.2], [-2.4, 31.4, 13, 2.2], [2.4, 31.4, 13, 2.2], [7.2, 31.4, 13, 2.2]],
-    steerJets: [[-15.5, 8, 7, 1.7], [15.5, 8, 7, 1.7]],
+    steerJets: [[-16, 4, 14, 2.4], [16, 4, 14, 2.4], [-15, 14, 10, 2], [15, 14, 10, 2]],
     nozzles: [...ROW4],
     nozzleR: 1.55,
     plate: true,
@@ -52,7 +52,7 @@ const VARIANTS: Record<string, RoadsterDrawOpts> = {
     badge: '#222',
     hw: 14.8,
     jets: [[-7.2, 31.4, 15, 2.4], [-2.4, 31.4, 16, 2.5], [2.4, 31.4, 16, 2.5], [7.2, 31.4, 15, 2.4]],
-    steerJets: [[-16, 6, 9, 2], [16, 6, 9, 2]],
+    steerJets: [[-16.5, 2, 15, 2.5], [16.5, 2, 15, 2.5], [-15.5, 13, 11, 2.1], [15.5, 13, 11, 2.1]],
     nozzles: [...ROW4],
     nozzleR: 1.65,
     plate: true,
@@ -68,7 +68,7 @@ const VARIANTS: Record<string, RoadsterDrawOpts> = {
     badge: '#c9a44a',
     hw: 15,
     jets: [[-7.2, 31.4, 16, 2.5], [-2.4, 31.4, 17, 2.7], [2.4, 31.4, 17, 2.7], [7.2, 31.4, 16, 2.5]],
-    steerJets: [[-16.5, 4, 8, 1.9], [16.5, 4, 8, 1.9]],
+    steerJets: [[-17, 0, 16, 2.6], [17, 0, 16, 2.6], [-16, 12, 12, 2.2], [16, 12, 12, 2.2]],
     nozzles: [...ROW4],
     recessed: [-5.4, -1.8, 1.8, 5.4],
     nozzleR: 1.75,
@@ -84,7 +84,7 @@ const VARIANTS: Record<string, RoadsterDrawOpts> = {
     badge: '#e8eef5',
     hw: 15.2,
     jets: [[-7.2, 31.4, 17, 2.6], [-2.4, 31.4, 19, 2.9], [2.4, 31.4, 19, 2.9], [7.2, 31.4, 17, 2.6], [-5.4, 33.6, 12, 1.8], [-1.8, 33.6, 12, 1.8], [1.8, 33.6, 12, 1.8], [5.4, 33.6, 12, 1.8]],
-    steerJets: [[-17, 2, 10, 2], [17, 2, 10, 2]],
+    steerJets: [[-17.5, -1, 17, 2.7], [17.5, -1, 17, 2.7], [-16.5, 12, 13, 2.3], [16.5, 12, 13, 2.3]],
     nozzles: [...ROW4],
     recessed: [-5.4, -1.8, 1.8, 5.4],
     nozzleR: 1.85,
@@ -102,7 +102,7 @@ const VARIANTS: Record<string, RoadsterDrawOpts> = {
     badge: '#111',
     hw: 15.5,
     jets: [[-7.4, 31.4, 18, 2.8], [-2.5, 31.4, 21, 3.2], [2.5, 31.4, 21, 3.2], [7.4, 31.4, 18, 2.8], [-5.6, 33.8, 14, 2], [-1.9, 33.8, 14, 2], [1.9, 33.8, 14, 2], [5.6, 33.8, 14, 2]],
-    steerJets: [[-18, 0, 11, 2.1], [18, 0, 11, 2.1], [-15, 12, 8, 1.9], [15, 12, 8, 1.9]],
+    steerJets: [[-18.5, -2, 18, 2.8], [18.5, -2, 18, 2.8], [-16.5, 11, 14, 2.4], [16.5, 11, 14, 2.4], [-14, 18, 10, 2], [14, 18, 10, 2]],
     nozzles: [-7.4, -2.5, 2.5, 7.4],
     recessed: [-5.6, -1.9, 1.9, 5.6],
     nozzleR: 2,
@@ -175,6 +175,8 @@ function lgV(ctx: Ctx, y0: number, y1: number, cols: string[]) {
   return g;
 }
 
+const SIDE_FLAME: [string, string, string] = ['245,250,255', '170,220,255', '80,160,230'];
+
 function flameAt(
   ctx: Ctx,
   x: number,
@@ -202,6 +204,58 @@ function flameAt(
   ctx.beginPath();
   ctx.moveTo(x - w * 0.4, y - 2);
   ctx.quadraticCurveTo(x, y + fl * 0.6, x + w * 0.4, y - 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Horizontal cold-gas puff. dir -1 = left, +1 = right. */
+function sideFlameAt(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  len: number,
+  w: number,
+  dir: number,
+  t: number,
+  seed: number,
+): void {
+  const fl = len + Math.sin(t * 36 + seed) * len * 0.22;
+  const g = ctx.createLinearGradient(x, y, x + dir * fl * 1.55, y);
+  g.addColorStop(0, `rgba(${SIDE_FLAME[0]},1)`);
+  g.addColorStop(0.22, `rgba(${SIDE_FLAME[1]},.9)`);
+  g.addColorStop(1, `rgba(${SIDE_FLAME[2]},0)`);
+  ctx.save();
+  ctx.shadowColor = '#d8f0ff';
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(x, y - w);
+  ctx.quadraticCurveTo(x + dir * fl * 1.55, y, x, y + w);
+  ctx.fill();
+  ctx.fillStyle = `rgba(${SIDE_FLAME[0]},.9)`;
+  ctx.beginPath();
+  ctx.ellipse(x + dir * fl * 0.28, y, fl * 0.28, w * 0.55, 0, 0, 7);
+  ctx.fill();
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.ellipse(x + dir * (fl * 0.72 + 3), y + Math.sin(t * 20 + seed) * 1.2, 2.6, 2.1, 0, 0, 7);
+  ctx.fill();
+  ctx.restore();
+}
+
+export function drawRollShimmer(ctx: Ctx, t: number): void {
+  const pulse = 0.42 + 0.28 * Math.sin(t * 11);
+  ctx.save();
+  ctx.globalAlpha = pulse;
+  ctx.strokeStyle = 'rgba(190,230,255,.95)';
+  ctx.shadowColor = '#9ad0ff';
+  ctx.shadowBlur = 16;
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 20, 34, 0, 0, 7);
+  ctx.stroke();
+  ctx.globalAlpha = pulse * 0.28;
+  ctx.fillStyle = 'rgba(160,210,255,.3)';
   ctx.fill();
   ctx.restore();
 }
@@ -326,13 +380,15 @@ function drawThrusters(ctx: Ctx, o: RoadsterDrawOpts, t: number, flame: string[]
   if (fx && o.aura) softAura(ctx, o.aura[0], o.aura[1], o.aura[2]);
   o.jets.forEach((e, i) => flameAt(ctx, e[0], e[1], (e[2] + p * 4) * boost, e[3] * boost, flame, t, i * 1.1));
   if (o.steerJets) {
-    const leftOn = bank < -0.08 || Math.sin(t * 2.1) < -0.35;
-    const rightOn = bank > 0.08 || Math.sin(t * 2.1) > 0.35;
-    o.steerJets.forEach((e, i) => {
-      if ((e[0] < 0 && leftOn) || (e[0] > 0 && rightOn)) {
-        flameAt(ctx, e[0], e[1], e[2], e[3], flame, t, 4 + i);
-      }
-    });
+    const sign = bank > 0.04 ? -1 : bank < -0.04 ? 1 : 0;
+    const str = Math.min(1.45, Math.abs(bank));
+    if (sign !== 0) {
+      o.steerJets.forEach((e, i) => {
+        if ((e[0] < 0 && sign < 0) || (e[0] > 0 && sign > 0)) {
+          sideFlameAt(ctx, e[0], e[1], e[2] * (0.75 + 0.85 * str), e[3] * (0.85 + 0.5 * str), sign, t, 4 + i);
+        }
+      });
+    }
   }
   const drawNozzle = (x: number, y: number, r: number) => {
     ctx.fillStyle = '#070708';
@@ -406,9 +462,11 @@ export function drawRoadster(
   img?: Img | null,
   boosting = false,
   underside = false,
+  shimmer = false,
 ): void {
   const o = VARIANTS[id];
   if (!o) throw new Error(`Unknown roadster design: ${id}`);
+  if (shimmer) drawRollShimmer(ctx, t);
   drawThrusters(ctx, o, t, flame, fx, bank, boosting);
   const ready = !!(img && img.complete && (img.naturalWidth || 0) > 0 && ctx.drawImage && !underside);
   if (underside) {
