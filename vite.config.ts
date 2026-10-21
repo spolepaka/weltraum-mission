@@ -132,10 +132,40 @@ function geoApiPlugin() {
   };
 }
 
+function roadsterSpritesPlugin() {
+  const dir = resolve(__dirname, 'public/ships');
+  const serve = (req: { url?: string }, res: { setHeader: (k: string, v: string) => void; end: (b?: Buffer) => void }, next: () => void) => {
+    const name = (req.url || '').replace(/^\/+/, '').split('?')[0];
+    const file = resolve(dir, name);
+    if (!name || !file.startsWith(dir) || !fs.existsSync(file)) { next(); return; }
+    res.setHeader('Content-Type', 'image/png');
+    res.end(fs.readFileSync(file));
+  };
+  const copyTo = (outDir: string) => {
+    const dest = resolve(outDir, 'ships');
+    fs.mkdirSync(dest, { recursive: true });
+    for (const f of fs.readdirSync(dir)) {
+      if (f.endsWith('.png')) fs.copyFileSync(resolve(dir, f), resolve(dest, f));
+    }
+  };
+  return {
+    name: 'roadster-sprites',
+    configureServer(server: { middlewares: { use: (path: string, fn: typeof serve) => void } }) {
+      server.middlewares.use('/ships', serve);
+    },
+    configurePreviewServer(server: { middlewares: { use: (path: string, fn: typeof serve) => void } }) {
+      server.middlewares.use('/ships', serve);
+    },
+    writeBundle() {
+      copyTo(resolve(__dirname, 'dist'));
+    },
+  };
+}
+
 export default defineConfig({
   root: '.',
   publicDir: false,
-  plugins: [gameHtmlPlugin(), versionPlugin(), geoApiPlugin()],
+  plugins: [gameHtmlPlugin(), versionPlugin(), geoApiPlugin(), roadsterSpritesPlugin()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,

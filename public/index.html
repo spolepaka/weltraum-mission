@@ -32,6 +32,8 @@
   #controls button:active, #controls button.down { background: rgba(90,120,255,.85); }
   #controls .left { display: flex; gap: 12px; }
   #fireBtn { width: 110px !important; border-radius: 40px !important; background: rgba(200,60,40,.7) !important; border-color: #ffb08f !important; font-size: 22px !important; font-weight: bold; }
+  #boostBtn { width: 92px !important; height: 56px !important; border-radius: 28px !important; background: rgba(30,90,140,.75) !important; border: 2px solid #9ad0ff !important; color: #e8f6ff; font-size: 20px !important; font-weight: bold; position: absolute; right: 12px; bottom: 118px; }
+  #boostBtn.down, #boostBtn:active { background: rgba(80,180,255,.9) !important; }
   .screen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 5; background: rgba(5,8,22,.82); }
   .panel { background: linear-gradient(160deg, #1b2470, #3a1a6e); border: 3px solid #ffd54a; border-radius: 24px; padding: 24px 30px; max-width: 560px; width: 92%; text-align: center; box-shadow: 0 0 40px rgba(120,140,255,.5); max-height: calc(92vh / var(--s)); overflow-y: auto; }
   .panel h1 { margin: 0 0 10px; color: #ffd54a; font-size: 34px; }
@@ -381,6 +383,7 @@
     <button id="p2Right" aria-label="P2 rechts">▶</button>
   </div>
   <button id="fireBtn" aria-label="Fire">🔥 Fire</button>
+  <button id="boostBtn" class="hidden" aria-label="Boost">🚀</button>
 </div>
 
 <div id="mapHud" class="hidden">
@@ -2242,8 +2245,22 @@
         if (frozen > 0) ship.x += Math.max(-sp, Math.min(sp, touchTarget - ship.x)); else ship.x = touchTarget;
       }
       if (rg) { if (rg.tpHold > 0) rg.tpHold -= dt; else if (rg.rx !== null) ship.x += (rg.rx - ship.x) * Math.min(1, dt * 20); }
+      if (ship.boostCd > 0) ship.boostCd -= dt;
+      if (ship.boostLeft > 0) {
+        ship.boostLeft -= dt;
+        ship.x += (ship.boostVx || 0) * dt;
+        var bu = Math.max(0, ship.boostLeft);
+        ship.boostY = -((ship.boostLift || 40) * (bu / Math.max(0.05, ship.boostDur || 0.3)));
+        particles.push({ x: ship.x + rnd(-8, 8), y: ship.y + 26, vx: rnd(-18, 18), vy: rnd(90, 200), life: 0.45, max: 0.45, r: rnd(3, 8), c: pick(["#ffffff", "#e8eef5", "#b8c4d4"]) });
+        if (ship.boostLeft <= 0) { ship.boostLeft = 0; ship.boostY = 0; ship.boostVx = 0; }
+      }
+      if (ship.rollU > 0 && ship.rollU < 1) {
+        ship.rollU += dt / (ship.rollDur || 0.5);
+        if (ship.rollU >= 1) ship.rollU = 0;
+      }
+      if (rg && rg.rboostOnce) { rg.rboostOnce = false; tryRoadsterBoost(false); }
       ship.x = Math.max(ship.w / 2 + 4, Math.min(W - ship.w / 2 - 4, ship.x));
-      ship.y = H - shipBottom();
+      ship.y = H - shipBottom() + (ship.boostY || 0);
       // Triebwerks-Partikel
       var sdef = curPid > 1 ? (SHIP_BY[net.looks[curPid]] || AMELIA_DEF) : (SHIP_BY[net.looks[1]] || curShip());
       sdef.engines.forEach(function (en) { particles.push({ x: ship.x + en[0] + rnd(-3, 3), y: ship.y + en[1] + 4, vx: rnd(-20, 20), vy: rnd(120, 200), life: 0.35, max: 0.35, r: rnd(2, 4) * (en[2] || 1), c: pick((((curPid === 1) !== isGuest()) && skinFlame(curSkin(), flameT)) || sdef.flame) }); });
@@ -2262,6 +2279,11 @@
     else if (state === "play" && (curPid === hostPidF || (!net.role && curPid !== 2)) && (fireFingerCount() > 0 || kb.fire)) { wantFire = true; fire(); }
     else if (state === "play" && !net.role && curPid === 2 && (Object.keys(fireFingers2).length > 0 || kb2.fire)) { wantFire = true; fire(); }
     if (state === "play" && !ship.down) topShipPerks(dt, wantFire);
+    if (state === "play" && !ship.down && (kb.boost || kb.boostFlip)) {
+      tryRoadsterBoost(!!kb.boostFlip);
+      kb.boost = false; kb.boostFlip = false;
+    }
+    syncBoostBtn();
   }
   // ---------- Spezial-Kräfte der Top-Schiffe ----------
   var ORBIT_DMG = 1.5, ORBIT_RATE = 0.55, NOVA_DMG = 4, NOVA_EVERY = 4;
@@ -2311,19 +2333,23 @@
     } else if (p2k === "dash") {
       ship.dashT = (ship.dashT === undefined ? 1 : ship.dashT) - dt;
       if (ship.dashT <= 0 && wantFire) {
-        ship.dashT = 3.2;
-        var dashDir = ship.x < W / 2 ? 1 : -1;
-        if (ship.x < 80) dashDir = 1;
-        if (ship.x > W - 80) dashDir = -1;
-        var nx = Math.max(ship.w / 2 + 4, Math.min(W - ship.w / 2 - 4, ship.x + dashDir * 100));
-        explode(ship.x, ship.y, 12, ["#7dffea", "#ffffff", "#c8f6ff"], 140);
-        ship.x = nx;
-        explode(ship.x, ship.y, 12, ["#7dffea", "#ffffff", "#c8f6ff"], 140);
-        invuln = Math.max(invuln, 0.35);
-        tone(900, 1600, 0.18, "sine", 0.06);
-        showMsg("⚡ " + tr("tips.boostDash"), "good", 0.8);
-        if (touchTarget !== null) { dragOffset += nx - touchTarget; touchTarget = nx; }
-        if (curPid > 1 && net.role === "host" && netOnline()) tpNotify();
+        if (ROADSTER_KIT[roadsterIdNow()] && tryRoadsterBoost(false)) {
+          ship.dashT = 3.2;
+        } else {
+          ship.dashT = 3.2;
+          var dashDir = ship.x < W / 2 ? 1 : -1;
+          if (ship.x < 80) dashDir = 1;
+          if (ship.x > W - 80) dashDir = -1;
+          var nx = Math.max(ship.w / 2 + 4, Math.min(W - ship.w / 2 - 4, ship.x + dashDir * 100));
+          explode(ship.x, ship.y, 12, ["#7dffea", "#ffffff", "#c8f6ff"], 140);
+          ship.x = nx;
+          explode(ship.x, ship.y, 12, ["#7dffea", "#ffffff", "#c8f6ff"], 140);
+          invuln = Math.max(invuln, 0.35);
+          tone(900, 1600, 0.18, "sine", 0.06);
+          showMsg("⚡ " + tr("tips.boostDash"), "good", 0.8);
+          if (touchTarget !== null) { dragOffset += nx - touchTarget; touchTarget = nx; }
+          if (curPid > 1 && net.role === "host" && netOnline()) tpNotify();
+        }
       }
     } else if (p2k === "pulse") {
       ship.pulseT = (ship.pulseT === undefined ? 2 : ship.pulseT) - dt;
@@ -2655,7 +2681,12 @@
       var pt = Math.max(-1, Math.min(1, (ship.pull || 0) / 430));
       ship.tilt = (ship.tilt || 0) + (pt * 0.5 - (ship.tilt || 0)) * 0.15;
       var at = Math.abs(ship.tilt);
-      ctx.save(); ctx.translate(ship.x, ship.y); ctx.rotate(ship.tilt); ctx.scale(1 - at * 0.25, 1 + at * 0.35); ctx.translate(-ship.x, -ship.y);
+      var rollSx = 1;
+      if (ship.rollU > 0 && ship.rollU < 1) {
+        var bapi = window.__weltraum && window.__weltraum.roadsters && window.__weltraum.roadsters.boost;
+        rollSx = bapi ? bapi.scaleX(ship.rollTurns || 1, ship.rollU) : Math.cos(ship.rollU * Math.PI);
+      }
+      ctx.save(); ctx.translate(ship.x, ship.y); ctx.rotate(ship.tilt); ctx.scale((1 - at * 0.25) * rollSx, 1 + at * 0.35); ctx.translate(-ship.x, -ship.y);
       drawShip();
       ctx.restore();
       if (curStats.perk2 === "clone") { ctx.save(); ctx.globalAlpha = 0.38 + 0.1 * Math.sin(flameT * 6); drawShipModel(curShip().id, W - ship.x, ship.y, flameT, false); ctx.restore(); }
@@ -4286,7 +4317,7 @@
       } else if (m.t === "i") {
         net.stats.inRx++;
         if (typeof m.x === "number" && isFinite(m.x)) g.rx = m.x;
-        g.rfire = !!m.f; if (m.o) g.rfireOnce = true;
+        g.rfire = !!m.f; if (m.o) g.rfireOnce = true; if (m.b) g.rboostOnce = true;
       }
     } else if (net.role === "guest") {
       if (m.t === "bye") { beginHostRecovery(); return; }
@@ -4349,7 +4380,7 @@
   // ---------- Host: Schnappschüsse ----------
   var SNAP_ARRAYS = ["bullets", "rocks", "ufos", "bombs", "stars", "powers", "comets", "holes", "beams", "drones", "mines", "coinsArr", "swallows", "wells"];
   function snapArrays() { return { bullets: bullets, rocks: rocks, ufos: ufos, bombs: bombs, stars: stars, powers: powers, comets: comets, holes: holes, beams: beams, drones: drones, mines: mines, coinsArr: coinsArr, swallows: swallows, wells: wells }; }
-  function pInfo(o) { var s = o.ship; return { x: s.x, y: s.y, dn: s.down || 0, tl: s.tilt || 0, pl: s.pull || 0, l: o.lives, i: o.invuln, sh: o.shield ? 1 : 0, tr: o.triple, la: o.laser, mg: o.magnet, fz: o.frozen, rg: o.regenT }; }
+  function pInfo(o) { var s = o.ship; return { x: s.x, y: s.y, dn: s.down || 0, tl: s.tilt || 0, pl: s.pull || 0, l: o.lives, i: o.invuln, sh: o.shield ? 1 : 0, tr: o.triple, la: o.laser, mg: o.magnet, fz: o.frozen, rg: o.regenT, bo: s.boostLeft || 0, rl: s.rollU || 0, rt: s.rollTurns || 0, by: s.boostY || 0 }; }
   var SNAP_SKIP = { hits: 1, burnDmg: 1, chilled: 1 };
   function snapString() {
     var A = snapArrays();
@@ -4377,7 +4408,7 @@
       if (net.inT <= 0) {
         net.inT = 1 / 30;
         var firing = fireFingerCount() > 0 || !!kb.fire;
-        netSend({ t: "i", x: net.myX === null ? null : r1(net.myX), f: firing ? 1 : 0, o: net.tapFire ? 1 : 0 }); net.tapFire = false;
+        netSend({ t: "i", x: net.myX === null ? null : r1(net.myX), f: firing ? 1 : 0, o: net.tapFire ? 1 : 0, b: net.tapBoost ? 1 : 0 }); net.tapFire = false; net.tapBoost = false;
       }
     } else if (net.inT <= 0) { net.inT = 1; netSend({ t: "p" }); }
   }
@@ -4413,7 +4444,7 @@
     });
   }
   function mkP(pi, x) {
-    return { ship: { x: x, y: pi.y, w: 46, h: 64, down: pi.dn || 0, tilt: pi.tl, pull: pi.pl }, lives: pi.l, invuln: pi.i, shield: !!pi.sh, triple: pi.tr, laser: pi.la, magnet: pi.mg, fireCooldown: 0, frozen: pi.fz, regenT: pi.rg, touchTarget: null };
+    return { ship: { x: x, y: pi.y, w: 46, h: 64, down: pi.dn || 0, tilt: pi.tl, pull: pi.pl, boostLeft: pi.bo || 0, rollU: pi.rl || 0, rollTurns: pi.rt || 0, boostY: pi.by || 0 }, lives: pi.l, invuln: pi.i, shield: !!pi.sh, triple: pi.tr, laser: pi.la, magnet: pi.mg, fireCooldown: 0, frozen: pi.fz, regenT: pi.rg, touchTarget: null };
   }
   var lastGuestHud = "";
   function guestFrame(dt) {
@@ -4631,15 +4662,15 @@
     { id: "kaiserbrecher", name: "Kaiser-Brecher", tier: 4, price: 0, unlock: { L: 90 }, hearts: 7, speed: 1.55, rate: 0.22, shots: 3, dmg: 5, regen: 10, perk: "nova", drones: 4, bullet: "#ffd54a",
       flame: ["255,255,230", "255,213,74", "200,60,255"], engines: [[-16, 32, 1], [0, 35, 1.3], [16, 32, 1]], perkText: "Nova-Schüsse + 4 Kampf-Drohnen + 1,6x Schaden gegen den Robo-Kaiser", desc: "Belohnung für den Schwarzloch-Wächter! Gebaut, um den Robo-Kaiser zu besiegen: Nova-Wellen und vier Drohnen." },
     { id: "beepbuggy", name: "Roadster Basis", tier: 5, price: 900, hearts: 3, speed: 1.25, rate: 0.23, shots: 1, dmg: 1.05, regen: 0, bullet: "#ff6a5a",
-      flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-5, 30, 0.7], [5, 30, 0.7]], perkText: "Tesla Roadster Basis", desc: "Tesla Roadster in Multi-Coat-Rot. Zwei hintere Kaltgas-Raketendüsen. Der Einstiegs-Flieger." },
-    { id: "cloudcoupe", name: "Roadster-Plus", tier: 5, price: 6000, hearts: 3, speed: 1.55, rate: 0.2, shots: 1, dmg: 1.5, regen: 0, perk2: "dash", bullet: "#e8f6ff",
-      flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-7, 30, 0.8], [0, 32, 1], [7, 30, 0.8]], perkText: "Boost-Sprint alle 3 s", desc: "Perlweißer Roadster-Plus. Extra-Unterdüsen zünden beim seitlichen Boost-Sprint!" },
-    { id: "shadowspeeder", name: "Roadster-Performance", tier: 5, price: 22000, hearts: 4, speed: 1.4, rate: 0.26, shots: 2, dmg: 2.6, regen: 0, perk: "pierce", bullet: "#ff4a5a",
-      flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-9, 30, 0.7], [-3, 32, 0.8], [3, 32, 0.8], [9, 30, 0.7]], perkText: "Zwillings-Laser durch alles", desc: "Tiefschwarzer Roadster-Performance. Zwei Laser fliegen durch alle Gegner in der Bahn." },
-    { id: "chromewasp", name: "Roadster SpaceX-Paket", tier: 5, price: 45000, hearts: 5, speed: 1.5, rate: 0.22, shots: 2, dmg: 3.6, regen: 14, perk: "homing", bullet: "#d8e8ff",
-      flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-10, 28, 0.7], [-3.5, 32, 0.9], [3.5, 32, 0.9], [10, 28, 0.7]], perkText: "Zielsuchend + Schild alle 14 s", desc: "Mitternachtssilbernes Roadster SpaceX-Paket. Eck-Raketendüsen, Zielsuch-Schüsse und alle 14 Sekunden ein Schild." },
+      flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-6, 31, 0.7], [-2, 31, 0.7], [2, 31, 0.7], [6, 31, 0.7]], perkText: "Tesla Roadster", desc: "Tesla Roadster in Multi-Coat-Rot. Vier SpaceX-Kaltgasdüsen in einer Reihe unter der Heckleuchte. Der Einstiegs-Flieger." },
+    { id: "cloudcoupe", name: "Roadster-Performance", tier: 5, price: 6000, hearts: 3, speed: 1.55, rate: 0.2, shots: 1, dmg: 1.5, regen: 0, perk2: "dash", bullet: "#e8f6ff",
+      flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-6.5, 31, 0.8], [-2.2, 31, 0.85], [2.2, 31, 0.85], [6.5, 31, 0.8]], perkText: "Boost-Sprint alle 3 s", desc: "Perlweißer Roadster-Performance. Vier Heckdüsen plus Unterdüsen beim seitlichen Boost-Sprint. 0–60 unter 1,6 s." },
+    { id: "shadowspeeder", name: "Roadster-Thrust", tier: 5, price: 22000, hearts: 4, speed: 1.4, rate: 0.26, shots: 2, dmg: 2.6, regen: 0, perk: "pierce", bullet: "#ff4a5a",
+      flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-7, 31, 0.8], [-2.4, 31, 0.9], [2.4, 31, 0.9], [7, 31, 0.8]], perkText: "Zwillings-Laser durch alles", desc: "Tiefschwarzer Roadster-Thrust. Vier Hauptdüsen plus versenkte Booster. Zwei Laser fliegen durch alle Gegner in der Bahn. 0–60 unter 0,9 s." },
+    { id: "chromewasp", name: "Roadster-Rocket", tier: 5, price: 45000, hearts: 5, speed: 1.5, rate: 0.22, shots: 2, dmg: 3.6, regen: 14, perk: "homing", bullet: "#d8e8ff",
+      flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-7.2, 31, 0.85], [-2.4, 31, 0.95], [2.4, 31, 0.95], [7.2, 31, 0.85]], perkText: "Zielsuchend + Schild alle 14 s", desc: "Mitternachtssilberner Roadster-Rocket. SpaceX-Kaltgas-Cluster — vier Haupt- plus vier versenkte Düsen — Zielsuch-Schüsse und alle 14 Sekunden ein Schild. 0–60 unter 0,59 s." },
     { id: "apexflash", name: "Roadster Founders-Serie", tier: 5, price: 148000, hearts: 7, speed: 1.62, rate: 0.2, shots: 3, dmg: 4.8, regen: 11, perk: "homing", perk2: "pulse", bullet: "#ffd54a",
-      flame: ["255,255,255", "140,210,255", "40,90,220"], engines: [[-11, 30, 0.8], [-4, 33, 1], [4, 33, 1], [11, 30, 0.8], [0, 36, 1.2]], perkText: "Zielsuch-Salve + Schildpuls", desc: "Tesla Roadster Founders-Serie. Chrom-Gold, Heckflügel, voller Raketenkranz, dreifach zielsuchend und ein Schildpuls, der Bomben in der Nähe knallt." }
+      flame: ["255,255,255", "140,210,255", "40,90,220"], engines: [[-7.4, 31, 0.9], [-2.5, 31, 1], [2.5, 31, 1], [7.4, 31, 0.9], [0, 34, 1.15]], perkText: "Zielsuch-Salve + Schildpuls", desc: "Tesla Roadster Founders-Serie. Chrom-Gold, der große Heckflügel vom offiziellen Raketen-Foto, volle SpaceX-Düsenreihe, dreifach zielsuchend und ein Schildpuls, der Bomben in der Nähe knallt." }
   ];
   var SHIP_BY = {}; SHIPS.forEach(function (d) { SHIP_BY[d.id] = d; if (d.tier === undefined) d.tier = d.price >= 3000 ? 1 : 0; });
   function shipUnlocked(d) { if (!d.unlock) return true; if (d.unlock.L) return (progress.stars[d.unlock.L] | 0) > 0; if (d.unlock.ach) return !!achDone[d.unlock.ach]; return false; }
@@ -5370,11 +5401,18 @@
     ctx.save(); ctx.translate(0, 4); ctx.rotate(t); ctx.fillStyle = "#ffd54a"; poly([0, -8, 2.5, -2.5, 8, 0, 2.5, 2.5, 0, 8, -2.5, 2.5, -8, 0, -2.5, -2.5]); ctx.fill(); ctx.restore();
     ctx.fillStyle = lgV(-34, -20, ["#ffe0ff", "#c08cff"]); ctx.beginPath(); ctx.ellipse(0, -26, 4.5, 8, 0, 0, 7); ctx.fill();
   };
-  // 2nd-gen Tesla Roadster: blunt capsule, gold canopy, T badge, rocket nozzles.
+  // 2nd-gen Tesla Roadster: official aerial silhouette + photo sprites + rocket nozzles.
+  var ROADSTER_PAINT = { beepbuggy: "red", cloudcoupe: "white", shadowspeeder: "black", chromewasp: "silver", apexflash: "chrome" };
+  var ROADSTER_IMG = {};
+  Object.keys(ROADSTER_PAINT).forEach(function (id) {
+    var im = new Image();
+    im.src = "ships/roadster_" + ROADSTER_PAINT[id] + ".png";
+    ROADSTER_IMG[id] = im;
+  });
   function teslaT(x, y, col) {
     ctx.fillStyle = col;
-    ctx.fillRect(x - 4, y, 8, 1.6);
-    ctx.fillRect(x - 0.9, y, 1.8, 6.2);
+    ctx.fillRect(x - 3.4, y, 6.8, 1.35);
+    ctx.fillRect(x - 0.75, y, 1.5, 5.2);
   }
   function roadsterBank() {
     var b = 0;
@@ -5424,9 +5462,6 @@
     ctx.beginPath(); ctx.ellipse(0, 2.2, o.canopyW, o.canopyH || 17.4, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = "rgba(232,195,106,.85)"; ctx.lineWidth = 1.35; ctx.stroke();
     ctx.fillStyle = "rgba(255,255,255,.28)"; ctx.beginPath(); ctx.ellipse(-3.8, -4, 3.6, 6.2, -0.22, 0, 7); ctx.fill();
-    ctx.fillStyle = "#f4f7fb"; ctx.fillRect(-hw * 0.72, -32.6, hw * 1.44, 1.85);
-    glowDot(-hw * 0.48, -31.7, 1.2 + p * 0.35, "#ffffff", 7);
-    glowDot(hw * 0.48, -31.7, 1.2 + p * 0.35, "#ffffff", 7);
     teslaT(0, -29.6, o.badge);
     ctx.save(); ctx.fillStyle = "#ff1a1a"; ctx.shadowColor = "#ff3a3a"; ctx.shadowBlur = 8;
     ctx.fillRect(-hw + 1.6, 23.6, hw * 2 - 3.2, 1.75); ctx.restore();
@@ -5441,10 +5476,54 @@
     }
     if (o.carbon) { ctx.fillStyle = "rgba(16,16,20,.42)"; poly([-hw + 4, 10, hw - 4, 10, hw - 5, 14.4, -hw + 5, 14.4]); ctx.fill(); }
   }
+  function roadsterIdNow() {
+    if (curPid > 1) return (net.looks && net.looks[curPid]) || "";
+    try { return curShip().id; } catch (e) { return ""; }
+  }
+  function syncBoostBtn() {
+    var btn = $("boostBtn");
+    if (!btn) return;
+    var on = state === "play" && !!ROADSTER_KIT[roadsterIdNow()];
+    btn.classList.toggle("hidden", !on);
+    btn.classList.toggle("down", !!(ship && ship.boostLeft > 0));
+  }
+  function tryRoadsterBoost(forceFlip) {
+    var id = roadsterIdNow();
+    var api = window.__weltraum && window.__weltraum.roadsters && window.__weltraum.roadsters.boost;
+    if (!api || !ROADSTER_KIT[id] || !ship || ship.down) return false;
+    if (!api.can(ship.boostCd || 0)) return false;
+    var steer = 0;
+    try { steer = steerDir(curPid === 2 ? 2 : 1); } catch (e1) {}
+    if (!steer) steer = ship.x < W / 2 ? -1 : 1;
+    var spec = api.start(id, steer, !!forceFlip);
+    ship.boostCd = spec.cd;
+    ship.boostLeft = spec.dur;
+    ship.boostDur = spec.dur;
+    ship.boostVx = spec.vx;
+    ship.boostLift = spec.lift;
+    ship.boostY = 0;
+    if (spec.roll) { ship.rollU = 0.001; ship.rollTurns = spec.turns; ship.rollDur = spec.rollDur; }
+    invuln = Math.max(invuln, spec.invuln);
+    var si;
+    for (si = 0; si < 16; si++) particles.push({ x: ship.x + rnd(-10, 10), y: ship.y + 24, vx: rnd(-28, 28), vy: rnd(70, 190), life: 0.5, max: 0.5, r: rnd(4, 9), c: pick(["#ffffff", "#e8eef5", "#c8d0dc"]) });
+    tone(220, 1500, 0.2, "sawtooth", 0.07);
+    shake = Math.max(shake, 0.14);
+    showMsg("🚀 " + tr("tips.roadsterBoost"), "good", 0.7);
+    if (isGuest()) net.tapBoost = true;
+    if (curPid > 1 && net.role === "host" && netOnline()) tpNotify();
+    if (touchTarget !== null) { dragOffset += (ship.boostVx || 0) * 0.05; }
+    return true;
+  }
   function drawTeslaRoadster(id, t, d, fx) {
     var api = window.__weltraum && window.__weltraum.roadsters;
+    var img = ROADSTER_IMG[id];
+    var boosting = !!(typeof ship !== "undefined" && ship && ship.boostLeft > 0);
+    var under = false;
+    if (api && api.boost && ship && ship.rollU > 0 && ship.rollU < 1) {
+      under = api.boost.underside(api.boost.scaleX(ship.rollTurns || 1, ship.rollU));
+    }
     if (api && typeof api.draw === "function") {
-      try { api.draw(ctx, id, t, d.flame, fx !== false, roadsterBank()); return; } catch (e) {}
+      try { api.draw(ctx, id, t, d.flame, fx !== false, roadsterBank(), img, boosting, under); return; } catch (e) {}
     }
     roadsterKit(t, d, fx, ROADSTER_KIT[id]);
   }
@@ -6912,7 +6991,7 @@
   function resetInput() {
     steerFingers = {}; fireFingers = {}; dragId = null; touchTarget = null;
     kb.left = kb.right = kb.fire = false; kb2.left = kb2.right = kb2.fire = false; stopAutoFire(); fireFingers2 = {}; clearInterval(fireHold2); fireHold2 = null;
-    ["leftBtn", "rightBtn", "fireBtn", "fireBtnL", "p2Left", "p2Right", "p2Fire"].forEach(function (id) { $(id).classList.remove("down"); });
+    ["leftBtn", "rightBtn", "fireBtn", "fireBtnL", "p2Left", "p2Right", "p2Fire", "boostBtn"].forEach(function (id) { var el = $(id); if (el) el.classList.remove("down"); });
   }
   window.addEventListener("blur", resetInput);
   document.addEventListener("visibilitychange", function () { if (document.hidden) resetInput(); });
@@ -6933,6 +7012,9 @@
       else if (onMenu() && !e.repeat) menuAction();
     } else if (e.key === "Enter" && onMenu()) menuAction();
     else if (e.key === "m" || e.key === "M") $("muteBtn").click();
+    else if ((e.key === "Shift" || e.key === "x" || e.key === "X") && state === "play") {
+      e.preventDefault(); kb.boost = true; kb.boostFlip = (e.key === "x" || e.key === "X");
+    }
   });
   window.addEventListener("keyup", function (e) {
     if (e.key === " " || e.code === "Space" || e.key === "ArrowUp") kb.fire = false;
@@ -7028,10 +7110,16 @@
   });
 
   // Spielfeld: Ziehen nur, wenn der Finger AUF/NAHE der Rakete beginnt. Sonst ist ein Tipp = Schuss.
+  var lastTapAt = 0, swipeStart = null;
   canvas.addEventListener("pointerdown", function (e) {
     if (mapPointerDown(e)) return;
     if (state !== "play") return;
     e.preventDefault(); audio();
+    var now = performance.now();
+    var isDouble = now - lastTapAt < 280;
+    lastTapAt = now;
+    swipeStart = { id: e.pointerId, y: e.clientY, x: e.clientX };
+    if (isDouble && ROADSTER_KIT[roadsterIdNow()]) { tryRoadsterBoost(false); if (isGuest()) return; }
     if (isGuest()) { fire(); return; } // online als Gast: Tippen = Schuss
     if (twoP && !netOnline()) return; // zu zweit an einem iPad: nur die Knöpfe
     var x = e.clientX / S, y = e.clientY / S;
@@ -7047,8 +7135,25 @@
     touchTarget = Math.max(ship.w / 2 + 4, Math.min(W - ship.w / 2 - 4, e.clientX / S + dragOffset));
   });
   ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (ev) {
-    canvas.addEventListener(ev, function (e) { if (e.pointerId === dragId) { dragId = null; touchTarget = null; } });
+    canvas.addEventListener(ev, function (e) {
+      if (swipeStart && e.pointerId === swipeStart.id) {
+        if (swipeStart.y - e.clientY > 55 && ROADSTER_KIT[roadsterIdNow()]) tryRoadsterBoost(true);
+        swipeStart = null;
+      }
+      if (e.pointerId === dragId) { dragId = null; touchTarget = null; }
+    });
   });
+  var boostBtn = $("boostBtn");
+  if (boostBtn) {
+    boostBtn.addEventListener("pointerdown", function (e) {
+      e.preventDefault(); e.stopPropagation(); audio();
+      boostBtn.classList.add("down");
+      tryRoadsterBoost(false);
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) {
+      boostBtn.addEventListener(ev, function () { boostBtn.classList.remove("down"); });
+    });
+  }
 
   $("againBtn").addEventListener("click", function () { if (net.role === "host" && net.connected) { $("overScreen").classList.add("hidden"); hostStart(level); } else if (!net.role) startGame(level); });
   $("mapBtn").addEventListener("click", goToMap);
@@ -7319,6 +7424,8 @@
     resetPerkStats: function () { shotsFired = 0; perkCount = { chill: 0, burn: 0, blast: 0, pierce: 0 }; hits = 0; },
     missionAdd: function (st, n) { missionAdd(st, n); },
     setShip: function (id) { if (shop.owned.indexOf(id) < 0) shop.owned.push(id); shop.equipped = id; saveShop(); curStats = shipStats(); if (shopOpen) { shopSel = id; renderShop(); } },
+    roadsterBoost: function (flip) { return tryRoadsterBoost(!!flip); },
+    roadsterBoostState: function () { return ship ? { cd: ship.boostCd || 0, left: ship.boostLeft || 0, roll: ship.rollU || 0, invuln: invuln, y: ship.y, x: ship.x } : null; },
     shipIds: function () { return SHIPS.map(function (d) { return d.id + ":" + d.price; }); },
     drawShipOk: function (id) {
       try {

@@ -51,7 +51,7 @@ export const EN_ONLY_MARKERS = [
   'Training flight',
   'Skip training',
   'Updating the game…',
-  'Roadster Base',
+  'Roadster Thrust',
   'Founders Series',
 ] as const;
 

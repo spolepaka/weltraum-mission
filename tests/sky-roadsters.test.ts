@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { en } from '../src/i18n/en';
 import { de } from '../src/i18n/de';
@@ -14,7 +14,18 @@ import {
   canonicalRoadsterId,
   isRoadsterId,
 } from '../src/lib/roadsters';
-import { drawRoadster, mockCanvasCtx, roadsterDrawOpts } from '../src/lib/roadster-draw';
+import { ROADSTER_SPRITE_PAINT, drawRoadster, mockCanvasCtx, roadsterDrawOpts } from '../src/lib/roadster-draw';
+import {
+  boostCooldown,
+  boostDuration,
+  boostInvuln,
+  canStartBoost,
+  flipsOnBoost,
+  isUnderside,
+  rollDuration,
+  rollScaleX,
+  startRoadsterBoost,
+} from '../src/lib/roadster-boost';
 import { equipShipLocal, purchaseShipLocal, salePrice } from '../src/lib/shop-ships';
 
 const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
@@ -132,10 +143,21 @@ describe('Tesla Roadster catalogue', () => {
     const paints = new Set(ROADSTERS.map((r) => r.paint));
     expect(paints.size).toBe(ROADSTERS.length);
     expect(new Set(ROADSTERS.map((r) => r.glow)).size).toBeGreaterThanOrEqual(4);
-    expect(roadsterDrawOpts('beepbuggy')!.jets).toHaveLength(2);
+    expect(roadsterDrawOpts('beepbuggy')!.jets).toHaveLength(4);
+    expect(roadsterDrawOpts('beepbuggy')!.steerJets!.length).toBeGreaterThan(0);
+    expect(roadsterDrawOpts('apexflash')!.steerJets!.length).toBeGreaterThan(roadsterDrawOpts('beepbuggy')!.steerJets!.length);
     expect(roadsterDrawOpts('apexflash')!.jets.length).toBeGreaterThan(roadsterDrawOpts('beepbuggy')!.jets.length);
     expect(roadsterDrawOpts('apexflash')!.wing).toBe(true);
     expect(roadsterDrawOpts('beepbuggy')!.wing).toBeFalsy();
+  });
+
+  it('ships photo-derived top-view sprites for every trim', () => {
+    for (const id of ROADSTER_IDS) {
+      const paint = ROADSTER_SPRITE_PAINT[id];
+      expect(paint).toBeTruthy();
+      const p = new URL(`../public/ships/roadster_${paint}.png`, import.meta.url);
+      expect(existsSync(p), `missing sprite for ${id}`).toBe(true);
+    }
   });
 });
 
@@ -210,5 +232,42 @@ describe('Tesla Roadster rendering', () => {
     expect(html).toContain('DESIGNS[d.id]');
     expect(html).toContain('DESIGNS.starter(t, d, fx)');
     expect(html).toContain('drawShipOk');
+  });
+});
+
+describe('Tesla Roadster rocket boost / barrel roll', () => {
+  it('shortens cooldown on higher trims and keeps roll under 0.6 s', () => {
+    expect(boostCooldown('beepbuggy')).toBeGreaterThan(boostCooldown('cloudcoupe'));
+    expect(boostCooldown('cloudcoupe')).toBeGreaterThan(boostCooldown('apexflash'));
+    expect(boostDuration('apexflash')).toBeGreaterThan(boostDuration('beepbuggy'));
+    expect(rollDuration()).toBeGreaterThanOrEqual(0.4);
+    expect(rollDuration()).toBeLessThanOrEqual(0.6);
+    expect(boostInvuln(false)).toBeGreaterThanOrEqual(0.35);
+    expect(boostInvuln(true)).toBeGreaterThanOrEqual(boostInvuln(false));
+    expect(canStartBoost(0)).toBe(true);
+    expect(canStartBoost(0.2)).toBe(false);
+  });
+
+  it('flips on boost for Thrust+ and rolls through a dark underside', () => {
+    expect(flipsOnBoost('beepbuggy')).toBe(false);
+    expect(flipsOnBoost('shadowspeeder')).toBe(true);
+    expect(flipsOnBoost('apexflash')).toBe(true);
+    expect(rollScaleX(2, 0)).toBeCloseTo(1, 5);
+    expect(rollScaleX(2, 0.25)).toBeCloseTo(0, 5);
+    expect(rollScaleX(2, 0.5)).toBeCloseTo(-1, 5);
+    expect(isUnderside(rollScaleX(2, 0.5))).toBe(true);
+    const go = startRoadsterBoost('apexflash', 1, false);
+    expect(go.roll).toBe(true);
+    expect(go.invuln).toBeGreaterThan(0);
+    expect(go.vx).toBeGreaterThan(0);
+    const forced = startRoadsterBoost('beepbuggy', -1, true);
+    expect(forced.roll).toBe(true);
+    expect(forced.invuln).toBe(boostInvuln(true));
+    expect(forced.vx).toBeLessThan(0);
+    expect(startRoadsterBoost('beepbuggy', 0, false).roll).toBe(false);
+    expect(html).toContain('tryRoadsterBoost');
+    expect(html).toContain('boostBtn');
+    expect(html).toContain('tapBoost');
+    expect(html).toContain('rollU');
   });
 });

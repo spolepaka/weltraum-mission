@@ -65,6 +65,17 @@ import * as migrate from './lib/host-migrate';
 import * as economy from './lib/economy';
 import { ROADSTERS } from './lib/roadsters';
 import { drawRoadster } from './lib/roadster-draw';
+import {
+  boostCooldown,
+  boostDuration,
+  boostInvuln,
+  canStartBoost,
+  flipsOnBoost,
+  isUnderside,
+  rollDuration,
+  rollScaleX,
+  startRoadsterBoost,
+} from './lib/roadster-boost';
 
 export interface WeltraumApi {
   i18n: {
@@ -95,7 +106,21 @@ export interface WeltraumApi {
   onPurchaseShip: (shipId: string, price: number) => boolean;
   onEquipShip: (shipId: string) => void;
   onClaimShip: (shipId: string) => void;
-  roadsters: { list: typeof ROADSTERS; draw: typeof drawRoadster };
+  roadsters: {
+    list: typeof ROADSTERS;
+    draw: typeof drawRoadster;
+    boost: {
+      start: typeof startRoadsterBoost;
+      can: typeof canStartBoost;
+      scaleX: typeof rollScaleX;
+      underside: typeof isUnderside;
+      cd: typeof boostCooldown;
+      dur: typeof boostDuration;
+      invuln: typeof boostInvuln;
+      flips: typeof flipsOnBoost;
+      rollDur: typeof rollDuration;
+    };
+  };
   onPurchaseUpgrade: (upgradeId: string, price: number) => boolean;
   onSecretCode: (code: string) => { success: boolean; message: string };
   canStartLevel: (level: number) => boolean;
@@ -500,7 +525,21 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       client.addOwnedShip(shipId);
       client.equipShip(shipId);
     },
-    roadsters: { list: ROADSTERS, draw: drawRoadster },
+    roadsters: {
+      list: ROADSTERS,
+      draw: drawRoadster,
+      boost: {
+        start: startRoadsterBoost,
+        can: canStartBoost,
+        scaleX: rollScaleX,
+        underside: isUnderside,
+        cd: boostCooldown,
+        dur: boostDuration,
+        invuln: boostInvuln,
+        flips: flipsOnBoost,
+        rollDur: rollDuration,
+      },
+    },
     onPurchaseUpgrade: (upgradeId, price) => client.purchaseUpgrade(upgradeId, BigInt(price)),
     onSecretCode: (code) => client.applySecretCode(code),
     canStartLevel: (level) => {

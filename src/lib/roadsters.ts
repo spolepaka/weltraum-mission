@@ -73,7 +73,7 @@ export const ROADSTERS: readonly RoadsterDef[] = [
     flame: ROCKET_FLAME,
     paint: 'white',
     glow: '#7dffea',
-    trim: 'plus',
+    trim: 'performance',
   },
   {
     id: 'shadowspeeder',
@@ -91,7 +91,7 @@ export const ROADSTERS: readonly RoadsterDef[] = [
     flame: ROCKET_FLAME,
     paint: 'black',
     glow: '#c9a44a',
-    trim: 'performance',
+    trim: 'thrust',
   },
   {
     id: 'chromewasp',
@@ -109,7 +109,7 @@ export const ROADSTERS: readonly RoadsterDef[] = [
     flame: ROCKET_FLAME,
     paint: 'silver',
     glow: '#9ad0ff',
-    trim: 'spacex',
+    trim: 'rocket',
   },
   {
     id: 'apexflash',
@@ -152,12 +152,12 @@ export function roadsterById(id: string): RoadsterDef | undefined {
 /** Owner-requested Tesla naming must appear in EN/DE copy. */
 export const TESLA_ROADSTER_MARKS = ['tesla', 'roadster', 'spacex'] as const;
 
-/** Trim names stay Tesla-style; ids stay beepbuggy…apexflash. */
+/** Real 2nd-gen trims (Performance / Thrust / Rocket) plus base + Founders. */
 export const ROADSTER_TRIM = {
-  beepbuggy: { en: 'Roadster Base', de: 'Roadster Basis' },
-  cloudcoupe: { en: 'Roadster Plus', de: 'Roadster-Plus' },
-  shadowspeeder: { en: 'Roadster Performance', de: 'Roadster-Performance' },
-  chromewasp: { en: 'Roadster SpaceX Package', de: 'Roadster SpaceX-Paket' },
+  beepbuggy: { en: 'Roadster', de: 'Roadster Basis' },
+  cloudcoupe: { en: 'Roadster Performance', de: 'Roadster-Performance' },
+  shadowspeeder: { en: 'Roadster Thrust', de: 'Roadster-Thrust' },
+  chromewasp: { en: 'Roadster Rocket', de: 'Roadster-Rocket' },
   apexflash: { en: 'Roadster Founders Series', de: 'Roadster Founders-Serie' },
 } as const;
 
