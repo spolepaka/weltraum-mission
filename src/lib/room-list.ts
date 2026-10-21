@@ -73,7 +73,8 @@ export function heartbeatToMs(heartbeat: unknown): number | undefined {
     return heartbeat > 1e14 ? Math.floor(heartbeat / 1000) : heartbeat;
   }
   if (typeof heartbeat === 'bigint') return Number(heartbeat / 1000n);
-  const micros = (heartbeat as { microsSinceUnixEpoch?: bigint | number }).microsSinceUnixEpoch;
+  const stamped = heartbeat as { microsSinceUnixEpoch?: bigint | number; __timestamp_micros_since_unix_epoch__?: bigint | number };
+  const micros = stamped.microsSinceUnixEpoch ?? stamped.__timestamp_micros_since_unix_epoch__;
   if (typeof micros === 'bigint') return Number(micros / 1000n);
   if (typeof micros === 'number' && Number.isFinite(micros)) return Math.floor(micros / 1000);
   return undefined;
@@ -126,6 +127,11 @@ export function pruneStaleRooms(cache: Map<string, PublicRoomRow>, nowMs = Date.
 
 export function listingPeerId(prefix: string, code: string): string {
   return prefix + String(code || '').toUpperCase();
+}
+
+/** Closing on heartbeat restart races a later close past the next publish. */
+export function shouldCloseListing(opts: { leaving: boolean; listed: boolean }): boolean {
+  return !!(opts.leaving && opts.listed);
 }
 
 export { ROOM_CODE_CHARS, validateRoomCode };

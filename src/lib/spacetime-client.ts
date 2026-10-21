@@ -827,9 +827,6 @@ class SpacetimeClient {
     this.queueOrCallReducer(() => {
       this.connection?.reducers.purchaseShip({ shipId, price: cost });
     });
-    this.queueOrCallReducer(() => {
-      this.connection?.reducers.equipShip({ shipId });
-    });
     return true;
   }
 

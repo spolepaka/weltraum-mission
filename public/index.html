@@ -4012,6 +4012,7 @@
     applyAskToJoin();
     if (net.role && net.connected) { onShow(net.role === "host" ? "room" : "join"); if (net.role === "guest") { $("onJoinForm").classList.add("hidden"); onStatus("✅ " + tr("tips.connectedAs", { n: net.myPid }), "good"); } else hostStatus(); }
     else { onShow("menu"); onStatus(""); startRoomWatch(); }
+    try { if (window.__weltraum && window.__weltraum.ensureCloud) window.__weltraum.ensureCloud(); } catch (e) {}
   }
   function closeOnline() { netLeave(); $("onlineScreen").classList.add("hidden"); refreshMapToggles(); }
 
@@ -4051,10 +4052,10 @@
       return;
     }
     var row = { code: net.code, hostName: myPilotName(), level: net.lvl || 1, players: liveOccupancy(), inGame: !!net.inGame };
-    try { (net.listed ? st.heartbeatPublicRoom : st.publishPublicRoom)(row); net.listed = true; } catch (e) {}
+    try { st.publishPublicRoom(row); net.listed = true; } catch (e) {}
   }
   function startRoomHeartbeat() {
-    stopRoomHeartbeat();
+    if (net.hbTimer) { clearInterval(net.hbTimer); net.hbTimer = null; }
     net.isPublic = visPublic();
     pushRoomListing();
     net.hbTimer = setInterval(function () { if (net.role === "host") { net.isPublic = visPublic(); pushRoomListing(); } }, 4000);
@@ -4166,7 +4167,7 @@
       try { peer = new Peer(migratePeerName(net.code, net.gen), PEER_OPTS); } catch (e) { return; }
       net.peer = peer;
       startRoomHeartbeat();
-      peer.on("open", function () { startRoomHeartbeat(); hostStatus(); renderRoster(); });
+      peer.on("open", function () { hostStatus(); renderRoster(); });
       peer.on("connection", function (c) { attachGuest(c); });
     });
     if (keptGame) showMsg("👑 " + tr("tips.youAreHost"), "good", 2.4);
@@ -4262,7 +4263,7 @@
       net.peer = peer;
       peer.on("open", function () {
         net.code = code; net.myPid = 1; net.hostPid = 1; net.gen = 0; net.isPublic = visPublic(); $("onCodeShow").textContent = code; hostStatus(); renderRoster();
-        startRoomHeartbeat();
+        pushRoomListing();
         try { var st = window.__weltraum && window.__weltraum.spacetime; if (st && st.reportMpJoin) st.reportMpJoin(); } catch (e) {}
       });
       peer.on("connection", function (c) {

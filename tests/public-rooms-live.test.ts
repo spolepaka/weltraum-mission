@@ -4,6 +4,7 @@ import { en } from '../src/i18n/en';
 import { de } from '../src/i18n/de';
 import {
   applyPublicRoomEvent,
+  shouldCloseListing,
   type PublicRoomRow,
 } from '../src/lib/room-list';
 
@@ -22,12 +23,26 @@ describe('public rooms live wiring', () => {
     expect(clientSrc).toContain('table.onUpdate');
     expect(clientSrc).toContain('table.onDelete');
     expect(clientSrc).toContain('onPublicRooms');
+    expect(serverSrc).toContain('public_room insert');
+    expect(serverSrc).toContain('public_room delete');
+    expect(serverSrc).toMatch(/if \(existing && identityKey\(existing\.hostIdentity\) !== identityKey\(ctx\.sender\)\) return;/);
   });
 
   it('keeps a procedure fallback when the published module is still private', () => {
     expect(clientSrc).toContain('listPublicRooms');
     expect(clientSrc).toContain('refreshPublicRoomsFromProcedure');
     expect(clientSrc).toMatch(/public_room subscribe failed/);
+  });
+
+  it('would have caught a heartbeat restart that closes the live row', () => {
+    expect(shouldCloseListing({ leaving: false, listed: true })).toBe(false);
+    expect(html).not.toMatch(/function startRoomHeartbeat\(\) \{\s*stopRoomHeartbeat\(\)/);
+    const purchase = clientSrc.slice(
+      clientSrc.indexOf('purchaseShip(shipId: string'),
+      clientSrc.indexOf('equipShip(shipId: string)'),
+    );
+    expect(purchase).toContain('reducers.purchaseShip');
+    expect(purchase).not.toContain('reducers.equipShip');
   });
 
   it('uses kid-friendly empty copy in EN and DE', () => {
