@@ -883,7 +883,8 @@ export const equipShip = spacetimedb.reducer(
     }
     
     if (!owned) {
-      throw new Error('Ship not owned');
+      console.warn(`equip_ship skipped ${shipId}: not owned`);
+      return;
     }
     
     ctx.db.playerShop.identity.update({ ...shop, equippedShip: shipId });
@@ -2237,12 +2238,21 @@ function safeRoomName(raw: string): string {
   return checked.ok ? checked.name : 'Pilot';
 }
 
+function timestampMicros(ts: { microsSinceUnixEpoch?: bigint; __timestamp_micros_since_unix_epoch__?: bigint } | undefined): number {
+  const raw = ts?.microsSinceUnixEpoch ?? ts?.__timestamp_micros_since_unix_epoch__ ?? 0n;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function sweepStalePublicRooms(ctx: AnyCtx): void {
-  const now = Number(ctx.timestamp.microsSinceUnixEpoch || 0n);
+  const now = timestampMicros(ctx.timestamp as { microsSinceUnixEpoch?: bigint });
   if (!now) return;
   for (const row of [...ctx.db.publicRoom.iter()]) {
-    const beat = Number((row.heartbeat as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || 0n);
-    if (beat && now - beat > ROOM_TTL_US) ctx.db.publicRoom.delete(row);
+    const beat = timestampMicros(row.heartbeat as { microsSinceUnixEpoch?: bigint; __timestamp_micros_since_unix_epoch__?: bigint });
+    if (beat && now - beat > ROOM_TTL_US) {
+      ctx.db.publicRoom.delete(row);
+      console.info(`public_room sweep ${row.code}`);
+    }
   }
 }
 
@@ -2261,12 +2271,15 @@ function upsertPublicRoom(ctx: AnyCtx, code: string, hostName: string, level: nu
   if (existing) {
     if (identityKey(existing.hostIdentity) !== identityKey(ctx.sender)) throw new Error('Not your room');
     ctx.db.publicRoom.code.update(row);
+    console.info(`public_room update ${code} players=${row.players} inGame=${row.inGame}`);
     return;
   }
   for (const old of [...ctx.db.publicRoom.hostIdentity.filter(ctx.sender)]) {
     ctx.db.publicRoom.delete(old);
+    console.info(`public_room delete ${old.code} reason=replace`);
   }
   ctx.db.publicRoom.insert(row);
+  console.info(`public_room insert ${code} host=${row.hostName} level=${row.level} players=${row.players}`);
 }
 
 export const publishPublicRoom = spacetimedb.reducer(
@@ -2286,8 +2299,8 @@ export const heartbeatPublicRoom = spacetimedb.reducer(
     const clean = cleanRoomCode(code);
     if (clean.length !== 5) return;
     const existing = ctx.db.publicRoom.code.find(clean);
-    if (!existing || identityKey(existing.hostIdentity) !== identityKey(ctx.sender)) return;
-    upsertPublicRoom(ctx, clean, hostName || existing.hostName, level, players, inGame);
+    if (existing && identityKey(existing.hostIdentity) !== identityKey(ctx.sender)) return;
+    upsertPublicRoom(ctx, clean, hostName || existing?.hostName || 'Pilot', level, players, inGame);
   }
 );
 
@@ -2298,10 +2311,12 @@ export const closePublicRoom = spacetimedb.reducer(
     const existing = clean ? ctx.db.publicRoom.code.find(clean) : null;
     if (existing && identityKey(existing.hostIdentity) === identityKey(ctx.sender)) {
       ctx.db.publicRoom.delete(existing);
+      console.info(`public_room delete ${existing.code} reason=close`);
       return;
     }
     for (const old of [...ctx.db.publicRoom.hostIdentity.filter(ctx.sender)]) {
       ctx.db.publicRoom.delete(old);
+      console.info(`public_room delete ${old.code} reason=close-host`);
     }
   }
 );
@@ -2313,10 +2328,10 @@ export const listPublicRooms = spacetimedb.procedure(
   })),
   (ctx) => {
     return ctx.withTx(txCtx => {
-      const now = Number(txCtx.timestamp.microsSinceUnixEpoch || 0n);
+      const now = timestampMicros(txCtx.timestamp as { microsSinceUnixEpoch?: bigint });
       const rooms: Array<{ code: string; hostName: string; level: number; players: number; heartbeatMs: number }> = [];
       for (const row of [...txCtx.db.publicRoom.iter()]) {
-        const beat = Number((row.heartbeat as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || 0n);
+        const beat = timestampMicros(row.heartbeat as { microsSinceUnixEpoch?: bigint; __timestamp_micros_since_unix_epoch__?: bigint });
         if (now && beat && now - beat > ROOM_TTL_US) {
           txCtx.db.publicRoom.delete(row);
           continue;

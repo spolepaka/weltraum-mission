@@ -36,6 +36,17 @@ describe('multiplayer HTML wiring', () => {
     const hostFn = html.match(/function hostRoom\(tries\) \{[\s\S]*?function joinRoom/)?.[0] || '';
     expect(hostFn.indexOf('startRoomHeartbeat()')).toBeGreaterThan(-1);
     expect(hostFn.indexOf('startRoomHeartbeat()')).toBeLessThan(hostFn.indexOf('peer.on("open"'));
+    const openHandler = hostFn.match(/peer\.on\("open", function \(\) \{[\s\S]*?\}\);/)?.[0] || '';
+    expect(openHandler).not.toContain('startRoomHeartbeat()');
+    expect(openHandler).toContain('pushRoomListing()');
+  });
+
+  it('does not close a listing when the heartbeat is restarted', () => {
+    const start = html.match(/function startRoomHeartbeat\(\) \{[\s\S]*?function stopRoomHeartbeat/)?.[0] || '';
+    expect(start).toContain('pushRoomListing()');
+    expect(start).not.toContain('stopRoomHeartbeat()');
+    expect(html).toMatch(/try \{ st\.publishPublicRoom\(row\); net\.listed = true; \}/);
+    expect(html).not.toMatch(/net\.listed \? st\.heartbeatPublicRoom : st\.publishPublicRoom/);
   });
 
   it('migrates the host instead of ending the game', () => {

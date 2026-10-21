@@ -5,6 +5,7 @@ import {
   canPublishRoom,
   filterJoinableRooms,
   heartbeatToMs,
+  shouldCloseListing,
   isJoinableListing,
   isListingFresh,
   pruneStaleRooms,
@@ -84,5 +85,12 @@ describe('public room list', () => {
     expect(row.code).toBe('PUL34');
     expect(heartbeatToMs(row.heartbeatMs)).toBe(now);
     expect(isListingFresh(row.heartbeatMs || 0, now)).toBe(true);
+    expect(heartbeatToMs({ __timestamp_micros_since_unix_epoch__: BigInt(now) * 1000n })).toBe(now);
+  });
+
+  it('only closes a listing when the host is actually leaving', () => {
+    expect(shouldCloseListing({ leaving: false, listed: true })).toBe(false);
+    expect(shouldCloseListing({ leaving: true, listed: true })).toBe(true);
+    expect(shouldCloseListing({ leaving: true, listed: false })).toBe(false);
   });
 });
