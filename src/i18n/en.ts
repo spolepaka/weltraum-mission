@@ -132,6 +132,7 @@ export const en: Translations = {
   noOpenRooms: 'No public rooms yet — create one!',
   noPublicRooms: 'No public rooms yet — create one!',
   joinOpen: 'Join',
+  roomStale: 'Host away',
   refreshRooms: 'Refresh',
   orJoinCode: 'Or type a room code:',
   onlineFooter: 'The room host is P1, the others are P2 to P5. Pilot names show above ships. More players means more enemies! Everyone needs internet.',

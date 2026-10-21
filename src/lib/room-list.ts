@@ -7,6 +7,7 @@ import { ROOM_CODE_CHARS, validateRoomCode } from '../coop-security';
 import { NAME_MAX, validateDisplayName } from './display-names';
 
 export const ROOM_TTL_MS = 15_000;
+export const ROOM_STALE_MS = 8_000;
 export const ROOM_HEARTBEAT_MS = 4_000;
 export const ROOM_MAX_PLAYERS = 5;
 
@@ -19,9 +20,23 @@ export interface PublicRoomRow {
   heartbeatMs?: number;
 }
 
+export type ListingFreshness = 'fresh' | 'stale' | 'dead';
+
+export interface DecoratedRoomRow extends PublicRoomRow {
+  freshness: ListingFreshness;
+  joinable: boolean;
+}
+
+export function listingFreshness(heartbeatMs: number | undefined, nowMs = Date.now()): ListingFreshness {
+  if (heartbeatMs === undefined || !Number.isFinite(heartbeatMs) || heartbeatMs <= 0) return 'dead';
+  const age = nowMs - heartbeatMs;
+  if (age > ROOM_TTL_MS) return 'dead';
+  if (age > ROOM_STALE_MS) return 'stale';
+  return 'fresh';
+}
+
 export function isListingFresh(heartbeatMs: number, nowMs = Date.now()): boolean {
-  if (!Number.isFinite(heartbeatMs) || heartbeatMs <= 0) return false;
-  return nowMs - heartbeatMs <= ROOM_TTL_MS;
+  return listingFreshness(heartbeatMs, nowMs) === 'fresh';
 }
 
 export function sanitizeListedName(raw: string): string {
@@ -39,32 +54,49 @@ export function canPublishRoom(opts: { isPublic: boolean; players: number; close
   return n >= 1 && n <= ROOM_MAX_PLAYERS;
 }
 
-export function isJoinableListing(row: PublicRoomRow, nowMs = Date.now()): boolean {
+export function isListableRoom(row: PublicRoomRow, nowMs = Date.now()): boolean {
   if (!validateRoomCode(row.code)) return false;
   if (row.inGame) return false;
   const n = Math.floor(row.players);
   if (n < 1 || n >= ROOM_MAX_PLAYERS) return false;
-  if (row.heartbeatMs !== undefined && !isListingFresh(row.heartbeatMs, nowMs)) return false;
-  return true;
+  return listingFreshness(row.heartbeatMs, nowMs) !== 'dead';
 }
 
-export function filterJoinableRooms(rows: PublicRoomRow[], nowMs = Date.now()): PublicRoomRow[] {
+export function isJoinableListing(row: PublicRoomRow, nowMs = Date.now()): boolean {
+  return isListableRoom(row, nowMs) && listingFreshness(row.heartbeatMs, nowMs) === 'fresh';
+}
+
+function normalizeRoomRow(row: PublicRoomRow): PublicRoomRow {
+  return {
+    code: String(row.code || '').toUpperCase(),
+    hostName: sanitizeListedName(row.hostName),
+    level: Math.max(1, Math.min(100, Math.floor(row.level) || 1)),
+    players: Math.max(1, Math.min(ROOM_MAX_PLAYERS, Math.floor(row.players) || 1)),
+    inGame: !!row.inGame,
+    heartbeatMs: row.heartbeatMs,
+  };
+}
+
+export function decorateListedRooms(rows: PublicRoomRow[], nowMs = Date.now()): DecoratedRoomRow[] {
   const seen = new Set<string>();
-  const out: PublicRoomRow[] = [];
-  for (const row of rows) {
-    const code = String(row.code || '').toUpperCase();
-    if (seen.has(code) || !isJoinableListing({ ...row, code }, nowMs)) continue;
-    seen.add(code);
+  const out: DecoratedRoomRow[] = [];
+  for (const raw of rows) {
+    const row = normalizeRoomRow(raw);
+    if (seen.has(row.code) || !isListableRoom(row, nowMs)) continue;
+    seen.add(row.code);
+    const freshness = listingFreshness(row.heartbeatMs, nowMs);
     out.push({
-      code,
-      hostName: sanitizeListedName(row.hostName),
-      level: Math.max(1, Math.min(100, Math.floor(row.level) || 1)),
-      players: Math.max(1, Math.min(ROOM_MAX_PLAYERS, Math.floor(row.players) || 1)),
+      ...row,
       inGame: false,
-      heartbeatMs: row.heartbeatMs,
+      freshness,
+      joinable: freshness === 'fresh',
     });
   }
   return out.sort((a, b) => a.level - b.level || a.hostName.localeCompare(b.hostName));
+}
+
+export function filterJoinableRooms(rows: PublicRoomRow[], nowMs = Date.now()): PublicRoomRow[] {
+  return decorateListedRooms(rows, nowMs).filter((row) => row.joinable).map(({ freshness, joinable, ...row }) => row);
 }
 
 export function heartbeatToMs(heartbeat: unknown): number | undefined {
@@ -120,9 +152,9 @@ export function applyPublicRoomEvent(
 
 export function pruneStaleRooms(cache: Map<string, PublicRoomRow>, nowMs = Date.now()): PublicRoomRow[] {
   for (const [code, row] of [...cache.entries()]) {
-    if (row.heartbeatMs !== undefined && !isListingFresh(row.heartbeatMs, nowMs)) cache.delete(code);
+    if (listingFreshness(row.heartbeatMs, nowMs) === 'dead') cache.delete(code);
   }
-  return filterJoinableRooms([...cache.values()], nowMs);
+  return decorateListedRooms([...cache.values()], nowMs);
 }
 
 export function listingPeerId(prefix: string, code: string): string {
@@ -132,6 +164,26 @@ export function listingPeerId(prefix: string, code: string): string {
 /** Closing on heartbeat restart races a later close past the next publish. */
 export function shouldCloseListing(opts: { leaving: boolean; listed: boolean }): boolean {
   return !!(opts.leaving && opts.listed);
+}
+
+export function shouldPublishListing(opts: {
+  isPublic: boolean;
+  role?: string | null;
+  peerReady: boolean;
+  code: string;
+  leaving?: boolean;
+}): boolean {
+  if (opts.leaving || !opts.isPublic || opts.role !== 'host' || !opts.peerReady) return false;
+  return validateRoomCode(opts.code);
+}
+
+export function shouldCloseOnPageHide(opts: { persisted: boolean; listed: boolean }): boolean {
+  return !opts.persisted && !!opts.listed;
+}
+
+/** Solo host backgrounding: the Peer often dies, so drop the row instead of leaving a not-found bait. */
+export function shouldCloseOnHidden(opts: { hidden: boolean; occupancy: number; listed: boolean }): boolean {
+  return !!opts.hidden && !!opts.listed && (Math.floor(opts.occupancy) || 0) <= 1;
 }
 
 export { ROOM_CODE_CHARS, validateRoomCode };

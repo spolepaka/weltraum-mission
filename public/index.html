@@ -325,6 +325,8 @@
   .roomRow b { color: #ffd54a; }
   .roomRow .meta { flex: 1; font-size: 16px; }
   .roomRow button { font-family: inherit; font-size: 18px; font-weight: bold; border: none; border-radius: 16px; padding: 10px 18px; min-height: 48px; min-width: 96px; background: #ffd54a; color: #2a1660; cursor: pointer; }
+  .roomRow.stale { opacity: 0.55; border-color: #6a6a8a; }
+  .roomRow.stale button { background: #6a6a8a; color: #d8d8e8; cursor: default; }
   #onEmptyRooms { font-size: 17px; color: #ffd54a; font-weight: bold; text-align: center; padding: 10px 8px; }
   #onRefreshRooms { font-size: 16px; min-height: 44px; padding: 8px 16px; }
   #onCodeRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 8px 0 0; }
@@ -990,12 +992,13 @@
     shield = curStats.regen > 0; triple = 0; laser = 0; magnet = 0;
     holes = []; comets = []; beams = []; swallows = []; holeWobble = 0; holeFlash = 0; sucked = null; holeTimer = 8; cometTimer = rnd(20, 30); holeTipShown = false; holeShootHint = false;
     ship = { x: W / 2, y: H - shipBottom(), w: 46, h: 64 };
-    twoP = twoPOn || netOnline(); curPid = 1; p1Saved = null; heartsLostRun = 0;
+    curPid = 1; p1Saved = null; heartsLostRun = 0;
     others = [];
+    var nP = coopShipCountNow();
+    twoP = nP >= 2;
     if (twoP) {
-      var nP = netOnline() ? Math.max(2, Math.min(5, net.nPl || 2)) : 2;
       ship.x = W / (nP + 1);
-      for (var pid = 2; pid <= nP; pid++) { var gq = net.role === "host" && netOnline() ? guestByPid(pid) : null; others.push(mkPlayer(pid, gq ? gq.stats : null, nP)); }
+      for (var pid = 2; pid <= nP; pid++) { var gq = net.role === "host" ? guestByPid(pid) : null; others.push(mkPlayer(pid, gq ? gq.stats : null, nP)); }
     }
     setupControls();
     ghostStart(L);
@@ -2255,10 +2258,11 @@
       var sp = 430 * dt * curStats.speed * (frozen > 0 ? 0.35 : 1);
       var hostPid = (net && net.hostPid) || 1;
       var remoteP2 = net.role === "host" && netOnline() && curPid !== hostPid && curPid > 1, rg = remoteP2 ? guestByPid(curPid) : null;
-      var dir = remoteP2 ? 0 : steerDir((net.role === "host" && curPid === hostPid) ? 1 : curPid);
+      var localOk = shouldSteerLocal(curPid, hostPid, !!rg);
+      var dir = localOk ? steerDir((net.role === "host" && curPid === hostPid) ? 1 : curPid) : 0;
       ship.prevX = ship.x;
       ship.x += dir * sp;
-      if (touchTarget !== null) { // Ziehen: Rakete folgt dem Finger direkt (eingefroren: langsam)
+      if (localOk && touchTarget !== null) { // Ziehen: Rakete folgt dem Finger direkt (eingefroren: langsam)
         if (frozen > 0) ship.x += Math.max(-sp, Math.min(sp, touchTarget - ship.x)); else ship.x = touchTarget;
       }
       if (rg) { if (rg.tpHold > 0) rg.tpHold -= dt; else if (rg.rx !== null) ship.x += (rg.rx - ship.x) * Math.min(1, dt * 20); }
@@ -3863,9 +3867,37 @@
   var net = { role: null, peer: null, conn: null, connected: false, inGame: false, code: "", lastRx: 0, rx: null, rfire: false, rfireOnce: false, tpHold: 0,
     evq: [], snaps: [], sendT: 0, inT: 0, seq: 0, idSeq: 0, gShip: null, gStats: null, hShip: null, myX: null, tapFire: false, gcd: 0, lvl: 1,
     lookP1: null, lookP2: null, joinTimer: null, countdown: null, stats: { snapsTx: 0, snapsRx: 0, inRx: 0, bytes: 0 },
-    guests: [], myPid: 0, nPl: 2, looks: {}, roster: [], hostPid: 1, gen: 0, isPublic: true, hostAway: false, recovering: false, hbTimer: null };
+    guests: [], myPid: 0, nPl: 1, looks: {}, roster: [], hostPid: 1, gen: 0, isPublic: true, hostAway: false, recovering: false, hbTimer: null, listed: false, peerReady: false };
   var MAX_PLAYERS = 5;
   function guestByPid(pid) { for (var i = 0; i < net.guests.length; i++) if (net.guests[i].pid === pid) return net.guests[i]; return null; }
+  function guestPeerId(g) { return (g && g.conn && g.conn.peer) || g.peerId || ""; }
+  function uniqueOkGuests() {
+    var api = roomApi(), raw = net.guests.map(function (g) { return { ok: g.ok, pid: g.pid, peerId: guestPeerId(g), name: g.name, g: g }; });
+    var hostId = net.peer && net.peer.id;
+    var kept = api && api.dedupeGuestsByIdentity ? api.dedupeGuestsByIdentity(raw, hostId) : raw.filter(function (g, i, a) {
+      if (!g.ok) return false;
+      if (hostId && g.peerId && g.peerId === hostId) return false;
+      return a.findIndex(function (q) { return q.ok && ((g.peerId && q.peerId === g.peerId) || (!g.peerId && q.name && q.name === g.name)); }) === i;
+    });
+    return kept.map(function (x) { return x.g || x; });
+  }
+  function liveOccupancy() {
+    var api = roomApi();
+    if (api && api.occupancyFromGuests) return api.occupancyFromGuests(net.guests.map(function (g) { return { ok: g.ok, pid: g.pid, peerId: guestPeerId(g), name: g.name }; }), net.peer && net.peer.id);
+    return 1 + uniqueOkGuests().length;
+  }
+  function coopShipCountNow() {
+    var api = roomApi(), occ = liveOccupancy();
+    if (api && api.coopShipCount) return api.coopShipCount({ role: net.role, inGame: net.inGame || !!net.role, twoPOn: twoPOn, occupancy: occ, nPl: net.nPl });
+    if (net.role) return Math.max(1, Math.min(5, occ));
+    return twoPOn ? 2 : 1;
+  }
+  function shouldSteerLocal(pid, hostPid, hasGuest) {
+    var api = roomApi();
+    if (api && api.shouldApplyLocalInput) return api.shouldApplyLocalInput({ role: net.role, inGame: netOnline(), curPid: pid, hostPid: hostPid, hasGuest: hasGuest });
+    if (net.role === "host" && netOnline() && pid > 1 && (pid !== hostPid || !hasGuest)) return false;
+    return true;
+  }
   function tpNotify() { var g = guestByPid(curPid); if (g) g.tpHold = 0.4; netEmit(["t", r1(ship.x), curPid]); }
   function netOnline() { return !!net.role && net.inGame; }
   function isGuest() { return net.role === "guest" && net.inGame; }
@@ -3981,10 +4013,10 @@
       btn.addEventListener("click", function (e) { e.stopPropagation(); kickGuestByPid(parseInt(btn.getAttribute("data-kick"), 10)); });
     });
   }
-  function hostCount() { return 1 + net.guests.filter(function (g) { return g.ok; }).length; }
+  function hostCount() { return liveOccupancy(); }
   function hostStatus() { var n = hostCount(); onStatus(n > 1 ? "✅ " + tr("tips.nPlayers", { n: n }) + (n < MAX_PLAYERS ? "<br><small>" + tr("tips.moreJoin", { n: MAX_PLAYERS - n }) + "</small>" : "<br><small>" + tr("tips.roomFull") + "</small>") : "⏳ " + tr("tips.waitingFriends"), n > 1 ? "good" : ""); }
   function renderOnLevels() {
-    var isHost = net.role === "host" && net.connected;
+    var isHost = net.role === "host";
     $("onLevels").classList.toggle("hidden", !isHost);
     $("onStart").classList.toggle("hidden", !isHost || !!net.countdown);
     if (!isHost) return;
@@ -4017,7 +4049,6 @@
   function closeOnline() { netLeave(); $("onlineScreen").classList.add("hidden"); refreshMapToggles(); }
 
   // ---------- Verbindung ----------
-  function liveOccupancy() { return 1 + net.guests.filter(function (g) { return g.ok; }).length; }
   function syncOccupancy() {
     var coop = coopApi();
     if (coop && coop.setOccupancy) coop.setOccupancy(liveOccupancy());
@@ -4047,8 +4078,16 @@
   }
   function pushRoomListing(forceClose) {
     var st = stClient(); if (!st) return;
-    if (forceClose || net.role !== "host" || !net.code || !net.isPublic) {
-      try { if (st.closePublicRoom && net.code) st.closePublicRoom(net.code); } catch (e) {}
+    var api = roomApi();
+    var leaving = !!forceClose || net.role !== "host" || !net.code || !net.isPublic;
+    var canPub = api && api.shouldPublishListing
+      ? api.shouldPublishListing({ isPublic: !!net.isPublic, role: net.role, peerReady: !!net.peerReady, code: net.code, leaving: leaving })
+      : (!leaving && net.peerReady);
+    if (!canPub) {
+      if (leaving || forceClose) {
+        try { if (st.closePublicRoom && net.code) st.closePublicRoom(net.code); } catch (e) {}
+        net.listed = false;
+      }
       return;
     }
     var row = { code: net.code, hostName: myPilotName(), level: net.lvl || 1, players: liveOccupancy(), inGame: !!net.inGame };
@@ -4070,15 +4109,21 @@
   function renderRoomRows(rows) {
     var box = $("onRoomRows"); if (!box) return;
     var api = roomApi();
-    if (api && api.filterJoinableRooms) rows = api.filterJoinableRooms(rows || []);
-    lastRoomRows = rows || [];
+    var shown = rows || [];
+    if (api && api.decorateListedRooms) shown = api.decorateListedRooms(shown);
+    else if (api && api.filterJoinableRooms) shown = api.filterJoinableRooms(shown);
+    lastRoomRows = shown;
     if (!lastRoomRows.length) {
       box.innerHTML = "<p class='small' id='onEmptyRooms'>" + tr("noPublicRooms") + "</p>";
       return;
     }
     box.innerHTML = lastRoomRows.map(function (r) {
-      return "<div class='roomRow' data-code='" + r.code + "'><div class='meta'><b>" + String(r.hostName || "Pilot").slice(0, 16) + "</b><br>" +
-        tr("level") + " " + r.level + " · " + r.players + "/5</div><button data-join='" + r.code + "'>" + tr("joinOpen") + "</button></div>";
+      var stale = r.joinable === false || r.freshness === "stale";
+      var btn = stale
+        ? "<button disabled>" + tr("roomStale") + "</button>"
+        : "<button data-join='" + r.code + "'>" + tr("joinOpen") + "</button>";
+      return "<div class='roomRow" + (stale ? " stale" : "") + "' data-code='" + r.code + "'><div class='meta'><b>" + String(r.hostName || "Pilot").slice(0, 16) + "</b><br>" +
+        tr("level") + " " + r.level + " · " + r.players + "/5</div>" + btn + "</div>";
     }).join("");
     Array.prototype.forEach.call(box.querySelectorAll("[data-join]"), function (btn) {
       btn.addEventListener("click", function () { audio(); joinRoom(btn.getAttribute("data-join")); });
@@ -4166,9 +4211,10 @@
       var peer;
       try { peer = new Peer(migratePeerName(net.code, net.gen), PEER_OPTS); } catch (e) { return; }
       net.peer = peer;
-      startRoomHeartbeat();
-      peer.on("open", function () { hostStatus(); renderRoster(); });
+      net.peerReady = false;
+      peer.on("open", function () { net.peerReady = true; startRoomHeartbeat(); hostStatus(); renderRoster(); });
       peer.on("connection", function (c) { attachGuest(c); });
+      peer.on("close", function () { if (net.peer === peer) { net.peerReady = false; stopRoomHeartbeat(); } });
     });
     if (keptGame) showMsg("👑 " + tr("tips.youAreHost"), "good", 2.4);
     else {
@@ -4211,7 +4257,7 @@
     var gs = net.guests; net.guests = []; net.roster = []; net.myPid = 0; net.looks = {};
     net.conn = null; net.peer = null; net.connected = false; net.handshaking = false; net.role = null; net.inGame = false; net.snaps = []; net.evq = [];
     net.rx = null; net.rfire = false; net.rfireOnce = false; net.lookP1 = net.lookP2 = null; net.myX = null;
-    net.hostPid = 1; net.gen = 0; net.hostAway = false; net.recovering = false;
+    net.hostPid = 1; net.gen = 0; net.hostAway = false; net.recovering = false; net.peerReady = false; net.listed = false; net.nPl = 1;
     try { if (c) c.close(); } catch (e) {}
     gs.forEach(function (g) { try { g.conn.close(); } catch (e) {} });
     try { if (p) p.destroy(); } catch (e) {}
@@ -4252,9 +4298,8 @@
     netTeardown(); net.role = "host"; net.lvl = Math.min(progress.unlocked, net.lvl || 1);
     syncVisFromMenu();
     var code = genCode();
-    net.code = code; net.myPid = 1; net.hostPid = 1; net.gen = 0; net.isPublic = visPublic();
+    net.code = code; net.myPid = 1; net.hostPid = 1; net.gen = 0; net.isPublic = visPublic(); net.peerReady = false;
     onShow("room"); $("onCodeShow").textContent = code; onStatus("⏳ " + tr("tips.creatingRoom"));
-    startRoomHeartbeat();
     loadPeer(function (ok) {
       if (net.role !== "host") return;
       if (!ok) { netFail("noload"); return; }
@@ -4262,12 +4307,13 @@
       try { peer = new Peer(NET_PREFIX + code, PEER_OPTS); } catch (e) { netFail("noload"); return; }
       net.peer = peer;
       peer.on("open", function () {
-        net.code = code; net.myPid = 1; net.hostPid = 1; net.gen = 0; net.isPublic = visPublic(); $("onCodeShow").textContent = code; hostStatus(); renderRoster();
-        pushRoomListing();
+        net.code = code; net.myPid = 1; net.hostPid = 1; net.gen = 0; net.isPublic = visPublic(); net.peerReady = true; $("onCodeShow").textContent = code; hostStatus(); renderRoster();
+        startRoomHeartbeat();
         try { var st = window.__weltraum && window.__weltraum.spacetime; if (st && st.reportMpJoin) st.reportMpJoin(); } catch (e) {}
       });
       peer.on("connection", function (c) {
         var peerId = c.peer || ("anon-" + Date.now());
+        if (net.peer && peerId && peerId === net.peer.id) { try { c.close(); } catch (e) {} return; }
         net.guests.slice().forEach(function (old) {
           if (old.conn && old.conn.peer === peerId) guestLeft(old);
         });
@@ -4299,29 +4345,71 @@
         if (net.connected) return; // Mitspieler schon verbunden: Broker-Fehler sind egal
         netFail(e.type);
       });
-      peer.on("disconnected", function () { if (net.peer === peer && !net.connected) { try { peer.reconnect(); } catch (x) {} } });
+      peer.on("disconnected", function () {
+        if (net.peer !== peer) return;
+        net.peerReady = false;
+        if (!net.connected) { try { peer.reconnect(); } catch (x) {} }
+        else if (roomApi() && roomApi().shouldCloseOnHidden && roomApi().shouldCloseOnHidden({ hidden: true, occupancy: liveOccupancy(), listed: !!net.listed })) stopRoomHeartbeat();
+      });
+      peer.on("close", function () { if (net.peer === peer) { net.peerReady = false; stopRoomHeartbeat(); } });
     });
   }
   function joinRoom(code, gen) {
     trackPlay("room_joined");
-    var keepCode = code, keepGen = gen || 0;
+    var api = roomApi();
+    var keepCode = cleanCode(code);
+    if (keepCode.length !== CODE_LEN) { onStatus(tr("tips.codeLen", { n: CODE_LEN }), "bad"); return; }
+    if (api && api.isOwnListedRoom ? api.isOwnListedRoom(net.role, net.code, keepCode) : (net.role === "host" && net.code === keepCode)) {
+      onShow("room"); hostStatus(); return;
+    }
+    var forcedGen = !(gen === undefined || gen === null);
+    var keepGen = forcedGen ? (gen || 0) : 0;
+    var tries = 0;
     if (!net.recovering) netTeardown();
     net.role = "guest"; net.code = keepCode; net.gen = keepGen;
-    onStatus("🔗 " + tr("tips.connecting", { code: code }));
-    loadPeer(function (ok) {
+    onStatus("🔗 " + tr("tips.connecting", { code: keepCode }));
+    function attempt() {
       if (net.role !== "guest") return;
-      if (!ok) { netFail("noload"); return; }
-      var peer;
-      try { peer = new Peer(PEER_OPTS); } catch (e) { netFail("noload"); return; }
-      net.peer = peer;
-      peer.on("open", function () { if (net.peer !== peer) return; attachConn(peer.connect(migratePeerName(keepCode, keepGen), { serialization: "raw", reliable: true })); });
-      peer.on("error", function (e) { if (net.peer !== peer) return; if (net.connected && e.type !== "peer-unavailable") return; netFail(e.type); });
-      net.joinTimer = setTimeout(function () { if (net.role === "guest" && !net.connected) netFail("timeout"); }, 15000);
-    });
+      loadPeer(function (ok) {
+        if (net.role !== "guest") return;
+        if (!ok) { netFail("noload"); return; }
+        var peer;
+        try { peer = new Peer(PEER_OPTS); } catch (e) { netFail("noload"); return; }
+        net.peer = peer;
+        peer.on("open", function () { if (net.peer !== peer) return; attachConn(peer.connect(migratePeerName(keepCode, keepGen), { serialization: "raw", reliable: true })); });
+        peer.on("error", function (e) {
+          if (net.peer !== peer) return;
+          if (net.connected && e.type !== "peer-unavailable") return;
+          var transient = api && api.shouldRetryJoin ? api.shouldRetryJoin(e.type, tries) : ((e.type === "peer-unavailable" || e.type === "network") && tries < 3);
+          if (transient) {
+            try { peer.destroy(); } catch (x) {}
+            net.peer = null;
+            var wait = api && api.nextJoinDelay ? api.nextJoinDelay(tries) : [250, 500, 1000][Math.min(tries, 2)];
+            if (!forcedGen && e.type === "peer-unavailable") {
+              var nxt = api && api.nextListJoinGen ? api.nextListJoinGen(keepGen, false) : (keepGen + 1 <= 4 ? keepGen + 1 : null);
+              if (nxt !== null) keepGen = nxt;
+            }
+            tries += 1;
+            onStatus("🔗 " + tr("tips.connecting", { code: keepCode }));
+            net.joinTimer = setTimeout(attempt, wait);
+            return;
+          }
+          netFail(e.type);
+        });
+        clearTimeout(net.joinTimer);
+        net.joinTimer = setTimeout(function () { if (net.role === "guest" && !net.connected) netFail("timeout"); }, 15000);
+      });
+    }
+    attempt();
   }
   // ---------- Host: Mitspieler verwalten (Stern: jeder Gast hat eine Leitung zum Host) ----------
   function freePid() { for (var p = 2; p <= MAX_PLAYERS; p++) if (!guestByPid(p)) return p; return 0; }
   function attachGuest(c) {
+    var peerId = (c && c.peer) || "";
+    if (net.peer && peerId && peerId === net.peer.id) { try { c.close(); } catch (e) {} return; }
+    net.guests.slice().forEach(function (old) {
+      if (old.conn && old.conn.peer === peerId) guestLeft(old);
+    });
     var g = { conn: c, pid: freePid(), ok: false, ship: "starter", stats: null, name: "", rx: null, rfire: false, rfireOnce: false, tpHold: 0, lastRx: performance.now() };
     if (!g.pid) { try { c.close(); } catch (e) {} return; }
     net.guests.push(g);
@@ -4379,6 +4467,9 @@
       if (m.t === "bye") { guestLeft(g); return; }
       if (m.t === "hello") {
         if (m.v !== NET_VERSION) { connSend(g.conn, { t: "ver" }); setTimeout(function () { guestLeft(g); }, 400); return; }
+        var helloPeer = guestPeerId(g);
+        var dup = net.guests.some(function (q) { return q !== g && q.ok && ((helloPeer && guestPeerId(q) === helloPeer) || (m.name && q.name && q.name === String(m.name).slice(0, 16))); });
+        if (dup || (net.peer && helloPeer && helloPeer === net.peer.id)) { guestLeft(g); return; }
         g.ship = SHIP_BY[m.ship] ? m.ship : "starter"; g.stats = cleanStats(m.stats); g.ok = true; net.connected = true;
         g.name = String(m.name || "").slice(0, 16) || ("P" + g.pid);
         net.gShip = g.ship; net.gStats = g.stats;
@@ -4413,7 +4504,7 @@
       else if (m.t === "kicked") netFail("kicked");
       else if (m.t === "rate") netFail("rate");
       else if (m.t === "denied") netFail("denied");
-      else if (m.t === "start") { net.hShip = SHIP_BY[m.hs] ? m.hs : net.hShip; net.nPl = Math.max(2, Math.min(MAX_PLAYERS, m.n | 0 || 2)); net.startLooks = m.looks || null; runCountdown(m.L | 0); }
+      else if (m.t === "start") { net.hShip = SHIP_BY[m.hs] ? m.hs : net.hShip; net.nPl = Math.max(1, Math.min(MAX_PLAYERS, m.n | 0 || 1)); net.startLooks = m.looks || null; runCountdown(m.L | 0); }
       else if (m.t === "s") guestSnap(m);
       else if (m.t === "end") guestEnd(m);
     }
@@ -4428,7 +4519,7 @@
     onStatus("🚀 " + tr("tips.levelStarts", { level: L, n: 3 }), "good"); tone(660, 660, 0.12, "square", 0.06);
     net.countdown = setInterval(function () {
       n--;
-      if (!net.connected) { clearInterval(net.countdown); net.countdown = null; return; }
+      if (net.role === "guest" && !net.connected) { clearInterval(net.countdown); net.countdown = null; return; }
       if (n > 0) { onStatus("🚀 " + tr("tips.levelStarts", { level: L, n: n }), "good"); tone(660, 660, 0.12, "square", 0.06); return; }
       clearInterval(net.countdown); net.countdown = null; tone(990, 990, 0.25, "square", 0.07);
       $("onlineScreen").classList.add("hidden");
@@ -4437,8 +4528,8 @@
     renderOnLevels();
   }
   function hostStart(L) {
-    if (net.role !== "host" || !net.connected || net.countdown) return;
-    var lk = { 1: curShip().id }, ok = net.guests.filter(function (g) { return g.ok; });
+    if (net.role !== "host" || net.countdown) return;
+    var lk = { 1: curShip().id }, ok = uniqueOkGuests();
     // Spieler-Nummern lückenlos machen (P2, P3, ...), damit niemand auf einem leeren Platz fliegt
     ok.sort(function (a, b) { return a.pid - b.pid; }).forEach(function (g, i) { if (g.pid !== i + 2) { g.pid = i + 2; connSend(g.conn, { t: "welcome", hs: curShip().id, L: L, pid: g.pid, hostPid: net.hostPid || 1, gen: net.gen || 0 }); } lk[g.pid] = g.ship; });
     net.nPl = 1 + ok.length;
@@ -4447,7 +4538,7 @@
   function netBegin(L) {
     net.inGame = true; net.snaps = []; net.evq = []; net.seq = 0; net.sendT = 0; net.inT = 0; net.myX = null; net.rx = null; net.rfire = false; net.rfireOnce = false; net.tpHold = 0;
     net.looks = {};
-    if (net.role === "host") { net.looks[1] = curShip().id; net.guests.forEach(function (g) { g.rx = null; g.rfire = false; g.rfireOnce = false; g.tpHold = 0; if (g.ok) net.looks[g.pid] = g.ship; }); net.nPl = 1 + net.guests.filter(function (g) { return g.ok; }).length; }
+    if (net.role === "host") { net.looks[1] = curShip().id; uniqueOkGuests().forEach(function (g) { g.rx = null; g.rfire = false; g.rfireOnce = false; g.tpHold = 0; net.looks[g.pid] = g.ship; }); net.nPl = liveOccupancy(); }
     else { var sl = net.startLooks || {}; for (var q = 1; q <= MAX_PLAYERS; q++) if (sl[q] && SHIP_BY[sl[q]]) net.looks[q] = sl[q]; net.looks[1] = net.looks[1] || net.hShip || "starter"; net.looks[net.myPid] = curShip().id; }
     net.lookP1 = net.looks[1]; net.lookP2 = net.looks[2] || null;
     startGame(L);
@@ -4654,11 +4745,23 @@
     net.hostAway = true;
     netSend({ t: "away" });
     if (!e.persisted) tryHostHandoff("sleep");
+    var api = roomApi();
+    if (api && api.shouldCloseOnPageHide ? api.shouldCloseOnPageHide({ persisted: !!e.persisted, listed: !!net.listed }) : !e.persisted) {
+      stopRoomHeartbeat();
+    }
   });
   document.addEventListener("visibilitychange", function () {
     if (net.role !== "host") return;
     net.hostAway = !!document.hidden;
     netSend({ t: document.hidden ? "away" : "back" });
+    var api = roomApi();
+    if (document.hidden) {
+      if (api && api.shouldCloseOnHidden ? api.shouldCloseOnHidden({ hidden: true, occupancy: liveOccupancy(), listed: !!net.listed }) : liveOccupancy() <= 1) {
+        stopRoomHeartbeat();
+      }
+    } else if (net.peerReady && visPublic()) {
+      startRoomHeartbeat();
+    }
   });
   $("onLevels").addEventListener("click", function (e) {
     var b = e.target.closest && e.target.closest("[data-lv]"); if (!b) return;
@@ -7496,7 +7599,19 @@
       var econ = window.__weltraum && window.__weltraum.economy;
       return econ && econ.coopBossKillAward ? econ.coopBossKillAward(L, stars, collected, "normal", players) : 0;
     },
-    roomListNow: function () { return { public: visPublic(), code: net.code, hostPid: net.hostPid, gen: net.gen, rows: lastRoomRows.slice() }; },
+    roomListNow: function () { return { public: visPublic(), code: net.code, hostPid: net.hostPid, gen: net.gen, peerReady: !!net.peerReady, listed: !!net.listed, rows: lastRoomRows.slice() }; },
+    hostSoloStart: function (L) {
+      net.role = "host"; net.inGame = true; net.guests = net.guests || []; net.nPl = liveOccupancy();
+      startGame(L || 1);
+      return { nPl: net.nPl, twoP: twoP, others: others.length, occupancy: liveOccupancy() };
+    },
+    seedGuest: function (peerId, name) {
+      var pid = freePid();
+      if (!pid) return { occupancy: liveOccupancy(), guests: net.guests.length };
+      net.guests.push({ conn: { peer: peerId || ("dup-" + pid), close: function () {} }, pid: pid, ok: true, ship: "starter", stats: null, name: name || ("P" + pid), rx: null, rfire: false, rfireOnce: false, tpHold: 0, lastRx: performance.now() });
+      net.connected = true;
+      return { occupancy: liveOccupancy(), guests: net.guests.length, pid: pid };
+    },
     openOnline: openOnline,
     injectPublicRooms: function (rows) {
       if (unsubPublicRooms) { try { unsubPublicRooms(); } catch (e) {} unsubPublicRooms = null; }

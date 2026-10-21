@@ -60,7 +60,8 @@ import { loadDoNotTrack, saveDoNotTrack, type AnalyticsKind } from './lib/analyt
 import { clearSoftReloadGuard, installChunkUpdateHandlers } from './lib/chunk-update';
 import { isAutomatedClient, isBotUserAgent, verifyGeo } from './lib/geo-privacy';
 import * as aim from './lib/aim-target';
-import * as rooms from './lib/room-list';
+import * as roomList from './lib/room-list';
+import * as roomJoin from './lib/room-join';
 import * as migrate from './lib/host-migrate';
 import * as economy from './lib/economy';
 import { ROADSTERS } from './lib/roadsters';
@@ -79,6 +80,8 @@ import {
   startRoadsterBoost,
   steerJetSign,
 } from './lib/roadster-boost';
+
+const rooms = { ...roomList, ...roomJoin };
 
 export interface WeltraumApi {
   i18n: {

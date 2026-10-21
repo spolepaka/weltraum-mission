@@ -127,6 +127,7 @@ export interface Translations {
   noOpenRooms: string;
   noPublicRooms: string;
   joinOpen: string;
+  roomStale: string;
   refreshRooms: string;
   orJoinCode: string;
   onlineFooter: string;
