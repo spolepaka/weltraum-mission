@@ -12,7 +12,13 @@ import { validateLevelResult, type LevelResultInput } from './validation';
 import { mergeCoins, coinDeltaToPush } from './coin-ledger';
 import { clampLevelCoins, maxCoinsForLevel, MAX_LEVEL, SHIP_PRICES } from './economy';
 import { salePrice } from './shop-ships';
-import { filterJoinableRooms, type PublicRoomRow } from './room-list';
+import {
+  applyPublicRoomEvent,
+  filterJoinableRooms,
+  pruneStaleRooms,
+  publicRoomFromServer,
+  type PublicRoomRow,
+} from './room-list';
 import { isAutomatedClient } from './geo-privacy';
 import {
   loadAuthUser,
@@ -71,6 +77,12 @@ class SpacetimeClient {
   private identity: Identity | null = null;
   private identityToken: string | null = null;
   private subscriptionHandle: SubscriptionHandle | null = null;
+  private roomSubscriptionHandle: SubscriptionHandle | null = null;
+  private publicRooms = new Map<string, PublicRoomRow>();
+  private publicRoomListeners: Array<(rows: PublicRoomRow[]) => void> = [];
+  private livePublicRooms = false;
+  private roomPollTimer: ReturnType<typeof setInterval> | null = null;
+  private roomCallbacksBound = false;
   private localCache: PlayerData | null = null;
   private pendingReducerCalls: Array<() => Promise<void>> = [];
   private dataListeners: Array<(data: PlayerData) => void> = [];
@@ -302,6 +314,9 @@ class SpacetimeClient {
             this.setStatus('disconnected');
             this.connection = null;
             this.subscriptionHandle = null;
+            this.roomSubscriptionHandle = null;
+            this.livePublicRooms = false;
+            this.roomCallbacksBound = false;
             if (!this.silentReconnect && !this.isReconnecting) {
               this.scheduleReconnect();
             }
@@ -357,6 +372,140 @@ class SpacetimeClient {
       .subscribe([
         'SELECT * FROM server_config',
       ]);
+
+    // Separate handle so a pre-republish private public_room table cannot
+    // take down the server_config subscription.
+    this.roomSubscriptionHandle = conn.subscriptionBuilder()
+      .onApplied(() => {
+        console.log('[SpacetimeDB] public_room subscription applied');
+        this.livePublicRooms = true;
+        this.bindPublicRoomCallbacks(conn);
+        this.seedPublicRoomsFromTable(conn);
+      })
+      .onError((ctx) => {
+        console.warn('[SpacetimeDB] public_room subscribe failed; polling listPublicRooms', ctx.event);
+        this.livePublicRooms = false;
+        this.startRoomPoll();
+      })
+      .subscribe([
+        'SELECT * FROM public_room',
+      ]);
+
+    this.bindPublicRoomCallbacks(conn);
+    if (this.publicRoomListeners.length) this.startRoomPoll();
+  }
+
+  private publicRoomTable(conn: DbConnection | null = this.connection): {
+    onInsert: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+    onUpdate: (cb: (ctx: unknown, oldRow: Record<string, unknown>, row: Record<string, unknown>) => void) => void;
+    onDelete: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+    iter: () => Iterable<Record<string, unknown>>;
+  } | null {
+    const table = (conn?.db as { publicRoom?: {
+      onInsert: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+      onUpdate: (cb: (ctx: unknown, oldRow: Record<string, unknown>, row: Record<string, unknown>) => void) => void;
+      onDelete: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+      iter: () => Iterable<Record<string, unknown>>;
+    } } | undefined)?.publicRoom;
+    return table || null;
+  }
+
+  private bindPublicRoomCallbacks(conn: DbConnection): void {
+    if (this.roomCallbacksBound) return;
+    const table = this.publicRoomTable(conn);
+    if (!table) return;
+    this.roomCallbacksBound = true;
+    table.onInsert((_ctx, row) => {
+      applyPublicRoomEvent(this.publicRooms, { type: 'insert', row: publicRoomFromServer(row) });
+      this.notifyPublicRooms();
+    });
+    table.onUpdate((_ctx, _old, row) => {
+      applyPublicRoomEvent(this.publicRooms, { type: 'update', row: publicRoomFromServer(row) });
+      this.notifyPublicRooms();
+    });
+    table.onDelete((_ctx, row) => {
+      applyPublicRoomEvent(this.publicRooms, { type: 'delete', code: String(row.code || '') });
+      this.notifyPublicRooms();
+    });
+  }
+
+  private seedPublicRoomsFromTable(conn: DbConnection): void {
+    const table = this.publicRoomTable(conn);
+    if (!table) return;
+    this.publicRooms.clear();
+    for (const row of table.iter()) {
+      applyPublicRoomEvent(this.publicRooms, { type: 'insert', row: publicRoomFromServer(row) });
+    }
+    this.notifyPublicRooms();
+  }
+
+  private notifyPublicRooms(): void {
+    const rows = this.getPublicRooms();
+    this.publicRoomListeners.forEach(fn => fn(rows));
+  }
+
+  getPublicRooms(): PublicRoomRow[] {
+    return pruneStaleRooms(this.publicRooms);
+  }
+
+  hasLivePublicRooms(): boolean {
+    return this.livePublicRooms;
+  }
+
+  onPublicRooms(callback: (rows: PublicRoomRow[]) => void): () => void {
+    this.publicRoomListeners.push(callback);
+    callback(this.getPublicRooms());
+    this.startRoomPoll();
+    return () => {
+      this.publicRoomListeners = this.publicRoomListeners.filter(fn => fn !== callback);
+      if (!this.publicRoomListeners.length) this.stopRoomPoll();
+    };
+  }
+
+  private startRoomPoll(): void {
+    if (this.roomPollTimer) return;
+    void this.refreshPublicRoomsFromProcedure();
+    let ticks = 0;
+    this.roomPollTimer = setInterval(() => {
+      ticks += 1;
+      if (!this.livePublicRooms) {
+        void this.refreshPublicRoomsFromProcedure();
+        return;
+      }
+      this.notifyPublicRooms();
+      if (ticks % 4 === 0) void this.fetchPublicRoomsProcedure();
+    }, 1000);
+  }
+
+  private stopRoomPoll(): void {
+    if (this.roomPollTimer) {
+      clearInterval(this.roomPollTimer);
+      this.roomPollTimer = null;
+    }
+  }
+
+  private async refreshPublicRoomsFromProcedure(): Promise<PublicRoomRow[]> {
+    const rows = await this.fetchPublicRoomsProcedure();
+    if (!this.livePublicRooms) {
+      this.publicRooms.clear();
+      for (const row of rows) {
+        applyPublicRoomEvent(this.publicRooms, { type: 'insert', row });
+      }
+      this.notifyPublicRooms();
+    }
+    return this.getPublicRooms();
+  }
+
+  private async fetchPublicRoomsProcedure(): Promise<PublicRoomRow[]> {
+    if (!this.connection || !this.isConnected()) return [];
+    try {
+      const procedures = this.connection.procedures as { listPublicRooms?: (a: Record<string, never>) => Promise<{ roomsJson: string } | undefined> };
+      const result = await procedures.listPublicRooms?.({});
+      const parsed = JSON.parse(result?.roomsJson || '[]') as PublicRoomRow[];
+      return filterJoinableRooms(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      return [];
+    }
   }
 
   private syncFromServer(): void {
@@ -399,7 +548,11 @@ class SpacetimeClient {
       this.connection.disconnect();
       this.connection = null;
       this.subscriptionHandle = null;
+      this.roomSubscriptionHandle = null;
+      this.livePublicRooms = false;
+      this.roomCallbacksBound = false;
     }
+    this.stopRoomPoll();
     this.setStatus('disconnected');
   }
 
@@ -1166,15 +1319,8 @@ class SpacetimeClient {
   }
 
   async listPublicRooms(): Promise<PublicRoomRow[]> {
-    if (!this.connection || !this.isConnected()) return [];
-    try {
-      const procedures = this.connection.procedures as { listPublicRooms?: (a: Record<string, never>) => Promise<{ roomsJson: string } | undefined> };
-      const result = await procedures.listPublicRooms?.({});
-      const parsed = JSON.parse(result?.roomsJson || '[]') as PublicRoomRow[];
-      return filterJoinableRooms(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      return [];
-    }
+    if (this.livePublicRooms) return this.getPublicRooms();
+    return this.refreshPublicRoomsFromProcedure();
   }
 
   setUpgradeLevel(upgradeId: string, level: number): void {

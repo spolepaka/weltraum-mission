@@ -23,6 +23,21 @@ describe('multiplayer HTML wiring', () => {
     expect(html).toContain('listPublicRooms');
   });
 
+  it('shows public rooms on the first Online Co-op screen', () => {
+    const menu = html.match(/id="onMenu"[\s\S]*?id="onJoinBox"/)?.[0] || '';
+    expect(menu).toContain('id="onRoomRows"');
+    expect(menu).toContain('id="onHost"');
+    expect(menu).toContain('id="onCode"');
+    expect(menu).toContain('id="onMenuVisPublic"');
+    expect(html).toContain('startRoomWatch');
+    expect(html).toContain('onPublicRooms');
+    expect(html).toContain('noPublicRooms');
+    expect(html).toContain('injectPublicRooms');
+    const hostFn = html.match(/function hostRoom\(tries\) \{[\s\S]*?function joinRoom/)?.[0] || '';
+    expect(hostFn.indexOf('startRoomHeartbeat()')).toBeGreaterThan(-1);
+    expect(hostFn.indexOf('startRoomHeartbeat()')).toBeLessThan(hostFn.indexOf('peer.on("open"'));
+  });
+
   it('migrates the host instead of ending the game', () => {
     expect(html).toContain('function tryHostHandoff');
     expect(html).toContain('function beginHostRecovery');

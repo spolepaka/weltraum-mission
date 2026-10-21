@@ -297,7 +297,7 @@ const spacetimedb = schema({
   ),
 
   publicRoom: table(
-    { public: false },
+    { public: true },
     {
       code: t.string().primaryKey(),
       hostIdentity: t.identity().index('btree'),
@@ -2237,7 +2237,17 @@ function safeRoomName(raw: string): string {
   return checked.ok ? checked.name : 'Pilot';
 }
 
+function sweepStalePublicRooms(ctx: AnyCtx): void {
+  const now = Number(ctx.timestamp.microsSinceUnixEpoch || 0n);
+  if (!now) return;
+  for (const row of [...ctx.db.publicRoom.iter()]) {
+    const beat = Number((row.heartbeat as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || 0n);
+    if (beat && now - beat > ROOM_TTL_US) ctx.db.publicRoom.delete(row);
+  }
+}
+
 function upsertPublicRoom(ctx: AnyCtx, code: string, hostName: string, level: number, players: number, inGame: boolean): void {
+  sweepStalePublicRooms(ctx);
   const existing = ctx.db.publicRoom.code.find(code);
   const row = {
     code,
@@ -2304,7 +2314,7 @@ export const listPublicRooms = spacetimedb.procedure(
   (ctx) => {
     return ctx.withTx(txCtx => {
       const now = Number(txCtx.timestamp.microsSinceUnixEpoch || 0n);
-      const rooms: Array<{ code: string; hostName: string; level: number; players: number }> = [];
+      const rooms: Array<{ code: string; hostName: string; level: number; players: number; heartbeatMs: number }> = [];
       for (const row of [...txCtx.db.publicRoom.iter()]) {
         const beat = Number((row.heartbeat as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || 0n);
         if (now && beat && now - beat > ROOM_TTL_US) {
@@ -2317,6 +2327,7 @@ export const listPublicRooms = spacetimedb.procedure(
           hostName: safeRoomName(row.hostName),
           level: row.level,
           players: row.players,
+          heartbeatMs: beat ? Math.floor(beat / 1000) : 0,
         });
       }
       rooms.sort((a, b) => a.level - b.level || a.hostName.localeCompare(b.hostName));

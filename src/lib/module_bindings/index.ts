@@ -87,6 +87,7 @@ import * as GetWeeklyBoardProcedure from "./get_weekly_board_procedure";
 import * as ListPublicRoomsProcedure from "./list_public_rooms_procedure";
 
 // Import all table schema definitions
+import PublicRoomRow from "./public_room_table";
 import ServerConfigRow from "./server_config_table";
 import WeeklyScoreRow from "./weekly_score_table";
 
@@ -94,6 +95,20 @@ import WeeklyScoreRow from "./weekly_score_table";
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
+  publicRoom: __table({
+    name: 'public_room',
+    indexes: [
+      { accessor: 'code', name: 'public_room_code_idx_btree', algorithm: 'btree', columns: [
+        'code',
+      ] },
+      { accessor: 'hostIdentity', name: 'public_room_host_identity_idx_btree', algorithm: 'btree', columns: [
+        'hostIdentity',
+      ] },
+    ],
+    constraints: [
+      { name: 'public_room_code_key', constraint: 'unique', columns: ['code'] },
+    ],
+  }, PublicRoomRow),
   serverConfig: __table({
     name: 'server_config',
     indexes: [
