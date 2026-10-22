@@ -4,11 +4,17 @@ import { describe, expect, it } from 'vitest';
 const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const server = readFileSync(new URL('../server/spacetimedb/src/index.ts', import.meta.url), 'utf8');
 const client = readFileSync(new URL('../src/lib/spacetime-client.ts', import.meta.url), 'utf8');
+const bindings = readFileSync(new URL('../src/lib/module_bindings/index.ts', import.meta.url), 'utf8');
 
 describe('versus HTML and module wiring', () => {
   it('adds 1 vs 1 and Challenge on the Online screen', () => {
     expect(html).toContain('id="onVersus"');
     expect(html).toContain('id="onChallenge"');
+    expect(html).toContain('id="onDuelRows"');
+    expect(html).toContain('id="openDuelsLabel"');
+    expect(html).toContain('function renderVersusRows');
+    expect(html).toContain('function joinVersus');
+    expect(html).toContain('shouldPublishListing');
     expect(html).toContain('id="vsHud"');
     expect(html).toContain('id="vsScreen"');
     expect(html).toContain('function versusOn()');
@@ -39,5 +45,7 @@ describe('versus HTML and module wiring', () => {
     expect(client).toContain('SELECT * FROM versus_queue');
     expect(client).toContain('publishVersusQueue');
     expect(client).toContain('reportVersusResult');
+    expect(bindings).toContain("name: 'versus_queue'");
+    expect(bindings).toContain('publish_versus_queue');
   });
 });

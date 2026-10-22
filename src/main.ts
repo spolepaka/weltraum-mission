@@ -80,6 +80,7 @@ import * as migrate from './lib/host-migrate';
 import * as economy from './lib/economy';
 import * as versus from './lib/versus';
 import * as versusQueue from './lib/versus-queue';
+import * as achievementsSync from './lib/achievements-sync';
 import { formatOnlineBadge, inferOnlineActivity, shouldShowOnlineBadge } from './lib/online-now';
 import { ROADSTERS } from './lib/roadsters';
 import { drawRoadster } from './lib/roadster-draw';
@@ -150,6 +151,7 @@ export interface WeltraumApi {
     net: typeof roadsterNet;
   };
   versus: typeof versus & typeof versusQueue;
+  achievements: typeof achievementsSync;
   onPurchaseUpgrade: (upgradeId: string, price: number) => boolean;
   onSecretCode: (code: string) => { success: boolean; message: string };
   canStartLevel: (level: number) => boolean;
@@ -648,6 +650,7 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       net: roadsterNet,
     },
     versus: { ...versus, ...versusQueue },
+    achievements: achievementsSync,
     onPurchaseUpgrade: (upgradeId, price) => client.purchaseUpgrade(upgradeId, BigInt(price)),
     onSecretCode: (code) => client.applySecretCode(code),
     canStartLevel: (level) => {

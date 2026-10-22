@@ -21,6 +21,7 @@ import {
 } from './room-list';
 import {
   applyVersusQueueEvent,
+  listOpenVersus,
   listQuickQueue,
   versusRowFromServer,
   type VersusQueueRow,
@@ -1563,8 +1564,12 @@ class SpacetimeClient {
   }
 
   private notifyVersusQueue(): void {
-    const rows = this.getVersusQueue();
+    const rows = this.getOpenVersus();
     this.versusListeners.forEach((fn) => fn(rows));
+  }
+
+  getOpenVersus(): VersusQueueRow[] {
+    return listOpenVersus(this.versusQueue);
   }
 
   getVersusQueue(): VersusQueueRow[] {

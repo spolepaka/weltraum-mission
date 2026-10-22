@@ -127,6 +127,8 @@ export interface Translations {
   openRooms: string;
   noOpenRooms: string;
   noPublicRooms: string;
+  openDuels: string;
+  noPublicDuels: string;
   joinOpen: string;
   roomStale: string;
   refreshRooms: string;

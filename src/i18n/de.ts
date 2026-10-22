@@ -132,6 +132,8 @@ export const de: Translations = {
   openRooms: 'Öffentliche Räume',
   noOpenRooms: 'Noch keine öffentlichen Räume – erstelle einen!',
   noPublicRooms: 'Noch keine öffentlichen Räume – erstelle einen!',
+  openDuels: 'Öffentliche 1-gegen-1',
+  noPublicDuels: 'Noch kein offenes Duell – tippe 1 gegen 1!',
   joinOpen: 'Mitfliegen',
   roomStale: 'Host nicht da',
   refreshRooms: 'Aktualisieren',
