@@ -9,8 +9,27 @@ import { buildLevelPayload } from './level-catalog';
 import { nameKey, uniquifyDisplayName, validateDisplayName, type NameKind } from './display-names';
 import { plausibleLegacyUnlock } from './legacy-import';
 import { isMillionScaleGrant, maxCoinsForLevel, salePrice } from './economy';
-import { bindAdminCtx, inspectSenderAuth, isAdminEmail, isAdminUid } from './admin';
+import {
+  ADMIN_ROLES_SEEDED_KEY,
+  bindAdminCtx,
+  canGrantAdmin,
+  canRevokeAdmin,
+  inspectSenderAuth,
+  isAdminUid,
+  isGrantedAdmin,
+  isOwnerEmail,
+  normalizeEmail,
+  OWNER_EMAIL,
+  applySeedAdminRoles,
+} from './admin';
 import { GEO_RETENTION_MS, STORE_FULL_IP, isEmptyGuestRow, verifyGeo } from './geo';
+import {
+  ONLINE_TTL_US,
+  normalizeActivity,
+  publicOnlinePayload,
+  summarizeOnline,
+  type OnlineRow,
+} from './online';
 
 /** Account-linked only. Do not call from guest gameplay — local hosts trap on JWT lookup. */
 function assertTrusted(ctx: { senderAuth?: { hasJWT: boolean; isInternal?: boolean; jwt?: { issuer?: string } | null } }): void {
@@ -221,6 +240,15 @@ const spacetimedb = schema({
     }
   ),
 
+  adminRole: table(
+    { public: false },
+    {
+      email: t.string().primaryKey(),
+      grantedBy: t.string(),
+      grantedAt: t.timestamp(),
+    }
+  ),
+
   adminAudit: table(
     { public: false },
     {
@@ -293,6 +321,18 @@ const spacetimedb = schema({
       identity: t.identity().primaryKey(),
       count: t.u32(),
       roomsJoined: t.u32(),
+    }
+  ),
+
+  onlineSession: table(
+    { public: false },
+    {
+      connectionId: t.connectionId().primaryKey(),
+      identity: t.identity().index('btree'),
+      displayName: t.string(),
+      activity: t.string(),
+      connectedAt: t.timestamp(),
+      lastBeat: t.timestamp(),
     }
   ),
 
@@ -378,19 +418,104 @@ function readJwtEmail(ctx: AnyCtx): { email: string; sub: string; issuer: string
   }
 }
 
-function assertAdmin(ctx: AnyCtx): void {
+function roleEmails(ctx: AnyCtx): string[] {
+  const emails: string[] = [];
+  for (const row of ctx.db.adminRole.iter()) emails.push(row.email);
+  return emails;
+}
+
+function ensureAdminRoles(ctx: AnyCtx): void {
+  const flag = ctx.db.serverConfig.key.find(ADMIN_ROLES_SEEDED_KEY);
+  const existing: Array<{ email: string; grantedBy: string; grantedAt: number }> = [];
+  for (const row of ctx.db.adminRole.iter()) {
+    existing.push({ email: row.email, grantedBy: row.grantedBy, grantedAt: 0 });
+  }
+  const plan = applySeedAdminRoles(existing, !!flag, 0);
+  for (const email of plan.added) {
+    ctx.db.adminRole.insert({
+      email,
+      grantedBy: email === OWNER_EMAIL ? 'system' : OWNER_EMAIL,
+      grantedAt: ctx.timestamp,
+    });
+  }
+  if (!flag) {
+    ctx.db.serverConfig.insert({ key: ADMIN_ROLES_SEEDED_KEY, value: '1' });
+  }
+}
+
+function senderIsAdmin(ctx: AnyCtx): boolean {
+  ensureAdminRoles(ctx);
   const { email, sub } = readJwtEmail(ctx);
-  const byEmail = isAdminEmail(email);
-  const byUid = isAdminUid(sub);
-  if (byEmail || byUid) {
-    const existing = ctx.db.adminUser.identity.find(ctx.sender);
-    if (!existing) {
-      ctx.db.adminUser.insert({ identity: ctx.sender, email: email || sub, grantedAt: ctx.timestamp });
-    }
+  return isOwnerEmail(email) || isAdminUid(sub) || isGrantedAdmin(email, roleEmails(ctx));
+}
+
+function mintAdminUser(ctx: AnyCtx, email: string): void {
+  const existing = ctx.db.adminUser.identity.find(ctx.sender);
+  if (!existing) {
+    ctx.db.adminUser.insert({ identity: ctx.sender, email: email || 'admin', grantedAt: ctx.timestamp });
     return;
   }
-  if (ctx.db.adminUser.identity.find(ctx.sender)) return;
+  if (email && existing.email !== email) {
+    ctx.db.adminUser.identity.update({ ...existing, email });
+  }
+}
+
+function assertAdmin(ctx: AnyCtx): void {
+  const { email } = readJwtEmail(ctx);
+  if (senderIsAdmin(ctx)) {
+    mintAdminUser(ctx, email);
+    return;
+  }
   throw new Error('Admin only');
+}
+
+function sweepStaleOnlineSessions(ctx: AnyCtx): void {
+  const now = timestampMicros(ctx.timestamp as { microsSinceUnixEpoch?: bigint });
+  if (!now) return;
+  for (const row of [...ctx.db.onlineSession.iter()]) {
+    const beat = timestampMicros(row.lastBeat as { microsSinceUnixEpoch?: bigint; __timestamp_micros_since_unix_epoch__?: bigint });
+    if (!beat || now - beat > ONLINE_TTL_US) ctx.db.onlineSession.delete(row);
+  }
+}
+
+function upsertOnlineSession(ctx: AnyCtx, activity: string, displayName: string): void {
+  const cid = ctx.connectionId;
+  if (!cid) return;
+  sweepStaleOnlineSessions(ctx);
+  const name = String(displayName || '').trim().slice(0, 16) || displayNameFor(ctx.db, ctx.sender) || 'Pilot';
+  const act = normalizeActivity(activity);
+  const existing = ctx.db.onlineSession.connectionId.find(cid);
+  if (existing) {
+    ctx.db.onlineSession.connectionId.update({
+      ...existing,
+      displayName: name,
+      activity: act,
+      lastBeat: ctx.timestamp,
+    });
+    return;
+  }
+  ctx.db.onlineSession.insert({
+    connectionId: cid,
+    identity: ctx.sender,
+    displayName: name,
+    activity: act,
+    connectedAt: ctx.timestamp,
+    lastBeat: ctx.timestamp,
+  });
+}
+
+function collectOnlineRows(ctx: AnyCtx): OnlineRow[] {
+  const rows: OnlineRow[] = [];
+  for (const row of ctx.db.onlineSession.iter()) {
+    rows.push({
+      identity: identityKey(row.identity),
+      displayName: row.displayName,
+      activity: normalizeActivity(row.activity),
+      connectedAtUs: timestampMicros(row.connectedAt as { microsSinceUnixEpoch?: bigint; __timestamp_micros_since_unix_epoch__?: bigint }),
+      lastBeatUs: timestampMicros(row.lastBeat as { microsSinceUnixEpoch?: bigint; __timestamp_micros_since_unix_epoch__?: bigint }),
+    });
+  }
+  return rows;
 }
 
 function assertNotBanned(ctx: AnyCtx): void {
@@ -504,6 +629,7 @@ export const init = spacetimedb.init(ctx => {
 
 export const onConnect = spacetimedb.clientConnected(ctx => {
   seedLevelCatalog(ctx);
+  ensureAdminRoles(ctx);
   const identity = ctx.sender;
   const now = ctx.timestamp;
   const existingPlayer = ctx.db.player.identity.find(identity);
@@ -519,13 +645,19 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
     const acc = ctx.db.playerAccount.identity.find(identity);
     if (acc) ctx.db.playerAccount.identity.update({ ...acc, email, firebaseSub: sub });
     else ctx.db.playerAccount.insert({ identity, email, firebaseSub: sub });
-    if (isAdminEmail(email) && !ctx.db.adminUser.identity.find(identity)) {
-      ctx.db.adminUser.insert({ identity, email, grantedAt: now });
+    if (isOwnerEmail(email) || isGrantedAdmin(email, roleEmails(ctx))) {
+      mintAdminUser(ctx, email);
     }
   }
+  upsertOnlineSession(ctx, 'menu', displayNameFor(ctx.db, identity) || 'Pilot');
 });
 
 export const onDisconnect = spacetimedb.clientDisconnected(ctx => {
+  const cid = ctx.connectionId;
+  if (cid) {
+    const row = ctx.db.onlineSession.connectionId.find(cid);
+    if (row) ctx.db.onlineSession.delete(row);
+  }
   console.info(`Player disconnected: ${ctx.sender}`);
 });
 
@@ -1715,6 +1847,68 @@ export const adminMe = spacetimedb.procedure(
   }
 );
 
+export const getOnlineNow = spacetimedb.procedure(
+  {},
+  t.option(t.object('OnlineNowResult', {
+    admin: t.bool(),
+    total: t.u32(),
+    menu: t.u32(),
+    solo: t.u32(),
+    coop: t.u32(),
+    versus: t.u32(),
+    peopleJson: t.string(),
+  })),
+  (ctx) => {
+    return ctx.withTx(txCtx => {
+      const bound = bindAdminCtx(ctx as never, txCtx as never);
+      const admin = senderIsAdmin(bound);
+      if (admin) sweepStaleOnlineSessions(bound);
+      const now = timestampMicros(txCtx.timestamp as { microsSinceUnixEpoch?: bigint });
+      const snap = summarizeOnline(collectOnlineRows(bound), now);
+      const payload = publicOnlinePayload(admin, snap);
+      return {
+        admin: payload.admin,
+        total: payload.total,
+        menu: payload.menu,
+        solo: payload.solo,
+        coop: payload.coop,
+        versus: payload.versus,
+        peopleJson: JSON.stringify(payload.people),
+      };
+    });
+  }
+);
+
+export const adminListRoles = spacetimedb.procedure(
+  {},
+  t.option(t.object('AdminRolesResult', {
+    rowsJson: t.string(),
+  })),
+  (ctx) => {
+    return ctx.withTx(txCtx => {
+      const bound = bindAdminCtx(ctx as never, txCtx as never);
+      assertAdmin(bound as never);
+      const rows: Array<Record<string, string | boolean>> = [];
+      const seen = new Set<string>();
+      for (const row of txCtx.db.adminRole.iter()) {
+        const email = normalizeEmail(row.email);
+        seen.add(email);
+        rows.push({
+          email,
+          owner: isOwnerEmail(email),
+          grantedBy: row.grantedBy,
+          grantedAt: String((row.grantedAt as { microsSinceUnixEpoch?: bigint }).microsSinceUnixEpoch || ''),
+        });
+      }
+      if (!seen.has(OWNER_EMAIL)) {
+        rows.push({ email: OWNER_EMAIL, owner: true, grantedBy: 'system', grantedAt: '' });
+      }
+      rows.sort((a, b) => Number(b.owner) - Number(a.owner) || String(a.email).localeCompare(String(b.email)));
+      return { rowsJson: JSON.stringify(rows) };
+    });
+  }
+);
+
 export const adminStats = spacetimedb.procedure(
   {},
   t.option(t.object('AdminStatsResult', {
@@ -2080,6 +2274,40 @@ export const adminUnban = spacetimedb.reducer(
   }
 );
 
+export const adminGrantRole = spacetimedb.reducer(
+  { email: t.string() },
+  (ctx, { email }) => {
+    assertAdmin(ctx);
+    const checked = canGrantAdmin(email);
+    if (!checked.ok) throw new Error(checked.reason);
+    const existing = ctx.db.adminRole.email.find(checked.email);
+    if (!existing) {
+      const granter = readJwtEmail(ctx).email || OWNER_EMAIL;
+      ctx.db.adminRole.insert({
+        email: checked.email,
+        grantedBy: granter,
+        grantedAt: ctx.timestamp,
+      });
+    }
+    writeAudit(ctx, 'grant_admin', checked.email, {});
+  }
+);
+
+export const adminRevokeRole = spacetimedb.reducer(
+  { email: t.string() },
+  (ctx, { email }) => {
+    assertAdmin(ctx);
+    const checked = canRevokeAdmin(email);
+    if (!checked.ok) throw new Error(checked.reason);
+    const existing = ctx.db.adminRole.email.find(checked.email);
+    if (existing) ctx.db.adminRole.delete(existing);
+    for (const row of [...ctx.db.adminUser.iter()]) {
+      if (normalizeEmail(row.email) === checked.email) ctx.db.adminUser.delete(row);
+    }
+    writeAudit(ctx, 'revoke_admin', checked.email, {});
+  }
+);
+
 export const ensurePlayerRow = spacetimedb.reducer(
   {},
   (ctx) => {
@@ -2159,6 +2387,13 @@ export const reportMpJoin = spacetimedb.reducer(
     const sess = ctx.db.playerSession.identity.find(ctx.sender);
     if (sess) ctx.db.playerSession.identity.update({ ...sess, roomsJoined: sess.roomsJoined + 1 });
     else ctx.db.playerSession.insert({ identity: ctx.sender, count: 1, roomsJoined: 1 });
+  }
+);
+
+export const heartbeatOnline = spacetimedb.reducer(
+  { activity: t.string(), displayName: t.string() },
+  (ctx, { activity, displayName }) => {
+    upsertOnlineSession(ctx, activity, displayName);
   }
 );
 

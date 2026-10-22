@@ -93,6 +93,8 @@ class SpacetimeClient {
   private connectWaiters: Array<(ok: boolean) => void> = [];
   private silentReconnect = false;
   lastError: string | null = null;
+  private onlineActivity = 'menu';
+  private onlineDisplayName = 'Pilot';
   private lastServerUnlock: number | null = null;
   private lastLegacyImported = false;
 
@@ -554,6 +556,94 @@ class SpacetimeClient {
     }
     this.stopRoomPoll();
     this.setStatus('disconnected');
+  }
+
+  setOnlinePresence(activity: string, displayName: string): void {
+    this.onlineActivity = activity || 'menu';
+    this.onlineDisplayName = String(displayName || 'Pilot').trim().slice(0, 16) || 'Pilot';
+  }
+
+  heartbeatOnline(activity?: string, displayName?: string): void {
+    if (activity) this.onlineActivity = activity;
+    if (displayName) this.onlineDisplayName = String(displayName).trim().slice(0, 16) || this.onlineDisplayName;
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { heartbeatOnline?: (a: { activity: string; displayName: string }) => void }).heartbeatOnline?.({
+        activity: this.onlineActivity,
+        displayName: this.onlineDisplayName,
+      });
+    });
+  }
+
+  async getOnlineNow(): Promise<{
+    admin: boolean;
+    total: number;
+    menu: number;
+    solo: number;
+    coop: number;
+    versus: number;
+    people: Array<{ name: string; activity: string; since: string }>;
+  } | null> {
+    if (!this.connection) return null;
+    try {
+      const procedures = this.connection.procedures as {
+        getOnlineNow?: (a: Record<string, never>) => Promise<{
+          admin?: boolean;
+          total?: number;
+          menu?: number;
+          solo?: number;
+          coop?: number;
+          versus?: number;
+          peopleJson?: string;
+        } | undefined>;
+      };
+      const result = await procedures.getOnlineNow?.({});
+      if (!result) return null;
+      let people: Array<{ name: string; activity: string; since: string }> = [];
+      try {
+        people = JSON.parse(result.peopleJson || '[]') as Array<{ name: string; activity: string; since: string }>;
+      } catch {
+        people = [];
+      }
+      return {
+        admin: !!result.admin,
+        total: result.total || 0,
+        menu: result.menu || 0,
+        solo: result.solo || 0,
+        coop: result.coop || 0,
+        versus: result.versus || 0,
+        people: Array.isArray(people) ? people : [],
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async adminListRoles(): Promise<Array<{ email: string; owner: boolean; grantedBy: string; grantedAt: string }>> {
+    if (!this.connection) return [];
+    try {
+      const procedures = this.connection.procedures as {
+        adminListRoles?: (a: Record<string, never>) => Promise<{ rowsJson?: string } | undefined>;
+      };
+      const result = await procedures.adminListRoles?.({});
+      if (!result?.rowsJson) return [];
+      const rows = JSON.parse(result.rowsJson) as Array<{ email: string; owner?: boolean; grantedBy?: string; grantedAt?: string }>;
+      return rows.map((row) => ({
+        email: String(row.email || ''),
+        owner: !!row.owner,
+        grantedBy: String(row.grantedBy || ''),
+        grantedAt: String(row.grantedAt || ''),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  adminGrantRole(email: string): Promise<void> {
+    return this.callAdmin(() => (this.connection?.reducers as { adminGrantRole?: (a: { email: string }) => unknown }).adminGrantRole?.({ email }));
+  }
+
+  adminRevokeRole(email: string): Promise<void> {
+    return this.callAdmin(() => (this.connection?.reducers as { adminRevokeRole?: (a: { email: string }) => unknown }).adminRevokeRole?.({ email }));
   }
 
   private async flushPendingReducerCalls(): Promise<void> {

@@ -109,6 +109,7 @@ export const de: Translations = {
   unlockedByAchievements: 'freigeschaltet durch Erfolge',
   yourRecords: 'Deine Rekorde',
   onlinePlay: 'Online Co-op',
+  onlineNow: '{n} Spieler online',
   onlineTitle: 'Online spielen',
   onlineIntro: 'Fliegt zusammen im selben Level – mit bis zu 5 iPads!',
   createRoom: 'Raum erstellen',

@@ -37,6 +37,18 @@ export const AdminPlayerResult = __t.object("AdminPlayerResult", {
 });
 export type AdminPlayerResult = __Infer<typeof AdminPlayerResult>;
 
+export const AdminRole = __t.object("AdminRole", {
+  email: __t.string(),
+  grantedBy: __t.string(),
+  grantedAt: __t.timestamp(),
+});
+export type AdminRole = __Infer<typeof AdminRole>;
+
+export const AdminRolesResult = __t.object("AdminRolesResult", {
+  rowsJson: __t.string(),
+});
+export type AdminRolesResult = __Infer<typeof AdminRolesResult>;
+
 export const AdminStatsResult = __t.object("AdminStatsResult", {
   players: __t.u32(),
   activeWeek: __t.u32(),
@@ -135,6 +147,27 @@ export const MyProgressResult = __t.object("MyProgressResult", {
   displayName: __t.string(),
 });
 export type MyProgressResult = __Infer<typeof MyProgressResult>;
+
+export const OnlineNowResult = __t.object("OnlineNowResult", {
+  admin: __t.bool(),
+  total: __t.u32(),
+  menu: __t.u32(),
+  solo: __t.u32(),
+  coop: __t.u32(),
+  versus: __t.u32(),
+  peopleJson: __t.string(),
+});
+export type OnlineNowResult = __Infer<typeof OnlineNowResult>;
+
+export const OnlineSession = __t.object("OnlineSession", {
+  connectionId: __t.connectionId(),
+  identity: __t.identity(),
+  displayName: __t.string(),
+  activity: __t.string(),
+  connectedAt: __t.timestamp(),
+  lastBeat: __t.timestamp(),
+});
+export type OnlineSession = __Infer<typeof OnlineSession>;
 
 export const OwnedShip = __t.object("OwnedShip", {
   identity: __t.identity(),

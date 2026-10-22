@@ -19,6 +19,8 @@
   #hud, #power, #wordBox, #msg, #controls, #muteBtn, #fsBtn, .panel { zoom: var(--s); }
   #hud { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding: max(8px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left)); font-size: 20px; pointer-events: none; z-index: 2; }
   #hud .box { background: rgba(20,30,70,.7); border: 2px solid #4a6cff; border-radius: 12px; padding: 4px 12px; }
+  #onlineNowHud { font-size: 14px; border-color: #7dffa8; }
+  #onlineNowMap { display: block; margin: 6px auto 0; width: fit-content; font-size: 14px; background: rgba(20,30,70,.75); border: 2px solid #7dffa8; border-radius: 14px; padding: 2px 12px; white-space: nowrap; }
   #wordBox { position: absolute; top: calc(52px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; z-index: 2;
     background: rgba(40,20,90,.8); border: 3px solid #ffd54a; border-radius: 18px; padding: 6px 26px; box-shadow: 0 0 18px rgba(255,213,74,.5); }
   #wordBox small { display: block; font-size: 14px; color: #ffe9a8; }
@@ -367,6 +369,7 @@
   <div class="box" id="hearts">❤️❤️❤️</div>
   <div class="box" id="coinBox">🪙 <b id="coins">0</b></div>
   <div class="box"><span id="lblScore">Score</span>: <b id="score">0</b> &nbsp;·&nbsp; <span id="lblHudRecord">Record</span>: <b id="best">0</b></div>
+  <div class="box hidden" id="onlineNowHud">🟢 0 online</div>
 </div>
 <div id="power" class="hidden"></div>
 <button id="muteBtn" aria-label="Ton an/aus">🔊</button>
@@ -393,7 +396,7 @@
 </div>
 
 <div id="mapHud" class="hidden">
-  <div id="mapTitle"><h1 id="gameTitle">🚀 Space Mission</h1><div class="sub"><span id="lblTotalScore">Total Score</span>: <b id="totalScore">0</b> &nbsp;·&nbsp; <span id="lblRecord">Record</span>: <b id="bestStart">0</b> &nbsp;·&nbsp; 🪙 <b id="mapCoins">0</b></div></div>
+  <div id="mapTitle"><h1 id="gameTitle">🚀 Space Mission</h1><div class="sub"><span id="lblTotalScore">Total Score</span>: <b id="totalScore">0</b> &nbsp;·&nbsp; <span id="lblRecord">Record</span>: <b id="bestStart">0</b> &nbsp;·&nbsp; 🪙 <b id="mapCoins">0</b></div><div id="onlineNowMap" class="hidden">🟢 0 online</div></div>
   <div id="mapHint">👆 Tap on a planet!</div>
   <div id="mapColL">
     <div id="mapColLTop">
@@ -7488,6 +7491,12 @@
       var toBoss = dist(full, mothership), toPlanet = dist(full, overlay);
       return { toBoss: toBoss, toPlanet: toPlanet, closerToBoss: toBoss < toPlanet, icon: !!bossIcon(L) };
     }, centerMap: function (i) { centerOn(i); },
+    onlineActivity: function () {
+      if (net && net.versus) return "versus";
+      if (net && net.role) return "coop";
+      if (state === "play" || state === "dying" || state === "sucked") return "solo";
+      return "menu";
+    },
     state: function () { return { state: state, score: score, lives: lives, level: level, rocks: rocks.length, bigRocks: rocks.filter(function (r) { return r.big; }).length, ufos: ufos.length, boss: boss ? boss.hp : null, bombs: bombs.length, shield: shield, triple: Math.ceil(triple), hits: hits, beaten: bossesBeaten, shieldOn: shield, holes: holes.length, comets: comets.length, laser: Math.ceil(laser), magnet: Math.ceil(magnet) }; },
     ship: function () { return ship; }, fire: fire,
     rockAboveShip: function (big) { rocks.push(makeRock(ship.x, ship.y - 250, big ? 50 : 26, !!big)); rocks[rocks.length - 1].vx = 0; rocks[rocks.length - 1].vy = 0; },

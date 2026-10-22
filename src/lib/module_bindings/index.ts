@@ -38,11 +38,13 @@ import AddCoinsReducer from "./add_coins_reducer";
 import AddOwnedShipReducer from "./add_owned_ship_reducer";
 import AdminAddCoinsReducer from "./admin_add_coins_reducer";
 import AdminBanReducer from "./admin_ban_reducer";
+import AdminGrantRoleReducer from "./admin_grant_role_reducer";
 import AdminGrantShipReducer from "./admin_grant_ship_reducer";
 import AdminPurgeEmptyGuestsReducer from "./admin_purge_empty_guests_reducer";
 import AdminRemoveShipReducer from "./admin_remove_ship_reducer";
 import AdminResetPlayerReducer from "./admin_reset_player_reducer";
 import AdminResetProgressReducer from "./admin_reset_progress_reducer";
+import AdminRevokeRoleReducer from "./admin_revoke_role_reducer";
 import AdminSetCoinsReducer from "./admin_set_coins_reducer";
 import AdminSetTestFlagReducer from "./admin_set_test_flag_reducer";
 import AdminUnbanReducer from "./admin_unban_reducer";
@@ -52,6 +54,7 @@ import ClosePublicRoomReducer from "./close_public_room_reducer";
 import CompleteLevelResultReducer from "./complete_level_result_reducer";
 import EnsurePlayerRowReducer from "./ensure_player_row_reducer";
 import EquipShipReducer from "./equip_ship_reducer";
+import HeartbeatOnlineReducer from "./heartbeat_online_reducer";
 import HeartbeatPublicRoomReducer from "./heartbeat_public_room_reducer";
 import ImportProgressReducer from "./import_progress_reducer";
 import LegacyImportReducer from "./legacy_import_reducer";
@@ -78,11 +81,13 @@ import UpdateSettingsReducer from "./update_settings_reducer";
 // Import all procedure arg schemas
 import * as AdminGetPlayerProcedure from "./admin_get_player_procedure";
 import * as AdminListPlayersProcedure from "./admin_list_players_procedure";
+import * as AdminListRolesProcedure from "./admin_list_roles_procedure";
 import * as AdminMeProcedure from "./admin_me_procedure";
 import * as AdminStatsProcedure from "./admin_stats_procedure";
 import * as GetAnalyticsFunnelProcedure from "./get_analytics_funnel_procedure";
 import * as GetLevelDataProcedure from "./get_level_data_procedure";
 import * as GetMyProgressProcedure from "./get_my_progress_procedure";
+import * as GetOnlineNowProcedure from "./get_online_now_procedure";
 import * as GetWeeklyBoardProcedure from "./get_weekly_board_procedure";
 import * as ListPublicRoomsProcedure from "./list_public_rooms_procedure";
 
@@ -142,11 +147,13 @@ const reducersSchema = __reducers(
   __reducerSchema("add_owned_ship", AddOwnedShipReducer),
   __reducerSchema("admin_add_coins", AdminAddCoinsReducer),
   __reducerSchema("admin_ban", AdminBanReducer),
+  __reducerSchema("admin_grant_role", AdminGrantRoleReducer),
   __reducerSchema("admin_grant_ship", AdminGrantShipReducer),
   __reducerSchema("admin_purge_empty_guests", AdminPurgeEmptyGuestsReducer),
   __reducerSchema("admin_remove_ship", AdminRemoveShipReducer),
   __reducerSchema("admin_reset_player", AdminResetPlayerReducer),
   __reducerSchema("admin_reset_progress", AdminResetProgressReducer),
+  __reducerSchema("admin_revoke_role", AdminRevokeRoleReducer),
   __reducerSchema("admin_set_coins", AdminSetCoinsReducer),
   __reducerSchema("admin_set_test_flag", AdminSetTestFlagReducer),
   __reducerSchema("admin_unban", AdminUnbanReducer),
@@ -156,6 +163,7 @@ const reducersSchema = __reducers(
   __reducerSchema("complete_level_result", CompleteLevelResultReducer),
   __reducerSchema("ensure_player_row", EnsurePlayerRowReducer),
   __reducerSchema("equip_ship", EquipShipReducer),
+  __reducerSchema("heartbeat_online", HeartbeatOnlineReducer),
   __reducerSchema("heartbeat_public_room", HeartbeatPublicRoomReducer),
   __reducerSchema("import_progress", ImportProgressReducer),
   __reducerSchema("legacy_import", LegacyImportReducer),
@@ -184,11 +192,13 @@ const reducersSchema = __reducers(
 const proceduresSchema = __procedures(
   __procedureSchema("admin_get_player", AdminGetPlayerProcedure.params, AdminGetPlayerProcedure.returnType),
   __procedureSchema("admin_list_players", AdminListPlayersProcedure.params, AdminListPlayersProcedure.returnType),
+  __procedureSchema("admin_list_roles", AdminListRolesProcedure.params, AdminListRolesProcedure.returnType),
   __procedureSchema("admin_me", AdminMeProcedure.params, AdminMeProcedure.returnType),
   __procedureSchema("admin_stats", AdminStatsProcedure.params, AdminStatsProcedure.returnType),
   __procedureSchema("get_analytics_funnel", GetAnalyticsFunnelProcedure.params, GetAnalyticsFunnelProcedure.returnType),
   __procedureSchema("get_level_data", GetLevelDataProcedure.params, GetLevelDataProcedure.returnType),
   __procedureSchema("get_my_progress", GetMyProgressProcedure.params, GetMyProgressProcedure.returnType),
+  __procedureSchema("get_online_now", GetOnlineNowProcedure.params, GetOnlineNowProcedure.returnType),
   __procedureSchema("get_weekly_board", GetWeeklyBoardProcedure.params, GetWeeklyBoardProcedure.returnType),
   __procedureSchema("list_public_rooms", ListPublicRoomsProcedure.params, ListPublicRoomsProcedure.returnType),
 );
