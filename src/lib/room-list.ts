@@ -17,6 +17,7 @@ export interface PublicRoomRow {
   level: number;
   players: number;
   inGame?: boolean;
+  versus?: boolean;
   heartbeatMs?: number;
 }
 
@@ -48,17 +49,23 @@ export function sanitizeListedName(raw: string): string {
   return 'Pilot';
 }
 
-export function canPublishRoom(opts: { isPublic: boolean; players: number; closed?: boolean }): boolean {
+export function listingPlayerCap(versus?: boolean): number {
+  return versus ? 2 : ROOM_MAX_PLAYERS;
+}
+
+export function canPublishRoom(opts: { isPublic: boolean; players: number; closed?: boolean; versus?: boolean }): boolean {
   if (!opts.isPublic || opts.closed) return false;
   const n = Math.floor(opts.players);
-  return n >= 1 && n <= ROOM_MAX_PLAYERS;
+  const cap = listingPlayerCap(opts.versus);
+  return n >= 1 && n <= cap;
 }
 
 export function isListableRoom(row: PublicRoomRow, nowMs = Date.now()): boolean {
   if (!validateRoomCode(row.code)) return false;
   if (row.inGame) return false;
   const n = Math.floor(row.players);
-  if (n < 1 || n >= ROOM_MAX_PLAYERS) return false;
+  const cap = listingPlayerCap(row.versus);
+  if (n < 1 || n >= cap) return false;
   return listingFreshness(row.heartbeatMs, nowMs) !== 'dead';
 }
 
@@ -67,14 +74,27 @@ export function isJoinableListing(row: PublicRoomRow, nowMs = Date.now()): boole
 }
 
 function normalizeRoomRow(row: PublicRoomRow): PublicRoomRow {
+  const versus = !!row.versus;
+  const cap = listingPlayerCap(versus);
   return {
     code: String(row.code || '').toUpperCase(),
     hostName: sanitizeListedName(row.hostName),
     level: Math.max(1, Math.min(100, Math.floor(row.level) || 1)),
-    players: Math.max(1, Math.min(ROOM_MAX_PLAYERS, Math.floor(row.players) || 1)),
+    players: Math.max(1, Math.min(cap, Math.floor(row.players) || 1)),
     inGame: !!row.inGame,
+    versus,
     heartbeatMs: row.heartbeatMs,
   };
+}
+
+export function splitListedRooms<T extends { versus?: boolean }>(rows: T[]): { coop: T[]; versus: T[] } {
+  const coop: T[] = [];
+  const versus: T[] = [];
+  for (const row of rows) {
+    if (row.versus) versus.push(row);
+    else coop.push(row);
+  }
+  return { coop, versus };
 }
 
 export function decorateListedRooms(rows: PublicRoomRow[], nowMs = Date.now()): DecoratedRoomRow[] {
@@ -118,15 +138,19 @@ export function publicRoomFromServer(row: {
   level?: number | string;
   players?: number | string;
   inGame?: boolean;
+  versus?: boolean;
   heartbeat?: unknown;
   heartbeatMs?: number;
 }): PublicRoomRow {
+  const versus = !!row.versus;
+  const cap = listingPlayerCap(versus);
   return {
     code: String(row.code || '').toUpperCase(),
     hostName: sanitizeListedName(String(row.hostName || '')),
     level: Math.max(1, Math.min(100, Math.floor(Number(row.level) || 1))),
-    players: Math.max(1, Math.min(ROOM_MAX_PLAYERS, Math.floor(Number(row.players) || 1))),
+    players: Math.max(1, Math.min(cap, Math.floor(Number(row.players) || 1))),
     inGame: !!row.inGame,
+    versus,
     heartbeatMs: row.heartbeatMs !== undefined ? row.heartbeatMs : heartbeatToMs(row.heartbeat),
   };
 }

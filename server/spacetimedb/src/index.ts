@@ -368,6 +368,7 @@ const spacetimedb = schema({
       level: t.u32(),
       players: t.u32(),
       inGame: t.bool(),
+      versus: t.bool(),
       heartbeat: t.timestamp(),
     }
   ),
@@ -2780,16 +2781,19 @@ function sweepStalePublicRooms(ctx: AnyCtx): void {
   }
 }
 
-function upsertPublicRoom(ctx: AnyCtx, code: string, hostName: string, level: number, players: number, inGame: boolean): void {
+function upsertPublicRoom(ctx: AnyCtx, code: string, hostName: string, level: number, players: number, inGame: boolean, versus: boolean): void {
   sweepStalePublicRooms(ctx);
   const existing = ctx.db.publicRoom.code.find(code);
+  const isVersus = !!versus;
+  const cap = isVersus ? 2 : 5;
   const row = {
     code,
     hostIdentity: ctx.sender,
     hostName: safeRoomName(hostName),
     level: Math.max(1, Math.min(MAX_LEVEL, Math.floor(level) || 1)),
-    players: Math.max(1, Math.min(5, Math.floor(players) || 1)),
+    players: Math.max(1, Math.min(cap, Math.floor(players) || 1)),
     inGame: !!inGame,
+    versus: isVersus,
     heartbeat: ctx.timestamp,
   };
   if (existing) {
@@ -2807,24 +2811,24 @@ function upsertPublicRoom(ctx: AnyCtx, code: string, hostName: string, level: nu
 }
 
 export const publishPublicRoom = spacetimedb.reducer(
-  { code: t.string(), hostName: t.string(), level: t.u32(), players: t.u32(), inGame: t.bool() },
-  (ctx, { code, hostName, level, players, inGame }) => {
+  { code: t.string(), hostName: t.string(), level: t.u32(), players: t.u32(), inGame: t.bool(), versus: t.bool() },
+  (ctx, { code, hostName, level, players, inGame, versus }) => {
     assertNotBanned(ctx);
     ensurePlayer(ctx);
     const clean = cleanRoomCode(code);
     if (clean.length !== 5) throw new Error('Bad room code');
-    upsertPublicRoom(ctx, clean, hostName, level, players, inGame);
+    upsertPublicRoom(ctx, clean, hostName, level, players, inGame, versus);
   }
 );
 
 export const heartbeatPublicRoom = spacetimedb.reducer(
-  { code: t.string(), hostName: t.string(), level: t.u32(), players: t.u32(), inGame: t.bool() },
-  (ctx, { code, hostName, level, players, inGame }) => {
+  { code: t.string(), hostName: t.string(), level: t.u32(), players: t.u32(), inGame: t.bool(), versus: t.bool() },
+  (ctx, { code, hostName, level, players, inGame, versus }) => {
     const clean = cleanRoomCode(code);
     if (clean.length !== 5) return;
     const existing = ctx.db.publicRoom.code.find(clean);
     if (existing && identityKey(existing.hostIdentity) !== identityKey(ctx.sender)) return;
-    upsertPublicRoom(ctx, clean, hostName || existing?.hostName || 'Pilot', level, players, inGame);
+    upsertPublicRoom(ctx, clean, hostName || existing?.hostName || 'Pilot', level, players, inGame, versus || !!existing?.versus);
   }
 );
 
@@ -2853,19 +2857,21 @@ export const listPublicRooms = spacetimedb.procedure(
   (ctx) => {
     return ctx.withTx(txCtx => {
       const now = timestampMicros(txCtx.timestamp as { microsSinceUnixEpoch?: bigint });
-      const rooms: Array<{ code: string; hostName: string; level: number; players: number; heartbeatMs: number }> = [];
+      const rooms: Array<{ code: string; hostName: string; level: number; players: number; versus: boolean; heartbeatMs: number }> = [];
       for (const row of [...txCtx.db.publicRoom.iter()]) {
         const beat = timestampMicros(row.heartbeat as { microsSinceUnixEpoch?: bigint; __timestamp_micros_since_unix_epoch__?: bigint });
         if (now && beat && now - beat > ROOM_TTL_US) {
           txCtx.db.publicRoom.delete(row);
           continue;
         }
-        if (row.inGame || row.players < 1 || row.players >= 5) continue;
+        const cap = row.versus ? 2 : 5;
+        if (row.inGame || row.players < 1 || row.players >= cap) continue;
         rooms.push({
           code: row.code,
           hostName: safeRoomName(row.hostName),
           level: row.level,
           players: row.players,
+          versus: !!row.versus,
           heartbeatMs: beat ? Math.floor(beat / 1000) : 0,
         });
       }

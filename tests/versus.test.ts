@@ -50,6 +50,26 @@ describe('versus pairing and fairness', () => {
     expect(pair?.guest.identity).toBe('b');
   });
 
+  it('only the newer host joins an older live rival, never both', () => {
+    const now = 1_000_000;
+    const a = { identity: 'a', name: 'Ada', ship: 'starter', kind: 'quick' as const, code: 'AAAAA', heartbeatMs: now - 4000 };
+    const b = { identity: 'b', name: 'Bea', ship: 'starter', kind: 'quick' as const, code: 'BBBBB', heartbeatMs: now };
+    expect(pickQuickMatch([a, b], 'b', now, b.heartbeatMs)?.code).toBe('AAAAA');
+    expect(pickQuickMatch([a, b], 'a', now, a.heartbeatMs)).toBeNull();
+  });
+
+  it('ignores stale queue rows so a live host is not baited into room-not-found', () => {
+    const now = 1_000_000;
+    const other = pickQuickMatch([
+      { identity: 'ghost', name: 'Gone', ship: 'starter', kind: 'quick', code: 'GHOST', heartbeatMs: now - 20_000 },
+      { identity: 'you', name: 'You', ship: 'starter', kind: 'quick', code: 'YOU12', heartbeatMs: now },
+    ], 'me', now);
+    expect(other?.code).toBe('YOU12');
+    expect(pickQuickMatch([
+      { identity: 'ghost', name: 'Gone', ship: 'starter', kind: 'quick', code: 'GHOST', heartbeatMs: now - 20_000 },
+    ], 'me', now)).toBeNull();
+  });
+
   it('picks another fresh quick waiter, never myself', () => {
     const now = Date.now();
     const other = pickQuickMatch([

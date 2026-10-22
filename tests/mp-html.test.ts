@@ -66,6 +66,7 @@ describe('multiplayer HTML wiring', () => {
   it('does not close a listing when the heartbeat is restarted', () => {
     const start = html.match(/function startRoomHeartbeat\(\) \{[\s\S]*?function stopRoomHeartbeat/)?.[0] || '';
     expect(start).toContain('pushRoomListing()');
+    expect(start).toContain('maybeJoinQueuedRival()');
     expect(start).not.toContain('stopRoomHeartbeat()');
     expect(html).toMatch(/try \{ st\.publishPublicRoom\(row\); net\.listed = true; \}/);
     expect(html).not.toMatch(/net\.listed \? st\.heartbeatPublicRoom : st\.publishPublicRoom/);

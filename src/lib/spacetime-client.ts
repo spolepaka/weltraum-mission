@@ -1501,15 +1501,17 @@ class SpacetimeClient {
     });
   }
 
-  publishPublicRoom(row: { code: string; hostName: string; level: number; players: number; inGame: boolean }): void {
+  publishPublicRoom(row: { code: string; hostName: string; level: number; players: number; inGame: boolean; versus?: boolean }): void {
     this.queueOrCallReducer(() => {
-      (this.connection?.reducers as { publishPublicRoom?: (a: typeof row) => void }).publishPublicRoom?.(row);
+      const payload = { ...row, versus: !!row.versus };
+      (this.connection?.reducers as { publishPublicRoom?: (a: typeof payload) => void }).publishPublicRoom?.(payload);
     });
   }
 
-  heartbeatPublicRoom(row: { code: string; hostName: string; level: number; players: number; inGame: boolean }): void {
+  heartbeatPublicRoom(row: { code: string; hostName: string; level: number; players: number; inGame: boolean; versus?: boolean }): void {
     this.queueOrCallReducer(() => {
-      (this.connection?.reducers as { heartbeatPublicRoom?: (a: typeof row) => void }).heartbeatPublicRoom?.(row);
+      const payload = { ...row, versus: !!row.versus };
+      (this.connection?.reducers as { heartbeatPublicRoom?: (a: typeof payload) => void }).heartbeatPublicRoom?.(payload);
     });
   }
 

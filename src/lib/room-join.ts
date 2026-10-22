@@ -86,3 +86,27 @@ export function shouldApplyLocalInput(opts: {
   if (opts.role === 'host' && opts.inGame && opts.curPid > 1) return false;
   return true;
 }
+
+/** Re-send `{t:"ready"}` after Approve in case PeerJS already fired `open`. */
+export const GUEST_READY_RETRY_MS = [0, 80, 250] as const;
+
+/** Guest waits this long for Approve / welcome after the data channel is up. */
+export const JOIN_APPROVE_WAIT_MS = 60_000;
+
+export function shouldAbandonQuickHost(opts: {
+  versus?: boolean;
+  vsKind?: string;
+  role?: string | null;
+  connected?: boolean;
+  inGame?: boolean;
+  pendingCount?: number;
+  guestCount?: number;
+  occupancy?: number;
+}): boolean {
+  if (!opts.versus || opts.vsKind !== 'quick' || opts.role !== 'host') return false;
+  if (opts.connected || opts.inGame) return false;
+  if ((opts.pendingCount || 0) > 0) return false;
+  if ((opts.guestCount || 0) > 0) return false;
+  if ((opts.occupancy || 1) > 1) return false;
+  return true;
+}

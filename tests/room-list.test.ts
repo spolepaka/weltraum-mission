@@ -14,8 +14,10 @@ import {
   isJoinableListing,
   isListingFresh,
   listingFreshness,
+  listingPlayerCap,
   pruneStaleRooms,
   publicRoomFromServer,
+  splitListedRooms,
   type PublicRoomRow,
 } from '../src/lib/room-list';
 
@@ -91,6 +93,19 @@ describe('public room list', () => {
     expect(heartbeatToMs(row.heartbeatMs)).toBe(now);
     expect(isListingFresh(row.heartbeatMs || 0, now)).toBe(true);
     expect(heartbeatToMs({ __timestamp_micros_since_unix_epoch__: BigInt(now) * 1000n })).toBe(now);
+  });
+
+  it('lists 1 vs 1 rooms on the publicRoom path, separate from co-op', () => {
+    expect(listingPlayerCap(true)).toBe(2);
+    expect(listingPlayerCap(false)).toBe(5);
+    expect(canPublishRoom({ isPublic: true, players: 1, versus: true })).toBe(true);
+    expect(isJoinableListing({ code: 'NEXA4', hostName: 'Ada', level: 1, players: 2, versus: true, heartbeatMs: now }, now)).toBe(false);
+    const split = splitListedRooms(decorateListedRooms([
+      { code: 'HACK3', hostName: 'Ada', level: 2, players: 1, heartbeatMs: now },
+      { code: 'NEXA4', hostName: 'Bea', level: 1, players: 1, versus: true, heartbeatMs: now },
+    ], now));
+    expect(split.coop.map((r) => r.code)).toEqual(['HACK3']);
+    expect(split.versus.map((r) => r.code)).toEqual(['NEXA4']);
   });
 
   it('only closes a listing when the host is actually leaving', () => {

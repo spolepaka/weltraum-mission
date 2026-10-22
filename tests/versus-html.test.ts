@@ -33,12 +33,23 @@ describe('versus HTML and module wiring', () => {
     expect(html).toContain('reportVersusResult');
     expect(html).toContain('versusDisconnectWin');
     expect(html).toContain('maybeJoinQueuedRival');
+    expect(html).toContain('shouldAbandonQuickHost');
+    expect(html).toContain('pickQuickMatch');
+    expect(html).toContain('t: "pending"');
+    expect(html).toContain('t: "ready"');
+    expect(html).toContain('GUEST_READY_RETRY_MS');
+    expect(html).toContain('JOIN_APPROVE_WAIT_MS');
+    expect(html).toContain('approvePendingGuest');
+    expect(html).toMatch(/versus:\s*versus/);
+    expect(html).toContain('splitListedRooms');
   });
 
   it('publishes a live versus_queue table with prize settlement', () => {
     expect(server).toMatch(/versusQueue:\s*table\(\s*\{\s*public:\s*true/);
     expect(server).toContain('versusSettled');
     expect(server).toContain('versusPrizeDay');
+    expect(server).toContain('versus: t.bool()');
+    expect(server).toContain('export const publishPublicRoom');
     expect(server).toContain('export const publishVersusQueue');
     expect(server).toContain('export const claimVersusQueue');
     expect(server).toContain('export const reportVersusResult');

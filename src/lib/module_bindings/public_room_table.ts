@@ -17,5 +17,6 @@ export default __t.row({
   level: __t.u32(),
   players: __t.u32(),
   inGame: __t.bool().name("in_game"),
+  versus: __t.bool(),
   heartbeat: __t.timestamp(),
 });
