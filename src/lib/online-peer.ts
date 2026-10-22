@@ -2,6 +2,7 @@
  * PeerJS loads only when the Online menu opens — not on a guest map visit.
  */
 import { importFresh } from './chunk-update';
+import { peerIceConfig } from './peer-ice';
 export type PeerCtor = new (id?: string | object, opts?: object) => {
   on: (ev: string, fn: (...args: unknown[]) => void) => void;
   connect: (id: string, opts?: object) => unknown;
@@ -18,12 +19,4 @@ export async function loadPeerConstructor(): Promise<PeerCtor> {
   return Peer;
 }
 
-export const PEER_ICE = {
-  debug: 0,
-  config: {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ],
-  },
-} as const;
+export const PEER_ICE = peerIceConfig();

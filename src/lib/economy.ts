@@ -42,6 +42,29 @@ export const SHIP_PRICES: Record<string, number> = {
   apexflash: 148000,
 };
 
+export const UPGRADE_PRICES: Record<string, number[]> = {
+  heart: [400],
+  rate: [80, 180, 320, 6000, 30000],
+  dmg: [120, 250, 450, 8000, 40000],
+  dur: [60, 140, 260],
+  mag: [50, 120, 220],
+};
+
+export function upgradeSalePrice(upgradeId: string, currentLevel: number): number | null {
+  const prices = UPGRADE_PRICES[upgradeId];
+  if (!prices || currentLevel < 0 || currentLevel >= prices.length) return null;
+  const p = prices[currentLevel];
+  return Number.isFinite(p) && p > 0 ? p : null;
+}
+
+export const UNLOCK_SHIPS: Record<string, { level?: number; ach?: string }> = {
+  frostwal: { level: 30 },
+  lindwurm: { level: 45 },
+  hydra: { level: 60 },
+  kaiserbrecher: { level: 90 },
+  regenbogen: { ach: 'combo25' },
+};
+
 export function isBossLevel(level: number): boolean {
   return level > 0 && (level % 3 === 0 || level === 100);
 }

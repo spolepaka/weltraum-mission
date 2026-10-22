@@ -1,6 +1,6 @@
 /** Typical L1–L5 spend so balance sims match a kid who shops after ~2-star clears. */
 
-import { isBossLevel as isBoss, levelClearBonus, typicalCollectedCoins } from './economy';
+import { isBossLevel as isBoss, levelClearBonus, typicalCollectedCoins, UPGRADE_PRICES } from './economy';
 
 export const EARLY_SHIPS: Array<{ id: string; price: number }> = [
   { id: 'starter', price: 0 },
@@ -16,13 +16,7 @@ export const EARLY_SHIPS: Array<{ id: string; price: number }> = [
   { id: 'koenig', price: 3000 },
 ];
 
-export const UPGRADE_PRICES: Record<string, number[]> = {
-  heart: [400],
-  rate: [80, 180, 320, 6000, 30000],
-  dmg: [120, 250, 450, 8000, 40000],
-  dur: [60, 140, 260],
-  mag: [50, 120, 220],
-};
+export { UPGRADE_PRICES };
 
 const UPGRADE_ORDER = ['heart', 'dmg', 'rate', 'mag', 'dur'] as const;
 

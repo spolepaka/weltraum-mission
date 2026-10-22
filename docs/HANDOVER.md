@@ -13,15 +13,15 @@ title: "Weltraum-Mission — Handover Document"
 | **Owner** | Suman Kumar Polepaka (GitHub: `spolepaka`) |
 | **Repository** | `github.com/spolepaka/weltraum-mission` (private) |
 | **Live site** | https://space-game-deploy.vercel.app |
-| **Code state** | `main` @ `1c9e5c6` (PR #15 merged). This document also covers the follow-up `/api/geo` + docs PR. |
-| **Document date** | 11 October 2026 (updated the same evening for PRs #13–#16) |
+| **Code state** | `main` @ `e1759f0` (PRs #1–#25 merged). Drafts stacked after that: #26 versus, then this catalog/TURN/docs PR. |
+| **Document date** | 22 October 2026 (covers PRs #17–#26 plus this follow-up) |
 | **Audience** | A new developer or owner taking over with no prior context |
 
 *Built for Joshi (9, German Gymnasium, plays on iPad) and his sister Amelia.*
 
 ## How to read this document
 
-- Facts were checked against the repository (`main` at `1c9e5c6` plus this follow-up), the GitHub PR list, the live site, and the published SpacetimeDB module on 11 Oct 2026. Anything not re-checked is marked **(unverified)**.
+- Facts were checked against the repository (`main` at `e1759f0` plus the versus and catalog drafts), the GitHub PR list, and the module source on 22 Oct 2026. Anything not re-checked is marked **(unverified)**.
 - All times are Europe/Berlin (CEST, UTC+2) unless marked otherwise.
 - No secrets, tokens or API keys appear here. Section 13 says where each one lives.
 - Start here, then use [DEPLOY.md](DEPLOY.md) for publish / Vercel / Firebase steps and the root [README.md](../README.md) for a short orientation.
@@ -52,12 +52,12 @@ title: "Weltraum-Mission — Handover Document"
 - **Client:** a large vanilla-JS game file (`public/index.html`, about 7,400 lines). Vite processes it, and TypeScript modules in `src/` add backend sync, i18n (English by default, German toggle), lazy level loading, onboarding, names, auth and update handling. Hosted on **Vercel** (project `space-game-deploy`). A second Vite entry (`admin.html`) is the unlinked `/admin` dashboard.
 - **Game data backend:** a **SpacetimeDB** TypeScript module named `weltraum-mission` on **Maincloud**. Players get an anonymous identity, progress syncs to the server, the server checks results for plausibility, levels 4–100 are only delivered once unlocked, and there is a weekly leaderboard, first-party analytics, admin reducers and presence.
 - **Accounts:** optional parent sign-in with **Firebase Auth** (Google and passwordless email link; Apple is wired but switched off). The Firebase ID token is passed to SpacetimeDB, which keeps all game data. Firebase auth is proxied through the game's own domain so sign-in works in iPad Safari. Guest progress can be linked / merged into a Google identity.
-- **Online co-op:** peer-to-peer over **PeerJS/WebRTC**, 2–5 players, joined by room code. There is no game server and no TURN relay. Co-op pays the same per player as solo; combat scales with player count.
+- **Online:** peer-to-peer over **PeerJS/WebRTC**. Co-op is 2–5 players by room code. **1 vs 1 versus** (PR #26) is a mirrored duel with SpacetimeDB matchmaking and a server-side prize. ICE uses free Google STUN; optional TURN is `VITE_TURN_URL` / `VITE_TURN_USERNAME` / `VITE_TURN_CREDENTIAL` (unset = STUN only). Co-op pays the same per player as solo; combat scales with player count.
 - **Geo / IP:** `GET /api/geo` is a self-contained Vercel Node function. Truncated IP, 30-day retention, `STORE_FULL_IP = false`. The signature is **best-effort and spoofable** (the fallback secret is in the public repo).
 
-**State at handover:** PRs #1–#15 are merged. The live site and Maincloud module were republished after #15 (`1c9e5c6`). Production `/api/geo` still returned `FUNCTION_INVOCATION_FAILED` until the follow-up fix in this PR (the function imported `../src/lib/geo-privacy`, which Vercel does not bundle for this Vite + `outputDirectory: dist` project).
+**State at handover:** PRs #1–#25 are on `main`. #26 (versus) and this follow-up (TURN config, upgrade catalog, 36 achievements, hearts, `addOwnedShip`, docs) are stacked drafts. `/api/geo` is self-contained (PR #16). Pilot names bind to the signed-in Firebase account (#24). Admins see a live online count and can grant roles (#25).
 
-**Pending:** Apple sign-in, a native iPad/mobile app, a TURN server for strict networks, aligning 36 client achievements with the 19-ID server whitelist, and deploying the `/api/geo` fix (client/Vercel only — no module republish).
+**Pending:** Apple sign-in, a native iPad/mobile app, a **hosted** TURN URL in Vercel env (code is ready), and a module republish for #24–#26 plus this catalog/achievement/`addOwnedShip` PR.
 
 ## 2. Game overview and features
 
@@ -72,7 +72,7 @@ title: "Weltraum-Mission — Handover Document"
 - **Laser grids:** about 3× rarer since v30 (at most 2 per level). They have 2 lines (3 from L40) with a wide gap.
 - **Later hazards** (at most 1 per level, from L30): Sonnenwind (solar wind push), Ionensturm (ion storm, halves fire rate), Magnet-Minen (magnet mines), Schild-Satellit (a shield satellite that protects UFOs).
 - **Power-ups:** shield, triple shot, extra heart, and others.
-- **Hearts:** capped since v30 at 3 for most ships and 4 for top-tier/special ships, per the progress log. The exact runtime rule was not re-traced (unverified).
+- **Hearts:** each ship uses the hearts on its definition (3–8) plus the one-time Extra Heart upgrade. The old 3/4 runtime cap is gone.
 - **Coins:** collected in-level, plus a level-end bonus that already includes Joshi's requested **10×** multiplier. They carry over to the map, persist after reload and sync to the server (PR #2). Server and client cap a single clear so one match cannot buy the late shop. **Co-op pays the same per player as solo** (PR #13).
 - **Stars** (up to 3 per level), best scores, **achievements** (the map shows "Achievements x/36"), **daily missions**, **records**.
 - **Ghost ship:** replays your best run of a level (toggle "Ghost: ON/OFF").
@@ -152,6 +152,7 @@ The codes are checked on the client and again on the server (`SECRET_CODES` in `
 
 - **Local 2-player on one iPad:** P1 controls the left side and P2 the right side ("2 Player: ON/OFF" toggle).
 - **Online co-op (PeerJS/WebRTC):** the host creates a 5-character room code and up to 4 friends join (5 players total). A 6th player sees "room is full", and someone joining mid-level sees "busy". Each player has their own hearts.
+- **1 vs 1 versus (PR #26):** Quick match or a private challenge code. Each player sees themselves at the bottom and the rival at the top. Fair 4-heart loadout, best of 3, disconnect = remaining player wins. Winner prize is 40 coins (daily cap 160), settled once on the server.
 - **Admission:** new players are admitted automatically by default (the room code is the secret). The host can turn on "Ask before letting people in", and can **Kick** or block players. Kicked players cannot rejoin. Joins are rate-limited to 3 per minute (`src/coop-security.ts`).
 - The host owns the game state. Guests receive snapshots, including solar wind and ion clouds.
 - **Room-full bug (PR #13):** Joshi alone in a room, friend with the correct code saw "room is full". Cause: sticky `currentPlayers++` on every hello (never reset in `netTeardown` / `hostRoom`), `net.guests.length` counted not-ok ghosts, and `already_pending` was reported as full. Rooms are PeerJS-only (no server room table). Fix: occupancy = `1 + approved peers`, reconnect of an approved peer is allowed, teardown calls `coop.reset()`, `already_pending` → denied not full.
@@ -245,7 +246,7 @@ flowchart LR
    - Guests connect with no token and get an anonymous identity, whose token is stored in `localStorage`. A `player` row is minted only after a real action (`ensurePlayerRow`), not on every socket.
    - Signed-in parents connect with `.withToken(firebaseIdToken)`. The module trusts only anonymous identities or the issuer `https://securetoken.google.com/weltraum-mission`.
 3. Gameplay runs **on the client**. The server stores progress and checks submitted results for plausibility: level bounds, score, **per-level coin cap** (`maxCoinsForLevel`, same for 1–5p), time between 3 s and 10 min, and level gating.
-4. **Online co-op** is direct peer-to-peer WebRTC. PeerJS's public broker is only used for signalling, and there is no TURN relay.
+4. **Online** is direct peer-to-peer WebRTC. PeerJS's public broker is only used for signalling. ICE is Google STUN plus optional TURN from `VITE_TURN_*`. Versus matchmaking and the winner prize live on SpacetimeDB; the match itself is still host-sim.
 5. **Update safety:** each build writes `/version.json` (served no-store). When the build ID changes and the player is on the map, the client reloads itself. A missing old chunk (`vite:preloadError`) saves state and reloads once.
 
 **Main client files:** `src/main.ts` (boot), `src/game-integration.ts` (bridge to the game via `window.__weltraum`), `src/lib/spacetime-client.ts` (connection, sync, reducers), `src/lib/firebase-auth*.ts`, `src/lib/chunk-update.ts`, `src/lib/level-catalog.ts` / `level-runtime.ts` (lazy levels), `src/lib/economy.ts`, `src/lib/coop-scale.ts`, `src/coop-security.ts`, `src/admin.ts`.
@@ -253,7 +254,7 @@ flowchart LR
 ## 4. Repository layout
 
 ```
-weltraum-mission/                 (main @ 1c9e5c6 + this follow-up)
+weltraum-mission/                 (main @ e1759f0 + versus / catalog drafts)
 ├── index.html                    Vite entry stub; real game HTML injected by vite.config.ts
 ├── admin.html                    Unlinked /admin entry (English only)
 ├── api/geo.ts                    Self-contained Vercel Node function (no ../src imports)
@@ -269,13 +270,13 @@ weltraum-mission/                 (main @ 1c9e5c6 + this follow-up)
 │                                 tips, display-names, name-words, difficulty, weekly,
 │                                 analytics, coin-ledger, validation, typical-loadout,
 │                                 economy, coop-scale, geo-privacy, empty-guest,
-│                                 online-peer, auth-trust, module_bindings/ (generated)
+│                                 online-peer, peer-ice, versus, versus-queue, auth-trust, module_bindings/ (generated)
 ├── server/
 │   ├── spacetime.json            {"module-path":"./spacetimedb","server":"maincloud"}
 │   ├── spacetime.local.json      {"database":"server-xy3y2"}  (see risk note in §11)
 │   └── spacetimedb/src/          index.ts, auth-trust.ts, level-catalog.ts,
 │                                 display-names.ts, legacy-import.ts, economy.ts,
-│                                 admin.ts, geo.ts
+│                                 admin.ts, geo.ts, online.ts, versus.ts
 ├── tests/                        vitest + Playwright
 ├── tools/                        smoke/sim/bot scripts, e2e & firebase test runners
 ├── docs/                         HANDOVER.md, DEPLOY.md, roadmap.md, progress-log.md,
@@ -461,7 +462,7 @@ Schema changes must be additive. Never `--delete-data` on production.
 - `errorReport` table and `spacetime logs weltraum-mission`.
 - Account panel debug line: `auth: popup|redirect · err: … · firebase: yes|no · issuer: anon|firebase`.
 - Admin `/admin` for player list, presence, purge, audit.
-- Co-op failures across networks: no TURN (§11).
+- Co-op failures across networks: STUN-only until `VITE_TURN_*` is set (§11).
 
 ### 7.7 Cost (all free tiers, per the owner; plans not visible from the repo)
 
@@ -535,11 +536,22 @@ All PRs were opened from `cursor/*` branches and squash-merged into `main`. Merg
 | 13 | feat: coin caps, room-full fix, co-op scaling, admin panel | 11 Oct | Per-level coin cap (co-op = solo), occupancy fix, HP×n / spawn / atk scaling, `/admin` with server-side email gate + audit. |
 | 14 | fix: admin JWT on procedures, boss portraits above map planets | 11 Oct | `bindAdminCtx` so procedures see Firebase JWT; map draw-order so motherships sit on top of planets. |
 | 15 | feat: lazy player mint, guest/Google reconcile, admin detail + geo | 11 Oct | Guests not minted on connect; `linkGuestIdentity`; admin detail / filters / `PURGE`; `/api/geo` + 30-day truncated presence. E2E refuses production. |
-| 16 | fix: self-contained `/api/geo` + handover docs | (this PR) | Inline geo helpers so Vercel no longer 500s. `docs/HANDOVER.md` + README refresh. **Client deploy only.** |
+| 16 | fix: self-contained `/api/geo` + handover docs | 11 Oct | Inline geo helpers so Vercel no longer 500s. `docs/HANDOVER.md` + README refresh. **Client deploy only.** |
+| 17 | feat: co-op targeting, public room list, 1M coin clamp, host migration | Oct 2026 | Aim-at-living-ships, public rooms, host handoff when the host leaves, 1M coin clamp. **Republish.** |
+| 18 | feat: Tesla Roadster hangar | Oct 2026 | Photo sprites, rocket boost, barrel roll. Client + ship catalog. |
+| 19 | fix: slower Roadster flip, no side drift, full i-frames | Oct 2026 | Flip feel. Client only. |
+| 20 | Live public rooms on the first Online Co-op screen | Oct 2026 | `publicRoom` live subscription. **Republish.** |
+| 21 | fix: public rooms deleted by Peer-open heartbeat restart | Oct 2026 | Heartbeat no longer closes the listing. |
+| 22 | fix: listed rooms not-found and solo host two ships | Oct 2026 | Wait for Peer open; occupancy-based ship count. |
+| 23 | fix: guest Roadster flip/boost over PeerJS | Oct 2026 | Guest sends flip/boost; host sim applies it. |
+| 24 | fix: bind pilot name and progress to the signed-in account | Oct 2026 | Firebase UID owns the name; logout wipes local guest state. **Republish.** |
+| 25 | feat: live online count and grantable admin roles | Oct 2026 | Presence + `adminRole`; owner unremovable; seed Joshi. **Republish.** |
+| 26 | feat: 1 vs 1 versus mode | draft | Quick match + challenge, mirrored arena, best of 3, server prize. **Republish.** |
+| — | TURN config, upgrade catalog, 36 achievements, hearts, `addOwnedShip`, docs | this PR | Optional TURN env, server upgrade prices, all 36 ACH ids, no 3/4 heart cap, `addOwnedShip` admin-only + `claimUnlockShip`. **Republish.** |
 
 PR #10 was opened before #11 but merged after it.
 
-**PRs that needed a module republish:** #2, #3, #5, #6, #7, #8, #10, #13, #14, #15. #12 and #16 are client / docs / Vercel-function only.
+**PRs that needed a module republish:** #2, #3, #5, #6, #7, #8, #10, #13, #14, #15, #17, #20, #24, #25, #26, and this catalog/`addOwnedShip` PR. Client-only: #4, #9, #11, #12, #16, #18, #19, #21, #22, #23. Publish #24–#26 and this PR together if they are not live yet.
 
 ## 10. Bugs fixed
 
@@ -567,12 +579,18 @@ PR #10 was opened before #11 but merged after it.
 | Boss portraits hidden under map planets | `procPlanet` painted after mothership | Draw mothership first; never paint styled planet over a boss (PR #14) |
 | Admin list full of empty "ghost" users | Test runs on prod, crawlers, connect-on-load minted every socket | Lazy `ensurePlayerRow`; E2E refuses Maincloud; hide/purge empty guests (PR #15) |
 | Production `GET /api/geo` → 500 `FUNCTION_INVOCATION_FAILED` | Function imported `../src/lib/geo-privacy`; Vite `outputDirectory: dist` does not bundle `src/` into the Node function | Self-contained `api/geo.ts` + isolated-build test (PR #16) |
+| After logout, the next kid inherited the previous pilot name and coins | Display name and local save were device-scoped, not bound to the Firebase UID | Name keyed by `firebaseSub`; logout wipes local guest state and reloads (PR #24) |
+| Some networks could not join online rooms | ICE used only free Google STUN; no TURN hook | `VITE_TURN_*` ICE config; STUN-only until a hosted relay is set (this PR) |
+| Shop upgrades could be bought at a made-up price | `purchaseUpgrade` trusted the client-sent `price` | Server charges `upgradeSalePrice` from the shared catalog (this PR) |
+| Map said 36 achievements but many unlocks were rejected | Server allow-list was the old 19 ids | Server accepts all 36 client ids plus legacy aliases (this PR) |
+| Late ships showed 3–4 hearts instead of 5–8 | Runtime `Math.min` capped hearts by tier/price | Hearts = ship definition + optional Extra Heart (this PR) |
+| Anyone could grant themselves a ship | Public `addOwnedShip` reducer had no admin check | `addOwnedShip` is admin-only; unlock rewards use `claimUnlockShip` (this PR) |
 
 ## 11. Known issues, risks and tech debt
 
 | Area | Issue | Suggested action |
 |---|---|---|
-| Networking | **No TURN server.** Co-op can fail on strict school or hotel NATs. | Add a hosted TURN service (coturn, Twilio or Cloudflare) and put it in the PeerJS config |
+| Networking | TURN is **config-ready** (`VITE_TURN_URL` / `USERNAME` / `CREDENTIAL`) but no free hosted relay is set. Strict NATs still fail on STUN-only. | Add a hosted TURN (coturn, Twilio or Cloudflare) and set the three Vercel env vars |
 | Code structure | The game is one ~7,400-line vanilla-JS file (built `index.html` is large). It is hard to test and to change. | Gradually move it into TS modules (the roadmap plans PIXI.js and authoritative rooms) |
 | Security | CSP needs `'unsafe-eval'` (the SpacetimeDB SDK uses `new Function`) and `'unsafe-inline'` (the inline game script) | Move inline scripts into files; recheck when the SDK changes |
 | Anti-cheat | Gameplay runs on the client. The server only checks plausibility (caps per level, time, gating), so a determined user can still forge results within the caps. | Fine for a family game; needed before any prize leaderboards |
@@ -580,8 +598,7 @@ PR #10 was opened before #11 but merged after it.
 | Secret codes | The codes appear in the client source, and `JOSHIE1000000` grants 1M coins | Accept, or move code validation to the server only and rotate the codes |
 | Publishing | `server/spacetime.local.json` still contains `"database": "server-xy3y2"`, a leftover default. A bare `spacetime publish` might target that database instead of production. | Always run `spacetime publish weltraum-mission`; consider fixing or removing the file |
 | Data safety | Maincloud free tier: no backups mentioned, and the database pauses after inactivity (per the roadmap) | Export data periodically; consider Pro |
-| Achievements | The client still shows **36** achievements (`ACH` in `public/index.html`) but the server whitelist (`VALID_ACHIEVEMENTS`) has **19** IDs. `unlockAchievement` may reject the rest. | Align the lists |
-| Hearts data | Ship definitions contain `hearts: 6/7`, while the log says hearts are capped at 3–4. The cap is presumably applied elsewhere (unverified). | Document the real rule in code |
+| Achievements | Client `ACH` has 36 ids. The server now accepts those 36 plus the old 19-id aliases. | Republish so unlocks stick |
 | Repo hygiene | `tools/` contains about 80 balance-run scratch files (`r*_*.jsonl`, `tune*.json`) | Move to an archive folder or delete |
 | CI coverage | The E2E, WebKit, Firebase and multiplayer suites are excluded from `npm test` and CI | Add a nightly Playwright job |
 | Custom domain | The first-party auth fix is hard-wired to `space-game-deploy.vercel.app` | If the domain changes, update `firebase-config.ts`, the authorized domains and the OAuth redirect URI |
@@ -599,8 +616,8 @@ Fixed since the earlier draft of this document and **removed** from the list: ou
 
 1. **Apple sign-in:** set up Apple in the Firebase console and an Apple Developer Services ID and key, then set `VITE_FIREBASE_APPLE_ENABLED=1` and redeploy. No code change is expected.
 2. **Native iPad/mobile app:** wrap in Capacitor and add `@capacitor-firebase/authentication`. Keep the same Firebase project and the SpacetimeDB `.withToken` flow (steps in `docs/DEPLOY.md`). Consider making it a PWA first.
-3. **TURN server** for reliable online co-op.
-4. Deploy the `/api/geo` fix (this PR) so admin presence works on production.
+3. **Hosted TURN:** set `VITE_TURN_URL` / `VITE_TURN_USERNAME` / `VITE_TURN_CREDENTIAL` on Vercel once a relay exists. Code already reads them.
+4. **Module republish** for #24 (names), #25 (online/admin), #26 (versus queue + prize), and this PR (upgrade catalog, 36 achievements, `claimUnlockShip`).
 
 **Long term** (from `docs/roadmap.md` v3.4, "Path to AAA"):
 
@@ -617,14 +634,14 @@ Fixed since the earlier draft of this document and **removed** from the list: ou
 | Asset | Identifier | Owner / access | Where config or credentials live |
 |---|---|---|---|
 | GitHub repo | `spolepaka/weltraum-mission` (private) | Suman (`spolepaka`) | GitHub. Agents use the GitHub connector or `gh` on the box. |
-| Vercel project | `space-game-deploy` (scope `spolepakas-projects`) → https://space-game-deploy.vercel.app | Suman | Vercel dashboard → Settings → Environment Variables (`VITE_FIREBASE_*`). Do **not** set `GEO_SIGNING_SECRET` unless all three fallbacks change together. The project link is in `.vercel/project.json`. |
+| Vercel project | `space-game-deploy` (scope `spolepakas-projects`) → https://space-game-deploy.vercel.app | Suman | Vercel dashboard → Settings → Environment Variables (`VITE_FIREBASE_*`, optional `VITE_TURN_URL` / `VITE_TURN_USERNAME` / `VITE_TURN_CREDENTIAL`). Do **not** set `GEO_SIGNING_SECRET` unless all three fallbacks change together. The project link is in `.vercel/project.json`. |
 | SpacetimeDB | Maincloud database `weltraum-mission` (identity `c200489a…471322`) | Suman's SpacetimeDB account | SpacetimeDB dashboard (trusted OIDC issuer). CLI login on the box: `~/.config/spacetime` / `~/.local/share/spacetime`. |
 | Firebase | Project `weltraum-mission`, auth domain `weltraum-mission.firebaseapp.com` | sumankpolepaka@gmail.com | Firebase console (sign-in methods, authorized domains), Google Cloud console (OAuth client redirect URIs). The web config is held only in Vercel env vars and local `.env.local`, never in git. |
 | Firebase emulator | `demo-weltraum` (`.firebaserc`) | n/a | Local tests only, no real project |
 | Apple Developer | Not set up yet | n/a | n/a |
 | PeerJS broker | Public `0.peerjs.com` | Third party | No account |
 | Domain | Vercel subdomain only, no custom domain | n/a | n/a |
-| Admin email | `sumankpolepaka@gmail.com` | Hard-coded in `server/spacetimedb/src/admin.ts` (`ADMIN_EMAILS`) | Server-side JWT check only |
+| Admin email | `sumankpolepaka@gmail.com` (owner, unremovable). Seed admin `joshiepolepaka@gmail.com` (PR #25). | `server/spacetimedb/src/admin.ts` + `adminRole` table | Owner grants/revokes other admins in `/admin` |
 
 **Handover checklist for a new owner:**
 
@@ -632,7 +649,7 @@ Fixed since the earlier draft of this document and **removed** from the list: ou
 2. Transfer the Vercel project, or redeploy under a new account and update the domain.
 3. Add the new owner as a collaborator on the SpacetimeDB database, or transfer it. Never re-create it, because a new database starts with empty data.
 4. Add the new owner as Firebase project Owner.
-5. Add their email to `ADMIN_EMAILS` and republish the module.
+5. Grant them an `adminRole` from `/admin` (the owner email in `admin.ts` is unremovable). Republish only if that owner email itself changes.
 6. Re-issue the CLI logins on their own machine.
 
 ## 14. Glossary
@@ -647,7 +664,7 @@ Fixed since the earlier draft of this document and **removed** from the list: ou
 | **Identity** | SpacetimeDB's player ID: anonymous, or derived from issuer + subject of a Firebase token |
 | **Firebase Auth / ID token** | Google's sign-in service and the JWT it issues, which is passed to SpacetimeDB |
 | **authDomain / ITP** | The Firebase setting for which host serves auth pages. ITP is Safari's tracking prevention, which breaks third-party auth storage. |
-| **PeerJS / WebRTC / STUN / TURN** | Browser P2P networking. STUN finds a route between peers; TURN relays traffic when no direct route exists (not used here). |
+| **PeerJS / WebRTC / STUN / TURN** | Browser P2P networking. STUN finds a route between peers; TURN relays traffic when no direct route exists. Code reads optional `VITE_TURN_*`; unset = STUN only. |
 | **Gated / lazy levels** | Levels 4–100 are delivered by the server only once unlocked, then cached |
 | **importProgress / legacyImport / linkGuestIdentity** | Merging guest data into an account, a one-time catch-up for devices ahead of the server, and an explicit guest-hex link |
 | **ensurePlayerRow** | Explicit mint of a `player` row. Guests are not created on mere connect. |

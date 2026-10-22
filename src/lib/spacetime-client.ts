@@ -1188,7 +1188,7 @@ class SpacetimeClient {
     }
 
     this.queueOrCallReducer(() => {
-      this.connection?.reducers.addOwnedShip({ shipId });
+      (this.connection?.reducers as { claimUnlockShip?: (a: { shipId: string }) => void }).claimUnlockShip?.({ shipId });
     });
   }
 

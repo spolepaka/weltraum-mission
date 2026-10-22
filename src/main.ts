@@ -36,6 +36,7 @@ import {
 } from './lib/firebase-auth';
 import { mergeCoins, shouldAcceptServerCoins } from './lib/coin-ledger';
 import { loadPeerConstructor } from './lib/online-peer';
+import { peerIceConfig } from './lib/peer-ice';
 import {
   ensureLevel,
   prefetchUnlocked,
@@ -159,7 +160,8 @@ export interface WeltraumApi {
     bundled: (level: number) => boolean;
     prefetchLog: number[];
   };
-  loadPeer: () => Promise<unknown>;
+    loadPeer: () => Promise<unknown>;
+    peerIce: ReturnType<typeof peerIceConfig>;
   names: {
     current: () => { name: string; kind: NameKind } | null;
     generate: (lang?: 'en' | 'de') => string;
@@ -625,6 +627,7 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       client.addOwnedShip(shipId);
       client.equipShip(shipId);
     },
+    peerIce: peerIceConfig(),
     roadsters: {
       list: ROADSTERS,
       draw: drawRoadster,

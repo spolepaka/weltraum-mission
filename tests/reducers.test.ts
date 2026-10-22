@@ -17,9 +17,17 @@ const VALID_SHIPS = new Set([
 ]);
 
 const VALID_ACHIEVEMENTS = new Set([
-  'firstWin', 'combo10', 'combo25', 'boss3', 'boss10', 'noHit', 'speedrun',
-  'coins1k', 'coins10k', 'coins100k', 'allShips', 'maxUpgrades', 'level25',
-  'level50', 'level75', 'level100', 'perfect3', 'missions10', 'sessions50'
+  'first', 'lv10', 'lv50', 'max12', 'max25', 'max50', 'max75', 'max100',
+  'rock100', 'rock1k', 'rock10k', 'ufo25', 'ufo250',
+  'boss1', 'boss10', 'boss30', 'comet5',
+  'combo10', 'combo25', 'combo50',
+  'coin1k', 'coin10k', 'coin100k',
+  'star25', 'three10', 'three40', 'pow50',
+  'nohit1', 'nohit10', 'ships5', 'ships15',
+  'golden', 'treasure', 'twoP', 'online', 'ghost',
+  'firstWin', 'boss3', 'noHit', 'speedrun',
+  'coins1k', 'coins10k', 'coins100k', 'allShips', 'maxUpgrades',
+  'level25', 'level50', 'level75', 'level100', 'perfect3', 'missions10', 'sessions50',
 ]);
 
 const SECRET_CODES: Record<string, { key: string; coins: number }> = {
@@ -79,8 +87,11 @@ describe('Ship Validation', () => {
 describe('Achievement Validation', () => {
   it('accepts valid achievements', () => {
     expect(validateAchievement('firstWin')).toBe(true);
+    expect(validateAchievement('first')).toBe(true);
     expect(validateAchievement('combo25')).toBe(true);
     expect(validateAchievement('level100')).toBe(true);
+    expect(validateAchievement('max100')).toBe(true);
+    expect(validateAchievement('ghost')).toBe(true);
   });
 
   it('rejects invalid achievements', () => {
