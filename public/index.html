@@ -45,6 +45,8 @@
   #missedList div { font-size: 18px; padding: 3px 0; }
   #missedList b { color: #ffd54a; }
   .hidden { display: none !important; }
+  #sessionGate { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: rgba(5,8,22,.92); }
+  #sessionGate .panel { pointer-events: none; }
   #power { position: absolute; top: calc(56px + env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 6px; z-index: 2; pointer-events: none; }
   #power .pw { background: rgba(20,30,70,.8); border: 2px solid #7dffea; border-radius: 12px; padding: 3px 10px; font-size: 17px; }
   #power .bar { height: 5px; background: #7dffea; border-radius: 3px; margin-top: 3px; }
@@ -361,6 +363,7 @@
 </style>
 </head>
 <body>
+<div id="sessionGate" class="hidden"><div class="panel"><h1 id="sessionGateTitle">Loading your account…</h1></div></div>
 <canvas id="game"></canvas>
 
 <div id="hud" class="hidden">
@@ -6249,6 +6252,13 @@
     $("accountReplay").textContent = tr("account.replayTutorial");
     $("trainBanner").textContent = tr("tips.trainHud");
   }
+  function finishWelcome() {
+    $("welcomeScreen").classList.add("hidden");
+    var api = onboardApi();
+    if (api) api.markWelcome(api.loadOnboard());
+    persistOnboard();
+    startGame(0, { training: true });
+  }
   function acceptWelcome() {
     var names = window.__weltraum && window.__weltraum.names;
     var shown = $("welcomeNameShow").textContent || "";
@@ -6259,15 +6269,18 @@
         showBadNameHint($("welcomeOwnHint"));
         return;
       }
-      if (names) names.save(checked.name, "custom");
-    } else if (names) {
-      names.save(shown, "generated");
+      Promise.resolve(names ? names.save(checked.name, "custom") : checked).then(function (out) {
+        if (!out || !out.ok) {
+          if (out && out.reason === "taken") showTakenNameHint($("welcomeOwnHint"));
+          else showBadNameHint($("welcomeOwnHint"));
+          return;
+        }
+        finishWelcome();
+      });
+      return;
     }
-    $("welcomeScreen").classList.add("hidden");
-    var api = onboardApi();
-    if (api) api.markWelcome(api.loadOnboard());
-    persistOnboard();
-    startGame(0, { training: true });
+    if (names) names.save(shown, "generated");
+    finishWelcome();
   }
   function persistOnboard() {
     var api = onboardApi();
@@ -6568,18 +6581,54 @@
   function maybePickName() {
     var names = window.__weltraum && window.__weltraum.names;
     if (!names) return;
-    if (names.current()) return;
+    if (names.current() && !(names.needsPick && names.needsPick())) return;
     $("namePickTitle").textContent = tr("tips.pickName");
     $("namePickReroll").textContent = tr("account.reroll");
     fillNameChoices("namePickChoices", "namePickShow");
     $("namePickScreen").classList.remove("hidden");
   }
+  function showTakenNameHint(el) {
+    if (!el) return;
+    el.classList.add("bad");
+    el.textContent = tr("tips.nameTaken");
+  }
+  function finishNameSave(out, okEl) {
+    if (out && out.ok) {
+      if (okEl) okEl.textContent = tr("tips.nameSaved");
+      applyAllI18n();
+      refreshAccountBtn();
+      return true;
+    }
+    if (out && out.reason === "taken") showTakenNameHint(okEl || $("accountNote"));
+    else showBadNameHint(okEl || $("accountNote"));
+    return false;
+  }
+  function maybeImportGuestProgress() {
+    var acc = window.__weltraum && window.__weltraum.account;
+    if (!acc || !acc.pendingImport || !acc.pendingImport()) return;
+    var title = tr("account.importGuestTitle");
+    var body = tr("account.importGuestBody");
+    var yes = tr("account.importGuestYes");
+    var no = tr("account.importGuestNo");
+    var ask = window.__spaceGame && window.__spaceGame.askImportGuest;
+    Promise.resolve(ask ? ask(title, body, yes, no) : false).then(function (ok) {
+      return acc.importGuestIfAgreed(!!ok);
+    }).then(function () {
+      applyAllI18n();
+      maybePickName();
+    });
+  }
   function acceptPickedName() {
     var names = window.__weltraum && window.__weltraum.names;
     var shown = $("namePickShow").textContent || "";
-    if (names) names.save(shown, "generated");
-    $("namePickScreen").classList.add("hidden");
-    refreshAccountBtn();
+    Promise.resolve(names ? names.save(shown, "generated") : { ok: true, name: shown }).then(function (out) {
+      if (!out || !out.ok) {
+        finishNameSave(out, $("namePickTitle"));
+        return;
+      }
+      $("namePickScreen").classList.add("hidden");
+      refreshAccountBtn();
+    });
   }
 
   function updateMap(dt) {
@@ -7402,13 +7451,13 @@
   $("winNext").addEventListener("click", goToMap);
   $("helpBtn").addEventListener("click", function () { $("helpScreen").classList.remove("hidden"); });
   $("helpClose").addEventListener("click", function () { $("helpScreen").classList.add("hidden"); });
-  var cfYesFn = null;
-  function askConfirm(title, text, yesLabel, fn) {
-    $("cfTitle").textContent = title; $("cfText").innerHTML = text; $("cfYes").textContent = yesLabel; cfYesFn = fn;
+  var cfYesFn = null, cfNoFn = null;
+  function askConfirm(title, text, yesLabel, fn, noFn) {
+    $("cfTitle").textContent = title; $("cfText").innerHTML = text; $("cfYes").textContent = yesLabel; cfYesFn = fn; cfNoFn = noFn || null;
     $("confirmScreen").classList.remove("hidden");
   }
-  $("cfNo").addEventListener("click", function () { audio(); $("confirmScreen").classList.add("hidden"); cfYesFn = null; });
-  $("cfYes").addEventListener("click", function () { audio(); $("confirmScreen").classList.add("hidden"); var f = cfYesFn; cfYesFn = null; if (f) f(); });
+  $("cfNo").addEventListener("click", function () { audio(); $("confirmScreen").classList.add("hidden"); var n = cfNoFn; cfYesFn = null; cfNoFn = null; if (n) n(); });
+  $("cfYes").addEventListener("click", function () { audio(); $("confirmScreen").classList.add("hidden"); var f = cfYesFn; cfYesFn = null; cfNoFn = null; if (f) f(); });
   $("resetBtn").addEventListener("click", function () {
     audio();
     askConfirm("↺ " + tr("resetTitle"), tr("resetBody"), tr("resetYes"), function () {
@@ -7454,6 +7503,44 @@
   resize();
   goToMap();
   setTimeout(bootOnboarding, 60);
+  try {
+    if (localStorage.getItem("spaceMissionFirebaseAuth")) {
+      $("sessionGate").classList.remove("hidden");
+      if ($("sessionGateTitle")) $("sessionGateTitle").textContent = tr("account.loadingAccount");
+    }
+  } catch (e) {}
+  function onSessionTick(raw) {
+    try {
+      var ev = raw ? JSON.parse(raw) : null;
+      if (!ev || (ev.type !== "logout" && ev.type !== "login")) return;
+      window.location.reload();
+    } catch (err) {}
+  }
+  window.addEventListener("storage", function (e) {
+    if (e.key === "spaceMissionSessionTick" || e.key === "spaceMissionFirebaseAuth") onSessionTick(e.newValue || e.oldValue);
+  });
+  try {
+    var sessionCh = new BroadcastChannel("weltraum-session");
+    sessionCh.onmessage = function (msg) {
+      if (msg && msg.data && (msg.data.type === "logout" || msg.data.type === "login")) window.location.reload();
+    };
+  } catch (e) {}
+  (function watchAccountReady() {
+    var acc = window.__weltraum && window.__weltraum.account;
+    if (!acc || !acc.onChange) {
+      if ((watchAccountReady.tries || 0) < 40) {
+        watchAccountReady.tries = (watchAccountReady.tries || 0) + 1;
+        setTimeout(watchAccountReady, 50);
+      }
+      return;
+    }
+    acc.onChange(function () {
+      applyAllI18n();
+      refreshAccountBtn();
+      maybeImportGuestProgress();
+      maybePickName();
+    });
+  })();
   requestAnimationFrame(loop);
 
   // Test-Helfer
@@ -7596,16 +7683,82 @@
     },
     applyRemoteProgress: function (p) {
       p = p || {};
+      var replace = !!p.replace;
       var coins = Math.max(0, Math.floor(Number(p.coins) || 0));
-      if (coins > shop.coins) shop.coins = coins;
-      if (p.unlocked) progress.unlocked = Math.max(progress.unlocked || 1, Math.floor(p.unlocked) || 1);
+      if (replace) shop.coins = coins;
+      else if (coins > shop.coins) shop.coins = coins;
+      if (p.unlocked) {
+        var unlocked = Math.max(1, Math.floor(p.unlocked) || 1);
+        progress.unlocked = replace ? unlocked : Math.max(progress.unlocked || 1, unlocked);
+      }
       if (p.ships && p.ships.length) {
-        var have = {};
-        (shop.owned || []).concat(p.ships).forEach(function (s) { if (s) have[s] = 1; });
-        shop.owned = Object.keys(have);
+        if (replace) shop.owned = p.ships.slice();
+        else {
+          var have = {};
+          (shop.owned || []).concat(p.ships).forEach(function (s) { if (s) have[s] = 1; });
+          shop.owned = Object.keys(have);
+        }
         if (p.equipped) shop.equipped = p.equipped;
+      } else if (replace && p.equipped) {
+        shop.equipped = p.equipped;
+        if ((shop.owned || []).indexOf(p.equipped) < 0) shop.owned.push(p.equipped);
+      }
+      if (replace && p.upgrades) {
+        shop.up = shop.up || {};
+        ["heart", "rate", "dmg", "dur", "mag"].forEach(function (k) {
+          shop.up[k] = Math.max(0, p.upgrades[k] | 0);
+        });
+      }
+      if (replace && p.stars) progress.stars = p.stars;
+      if (replace && p.achievements) {
+        achDone = {};
+        p.achievements.forEach(function (id) { if (id) achDone[id] = 1; });
+        save("spaceMissionAch", JSON.stringify(achDone));
+        updateAchBtn();
+      }
+      if (replace && p.onboardDone) {
+        var ob = onboardApi();
+        if (ob) ob.markAllDone(ob.loadOnboard(), true);
       }
       saveShop(); saveProgress(); updateMapHud(); if (shopOpen) renderShop();
+      if (typeof updateHud === "function") updateHud();
+      if (typeof goToMap === "function" && replace && state === "map") goToMap(false);
+    },
+    resetToFreshPlayer: function (guestName) {
+      shop = newShop(); saveShop();
+      progress = { unlocked: 1, stars: {}, best: {}, failed: 0, onboard: null }; saveProgress();
+      achDone = {}; save("spaceMissionAch", JSON.stringify(achDone));
+      rec = {}; REC_KEYS.forEach(function (k) { rec[k] = 0; }); saveRec();
+      ghosts = {}; saveGhosts();
+      daily = null; try { localStorage.removeItem("spaceMissionDaily"); } catch (e) {}
+      skinSel = "std"; save("spaceMissionSkin", "std");
+      try {
+        localStorage.removeItem("spaceMissionSecret2");
+        localStorage.removeItem("spaceMissionSecretAmelia");
+        localStorage.removeItem("spaceMissionSecretMillion");
+        localStorage.removeItem("spaceMissionOnboardV1");
+        localStorage.removeItem("spaceMissionOnboard");
+        localStorage.removeItem("spaceMissionTipsV1");
+        localStorage.removeItem("spaceMissionBest");
+      } catch (e) {}
+      updateAchBtn();
+      updateMapHud();
+      if (shopOpen) renderShop();
+      $("welcomeScreen").classList.remove("hidden");
+      $("namePickScreen").classList.add("hidden");
+      $("accountScreen").classList.add("hidden");
+      $("shopScreen").classList.add("hidden");
+      if (typeof showWelcome === "function") showWelcome();
+      void guestName;
+    },
+    applyAccountSnapshot: function (p) {
+      window.__spaceGame.applyRemoteProgress(Object.assign({ replace: true }, p || {}));
+    },
+    askImportGuest: function (title, body, yes, no) {
+      return new Promise(function (resolve) {
+        $("cfNo").textContent = no || tr("confirm.no");
+        askConfirm(title, body, yes, function () { resolve(true); }, function () { resolve(false); });
+      });
     },
     unlockTo: function (L) {
       progress.unlocked = Math.max(progress.unlocked, Math.max(1, Math.min(MAX_LEVEL_C, L | 0)));
@@ -7840,6 +7993,7 @@
     if (typeof refreshMapToggles === "function") refreshMapToggles();
     refreshAccountBtn();
     var acc = window.__weltraum && window.__weltraum.account;
+    if ($("sessionGateTitle")) setTxt("sessionGateTitle", tr("account.loadingAccount"));
     setTxt("accountTitle", tr("account.title"));
     setTxt("accountKindLabel", tr("account.guest").indexOf(" ") >= 0 ? "Status" : "Status");
     setTxt("accountIdLabel", tr("account.playerId"));
@@ -8024,6 +8178,7 @@
       applyAllI18n();
       refreshAccountBtn();
       refreshAuthDebug();
+      maybeImportGuestProgress();
       maybePickName();
     }).catch(showAccountError);
   });
@@ -8054,13 +8209,9 @@
     var names = window.__weltraum && window.__weltraum.names;
     if (!names) return;
     var raw = ($("accountNameIn").value || "").trim();
-    var out = names.save(raw, "custom");
-    if (out.ok) {
-      $("accountNote").textContent = tr("tips.nameSaved");
-      applyAllI18n();
-    } else {
-      showBadNameHint($("accountNote"));
-    }
+    Promise.resolve(names.save(raw, "custom")).then(function (out) {
+      finishNameSave(out, $("accountNote"));
+    });
   });
   $("coachGotIt").addEventListener("click", function () {
     var id = $("coachMark").getAttribute("data-tip");

@@ -26,6 +26,7 @@ import {
   saveGuestToken,
   type ProgressSnapshot,
 } from './firebase-auth';
+import { IDENTITY_STORAGE_KEY, LOCAL_CACHE_KEY } from './player-session';
 
 export type SyncStatus = 'connected' | 'connecting' | 'disconnected' | 'syncing' | 'error' | 'offline';
 
@@ -66,8 +67,21 @@ const LOCAL_DEV_CONFIG: SpacetimeConfig = {
   ssl: false,
 };
 
-const IDENTITY_STORAGE_KEY = 'spaceMissionIdentityToken';
-const LOCAL_CACHE_KEY = 'spaceMissionCachedData';
+export type RemoteProgress = {
+  unlockedLevel: number;
+  coins: bigint;
+  equippedShip: string;
+  ownedShips: string[];
+  language: string;
+  totalScore: bigint;
+  legacyImported: boolean;
+  displayName: string;
+  nameKind: 'generated' | 'custom';
+  onboardDone: boolean;
+  upgrades: Record<string, number>;
+  achievements: string[];
+  stars: Record<string, number>;
+};
 
 class SpacetimeClient {
   private config: SpacetimeConfig;
@@ -916,6 +930,61 @@ class SpacetimeClient {
     return true;
   }
 
+  async claimDisplayName(name: string, kind: 'generated' | 'custom'): Promise<{ ok: boolean; reason: string; name: string }> {
+    try {
+      const procedures = this.connection?.procedures as {
+        claimDisplayName?: (a: { name: string; kind: string }) => Promise<{ ok: boolean; reason: string; name: string }>;
+      } | undefined;
+      const result = await procedures?.claimDisplayName?.({ name, kind });
+      if (result) return { ok: !!result.ok, reason: result.reason || '', name: result.name || '' };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/taken/i.test(msg)) return { ok: false, reason: 'taken', name: '' };
+      if (/Invalid display name: (\w+)/.test(msg)) {
+        return { ok: false, reason: RegExp.$1, name: '' };
+      }
+    }
+    this.setDisplayName(name, kind);
+    return { ok: true, reason: '', name };
+  }
+
+  setOnboardDone(done: boolean): void {
+    this.queueOrCallReducer(() => {
+      const reducers = this.connection?.reducers as { setOnboardDone?: (a: { done: boolean }) => void } | undefined;
+      reducers?.setOnboardDone?.({ done });
+    });
+  }
+
+  clearLocalPlayerCache(): void {
+    this.localCache = this.getDefaultPlayerData();
+    this.identityToken = null;
+    this.lastServerUnlock = null;
+    this.lastLegacyImported = false;
+    try { localStorage.removeItem(LOCAL_CACHE_KEY); } catch { /* ignore */ }
+    try { localStorage.removeItem(IDENTITY_STORAGE_KEY); } catch { /* ignore */ }
+  }
+
+  replaceWithServer(remote: RemoteProgress): void {
+    const next = this.getDefaultPlayerData();
+    next.identity = this.getIdentityHex() || '';
+    next.unlockedLevel = remote.unlockedLevel;
+    next.coins = remote.coins;
+    next.equippedShip = remote.equippedShip || 'starter';
+    next.ownedShips = remote.ownedShips.length ? remote.ownedShips : ['starter'];
+    next.upgrades = { ...(remote.upgrades || {}) };
+    next.achievements = [...(remote.achievements || [])];
+    next.language = remote.language || next.language;
+    next.totalScore = remote.totalScore;
+    const stars: PlayerData['stars'] = {};
+    for (const [level, value] of Object.entries(remote.stars || {})) {
+      const n = parseInt(level, 10);
+      if (!Number.isNaN(n)) stars[n] = { stars: Number(value) || 0, bestScore: 0n };
+    }
+    next.stars = stars;
+    next.signedIn = this.isSignedIn();
+    this.saveLocalData(next);
+  }
+
   applySecretCode(code: string): { success: boolean; message: string } {
     console.log('[SpacetimeDB] applySecretCode:', code);
     this.queueOrCallReducer(() => {
@@ -1087,23 +1156,27 @@ class SpacetimeClient {
     return this.lastLegacyImported;
   }
 
-  async fetchMyProgress(): Promise<{
-    unlockedLevel: number;
-    coins: bigint;
-    equippedShip: string;
-    ownedShips: string[];
-    language: string;
-    totalScore: bigint;
-    legacyImported: boolean;
-    displayName: string;
-  } | null> {
+  async fetchMyProgress(): Promise<RemoteProgress | null> {
     if (!this.connection || !this.isConnected()) return null;
     try {
       const result = await this.connection.procedures.getMyProgress({});
       if (!result) return null;
-      const legacyImported = !!(result as { legacyImported?: boolean }).legacyImported;
+      const extra = result as {
+        legacyImported?: boolean;
+        displayName?: string;
+        nameKind?: string;
+        onboardDone?: boolean;
+        upgradesJson?: string;
+        achievementsCsv?: string;
+        starsJson?: string;
+      };
+      const legacyImported = !!extra.legacyImported;
       this.lastServerUnlock = result.unlockedLevel;
       this.lastLegacyImported = legacyImported || this.lastLegacyImported;
+      let upgrades: Record<string, number> = {};
+      try { upgrades = extra.upgradesJson ? JSON.parse(extra.upgradesJson) as Record<string, number> : {}; } catch { upgrades = {}; }
+      let stars: Record<string, number> = {};
+      try { stars = extra.starsJson ? JSON.parse(extra.starsJson) as Record<string, number> : {}; } catch { stars = {}; }
       return {
         unlockedLevel: result.unlockedLevel,
         coins: BigInt(result.coins),
@@ -1112,7 +1185,12 @@ class SpacetimeClient {
         language: result.language,
         totalScore: BigInt(result.totalScore),
         legacyImported,
-        displayName: (result as { displayName?: string }).displayName || '',
+        displayName: extra.displayName || '',
+        nameKind: extra.nameKind === 'custom' ? 'custom' : 'generated',
+        onboardDone: !!extra.onboardDone,
+        upgrades,
+        achievements: extra.achievementsCsv ? extra.achievementsCsv.split(',').filter(Boolean) : [],
+        stars,
       };
     } catch (error) {
       console.warn('[SpacetimeDB] getMyProgress failed:', error);
@@ -1120,9 +1198,14 @@ class SpacetimeClient {
     }
   }
 
-  async reconcileWithServer(): Promise<void> {
+  async reconcileWithServer(opts?: { replace?: boolean }): Promise<void> {
     const remote = await this.fetchMyProgress();
     if (!remote) return;
+    if (opts?.replace || this.isSignedIn()) {
+      this.replaceWithServer(remote);
+      this.notifyDataListeners();
+      return;
+    }
     const local = this.getLocalData();
     const mergedCoins = mergeCoins(local.coins, remote.coins);
     const delta = coinDeltaToPush(local.coins, remote.coins);

@@ -11,6 +11,8 @@ import {
 } from '../src/lib/display-names';
 import {
   uniquifyDisplayName,
+  isNameTakenByOther,
+  resolveDuplicateAccountNames,
   validateDisplayName as serverValidate,
 } from '../server/spacetimedb/src/display-names';
 import {
@@ -202,8 +204,10 @@ describe('kid-safe display names', () => {
     expect(serverValidate('Kühnes Kätzchen', 'generated').ok).toBe(true);
     const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../server/spacetimedb/src/index.ts'), 'utf8');
     expect(src).not.toContain('Custom names require a signed-in parent account');
-    expect(src).toContain('uniquifyDisplayName');
+    expect(src).not.toContain('uniquifyDisplayName');
+    expect(src).toContain("reason: 'taken'");
     expect(src).toMatch(/Custom names are allowed for every identity/);
+    expect(src).toContain('Guest names stay local-only');
   });
 
   it('uniquifies a taken name with a two-digit suffix that still fits', () => {
@@ -212,6 +216,23 @@ describe('kid-safe display names', () => {
     expect(next).toBe('Leo Pilot 11');
     expect(next.length).toBeLessThanOrEqual(16);
     expect(uniquifyDisplayName('Free Name', () => false)).toBe('Free Name');
+  });
+
+  it('rejects a name taken by another account (case-insensitive)', () => {
+    const claims = [{ nameKey: 'turbo fox', ownerKey: 'dad' }];
+    expect(isNameTakenByOther('Turbo Fox', 'son', claims)).toBe(true);
+    expect(isNameTakenByOther('Turbo Fox', 'dad', claims)).toBe(false);
+    expect(isNameTakenByOther('Cosmic Owl', 'son', claims)).toBe(false);
+  });
+
+  it('keeps the earliest account name and asks later duplicates to rename', () => {
+    const { keep, rename } = resolveDuplicateAccountNames([
+      { firebaseSub: 'son', name: 'Turbo Fox', createdAtMs: 200 },
+      { firebaseSub: 'dad', name: 'turbo fox', createdAtMs: 100 },
+      { firebaseSub: 'kid', name: 'Cosmic Owl', createdAtMs: 150 },
+    ]);
+    expect(keep.map((r) => r.firebaseSub).sort()).toEqual(['dad', 'kid']);
+    expect(rename).toEqual([{ firebaseSub: 'son', name: 'Turbo Fox', createdAtMs: 200 }]);
   });
 
   it('uses real German umlauts and ß instead of ae/oe/ue/ss transliterations', () => {
