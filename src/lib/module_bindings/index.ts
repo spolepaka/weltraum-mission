@@ -66,6 +66,7 @@ import RequestLevelDataReducer from "./request_level_data_reducer";
 import ResetProgressReducer from "./reset_progress_reducer";
 import SetDisplayNameReducer from "./set_display_name_reducer";
 import SetLanguageReducer from "./set_language_reducer";
+import SetOnboardDoneReducer from "./set_onboard_done_reducer";
 import SetPlayerPrefsReducer from "./set_player_prefs_reducer";
 import SetUpgradeLevelReducer from "./set_upgrade_level_reducer";
 import SubmitWeeklyScoreReducer from "./submit_weekly_score_reducer";
@@ -80,6 +81,7 @@ import * as AdminGetPlayerProcedure from "./admin_get_player_procedure";
 import * as AdminListPlayersProcedure from "./admin_list_players_procedure";
 import * as AdminMeProcedure from "./admin_me_procedure";
 import * as AdminStatsProcedure from "./admin_stats_procedure";
+import * as ClaimDisplayNameProcedure from "./claim_display_name_procedure";
 import * as GetAnalyticsFunnelProcedure from "./get_analytics_funnel_procedure";
 import * as GetLevelDataProcedure from "./get_level_data_procedure";
 import * as GetMyProgressProcedure from "./get_my_progress_procedure";
@@ -170,6 +172,7 @@ const reducersSchema = __reducers(
   __reducerSchema("reset_progress", ResetProgressReducer),
   __reducerSchema("set_display_name", SetDisplayNameReducer),
   __reducerSchema("set_language", SetLanguageReducer),
+  __reducerSchema("set_onboard_done", SetOnboardDoneReducer),
   __reducerSchema("set_player_prefs", SetPlayerPrefsReducer),
   __reducerSchema("set_upgrade_level", SetUpgradeLevelReducer),
   __reducerSchema("submit_weekly_score", SubmitWeeklyScoreReducer),
@@ -186,6 +189,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_list_players", AdminListPlayersProcedure.params, AdminListPlayersProcedure.returnType),
   __procedureSchema("admin_me", AdminMeProcedure.params, AdminMeProcedure.returnType),
   __procedureSchema("admin_stats", AdminStatsProcedure.params, AdminStatsProcedure.returnType),
+  __procedureSchema("claim_display_name", ClaimDisplayNameProcedure.params, ClaimDisplayNameProcedure.returnType),
   __procedureSchema("get_analytics_funnel", GetAnalyticsFunnelProcedure.params, GetAnalyticsFunnelProcedure.returnType),
   __procedureSchema("get_level_data", GetLevelDataProcedure.params, GetLevelDataProcedure.returnType),
   __procedureSchema("get_my_progress", GetMyProgressProcedure.params, GetMyProgressProcedure.returnType),

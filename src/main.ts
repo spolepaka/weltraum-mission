@@ -5,7 +5,7 @@
  */
 
 import { initLanguage, getLanguage, setLanguage, toggleLanguage, t, onLanguageChange, getCatalog } from './i18n';
-import { initSpacetime, getSpacetimeClient, type SyncStatus, type SpacetimeClient } from './lib/spacetime-client';
+import { initSpacetime, getSpacetimeClient, type SyncStatus, type SpacetimeClient, type RemoteProgress } from './lib/spacetime-client';
 import * as coop from './coop-security';
 import {
   isAuthConfigured,
@@ -49,9 +49,22 @@ import {
   generateNameChoices,
   loadDisplayName,
   saveDisplayName,
+  saveGuestDisplayName,
+  clearDisplayName,
   validateDisplayName,
   type NameKind,
 } from './lib/display-names';
+import {
+  ACCOUNT_GATE_KEY,
+  accountHasProgress,
+  clearLocalPlayerState,
+  guestSnapshotHasProgress,
+  postSessionEvent,
+  rememberGuestDisplayName,
+  restoreGuestDisplayName,
+  shouldPushLocalName,
+  snapshotToGameState,
+} from './lib/player-session';
 import * as tips from './lib/tips';
 import * as onboard from './lib/onboarding';
 import { loadDifficulty, saveDifficulty, parseDifficulty, type Difficulty } from './lib/difficulty';
@@ -148,7 +161,8 @@ export interface WeltraumApi {
     generate: (lang?: 'en' | 'de') => string;
     choices: (lang?: 'en' | 'de', count?: number) => string[];
     validate: (name: string, kind: NameKind) => { ok: true; name: string } | { ok: false; reason: string };
-    save: (name: string, kind: NameKind) => { ok: true; name: string } | { ok: false; reason: string };
+    save: (name: string, kind: NameKind) => Promise<{ ok: true; name: string } | { ok: false; reason: string }>;
+    needsPick: () => boolean;
   };
   tips: typeof tips;
   onboard: typeof onboard;
@@ -199,6 +213,8 @@ export interface WeltraumApi {
     startEmailLink: (email: string) => Promise<void>;
     signInApple: (opts?: SignInOpts) => Promise<void>;
     signOut: () => Promise<void>;
+    importGuestIfAgreed: (agreed: boolean) => Promise<void>;
+    pendingImport: () => boolean;
   };
 }
 
@@ -212,7 +228,22 @@ declare global {
       progress?: () => { unlocked: number; stars: Record<string, number>; best?: Record<string, number> };
       shop?: () => { coins: number; owned: string[]; equipped: string; up?: Record<string, number> };
       applyRemoteShop?: (coins: number) => void;
-      applyRemoteProgress?: (p: { coins?: number; unlocked?: number; ships?: string[]; equipped?: string; name?: string }) => void;
+      applyRemoteProgress?: (p: {
+        coins?: number;
+        unlocked?: number;
+        ships?: string[];
+        equipped?: string;
+        name?: string;
+        upgrades?: Record<string, number>;
+        stars?: Record<string, number>;
+        best?: Record<string, number>;
+        achievements?: string[];
+        onboardDone?: boolean;
+        replace?: boolean;
+      }) => void;
+      resetToFreshPlayer?: (guestName?: string) => void;
+      applyAccountSnapshot?: (p: Record<string, unknown>) => void;
+      askImportGuest?: (title: string, body: string, yes: string, no: string) => Promise<boolean>;
       coop?: Record<string, unknown>;
     };
     __I18N_BUNDLE__?: unknown;
@@ -288,6 +319,8 @@ let importedOnce = false;
 let watchBound = false;
 let authFlowLock = false;
 let pendingGuestHex = '';
+let pendingGuestSnap: ProgressSnapshot | null = null;
+let pendingImport = false;
 let cloudReady = false;
 const accountListeners: Array<() => void> = [];
 
@@ -328,7 +361,20 @@ function adoptGameProgress(client: SpacetimeClient): number {
   return unlocked;
 }
 
+function setAccountGate(on: boolean): void {
+  try {
+    if (on) sessionStorage.setItem(ACCOUNT_GATE_KEY, '1');
+    else sessionStorage.removeItem(ACCOUNT_GATE_KEY);
+  } catch { /* ignore */ }
+  const el = typeof document !== 'undefined' ? document.getElementById('sessionGate') : null;
+  if (el) el.classList.toggle('hidden', !on);
+}
+
 async function afterProgressReady(client: SpacetimeClient): Promise<void> {
+  if (loadAuthUser()) {
+    await applySignedInAccount(client, false);
+    return;
+  }
   const gameUnlock = window.__spaceGame?.progress?.()?.unlocked || 1;
   const remote = await client.fetchMyProgress();
   if (remote && gameUnlock > remote.unlockedLevel && !remote.legacyImported) {
@@ -345,75 +391,109 @@ async function afterProgressReady(client: SpacetimeClient): Promise<void> {
   syncFromGame(client);
   pushLocalName(client);
   await client.reconcileWithServer();
-  const latest = await client.fetchMyProgress();
-  if (latest && loadAuthUser()) applyServerTruth(client, latest);
-  else applyHigherServerCoins(client);
+  applyHigherServerCoins(client);
   const cap = Math.max(unlocked, client.getLocalData().unlockedLevel || 1);
   prefetchUnlocked(cap);
   notifyAccount();
 }
 
 function pushLocalName(client: SpacetimeClient): void {
+  if (!shouldPushLocalName(!!loadAuthUser())) return;
   const local = loadDisplayName();
   if (local?.name) client.setDisplayName(local.name, local.kind === 'custom' ? 'custom' : 'generated');
 }
 
-function applyServerTruth(client: SpacetimeClient, remote: { coins: bigint; unlockedLevel: number; ownedShips: string[]; equippedShip: string; displayName?: string }): void {
-  const game = window.__spaceGame;
+function applyServerTruth(client: SpacetimeClient, remote: RemoteProgress): void {
+  client.replaceWithServer(remote);
   if (remote.displayName) {
-    saveDisplayName({ name: remote.displayName, kind: loadDisplayName()?.kind === 'custom' ? 'custom' : 'generated' });
+    saveDisplayName({ name: remote.displayName, kind: remote.nameKind === 'custom' ? 'custom' : 'generated' });
+  } else {
+    clearDisplayName();
   }
+  const game = window.__spaceGame;
+  const state = snapshotToGameState({
+    coins: Number(remote.coins),
+    unlockedLevel: remote.unlockedLevel,
+    ownedShips: remote.ownedShips,
+    equippedShip: remote.equippedShip,
+    upgrades: remote.upgrades,
+    stars: remote.stars,
+    achievements: remote.achievements,
+    displayName: remote.displayName,
+    nameKind: remote.nameKind,
+    onboardDone: remote.onboardDone,
+  });
   if (typeof game?.applyRemoteProgress === 'function') {
     game.applyRemoteProgress({
-      coins: Number(remote.coins),
-      unlocked: remote.unlockedLevel,
-      ships: remote.ownedShips,
-      equipped: remote.equippedShip,
-      name: remote.displayName || loadDisplayName()?.name || '',
+      coins: state.coins,
+      unlocked: state.unlocked,
+      ships: state.ships,
+      equipped: state.equipped,
+      name: state.name,
+      upgrades: state.upgrades,
+      stars: state.stars,
+      achievements: state.achievements,
+      onboardDone: state.onboardDone,
+      replace: true,
     });
-  } else {
-    applyHigherServerCoins(client);
+  }
+  if (remote.onboardDone) {
+    onboard.markAllDone(onboard.loadOnboard(), true);
+    tips.saveTips({ ...tips.loadTips(), onboardDone: true, skipAll: true });
   }
 }
 
-async function mergeAfterSignIn(client: SpacetimeClient): Promise<void> {
-  if (importedOnce) return;
-  const snap = loadAnonSnapshot() || snapshotFromGame();
-  if (snap && loadAuthUser()) {
-    importedOnce = true;
-    client.ensurePlayerRow();
-    client.importProgress(snap);
-    pushLocalName(client);
-    if (pendingGuestHex) client.linkGuestIdentity(pendingGuestHex);
+async function applySignedInAccount(client: SpacetimeClient, allowImportPrompt: boolean): Promise<void> {
+  client.ensurePlayerRow();
+  await client.reconcileWithServer({ replace: true });
+  const remote = await client.fetchMyProgress();
+  if (remote) applyServerTruth(client, remote);
+  const ready = remote ? accountHasProgress(remote) : false;
+  pendingImport = allowImportPrompt && !ready && guestSnapshotHasProgress(pendingGuestSnap || loadAnonSnapshot());
+  if (!pendingImport) {
+    pendingGuestHex = '';
+    pendingGuestSnap = null;
     clearAnonSnapshot();
-    await new Promise((r) => setTimeout(r, 200));
-    await client.reconcileWithServer();
-    const remote = await client.fetchMyProgress();
-    if (remote) applyServerTruth(client, remote);
-    else applyHigherServerCoins(client);
   }
+  prefetchUnlocked(Math.max(1, remote?.unlockedLevel || 1));
+  notifyAccount();
+  setAccountGate(false);
+}
+
+async function importGuestIfAgreed(client: SpacetimeClient, agreed: boolean): Promise<void> {
+  const snap = pendingGuestSnap || loadAnonSnapshot();
+  const hex = pendingGuestHex;
+  pendingImport = false;
+  pendingGuestSnap = null;
+  pendingGuestHex = '';
+  clearAnonSnapshot();
+  if (!agreed || !snap) return;
+  const latest = await client.fetchMyProgress();
+  if (latest && accountHasProgress(latest)) return;
+  importedOnce = true;
+  client.importProgress(snap);
+  if (hex) client.linkGuestIdentity(hex);
+  await new Promise((r) => setTimeout(r, 200));
+  await client.reconcileWithServer({ replace: true });
+  const remote = await client.fetchMyProgress();
+  if (remote) applyServerTruth(client, remote);
+  notifyAccount();
 }
 
 async function connectFirebaseIdentity(client: SpacetimeClient, firstSignIn: boolean): Promise<void> {
   const user = loadAuthUser();
   if (!user?.idToken) return;
-  pendingGuestHex = client.getIdentityHex() || pendingGuestHex;
-  if (firstSignIn) {
-    const snap = snapshotFromGame();
-    if (snap) saveAnonSnapshot(snap);
+  setAccountGate(true);
+  if (firstSignIn && !pendingGuestSnap) {
+    pendingGuestHex = client.getIdentityHex() || pendingGuestHex;
+    pendingGuestSnap = loadAnonSnapshot() || snapshotFromGame() || null;
+    if (pendingGuestSnap) saveAnonSnapshot(pendingGuestSnap);
   }
   await client.reconnectWithToken(user.idToken);
   bindAuthWatch(client);
   if (!loadDoNotTrack()) client.trackAnalytics('sign_in', 0, loadDifficulty());
-  if (firstSignIn) {
-    importedOnce = false;
-    await mergeAfterSignIn(client);
-  } else {
-    await client.reconcileWithServer();
-    const remote = await client.fetchMyProgress();
-    if (remote) applyServerTruth(client, remote);
-    else applyHigherServerCoins(client);
-  }
+  importedOnce = false;
+  await applySignedInAccount(client, firstSignIn);
 }
 
 function pageIsLocal(): boolean {
@@ -430,6 +510,8 @@ function pageIsLocal(): boolean {
 
 function welcomeIsDone(): boolean {
   try {
+    const v1 = localStorage.getItem('spaceMissionOnboardV1');
+    if (v1 && /"welcomeDone"\s*:\s*true/.test(v1)) return true;
     const raw = localStorage.getItem('spaceMissionOnboard');
     return !!(raw && /"welcomeDone"\s*:\s*true/.test(raw));
   } catch {
@@ -574,10 +656,20 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       generate: (lang) => generateDisplayName(lang === 'de' ? 'de' : 'en', Date.now()),
       choices: (lang, count = 3) => generateNameChoices(lang === 'de' ? 'de' : 'en', count, Date.now()),
       validate: (name, kind) => validateDisplayName(name, kind),
-      save: (name, kind) => {
+      needsPick: () => !!loadAuthUser() && !loadDisplayName()?.name,
+      save: async (name, kind) => {
         const checked = validateDisplayName(name, kind);
         if (!checked.ok) return checked;
+        if (loadAuthUser()) {
+          await ensureCloudAndReady(client);
+          const claimed = await client.claimDisplayName(checked.name, kind);
+          if (!claimed.ok) return { ok: false, reason: claimed.reason || 'taken' };
+          saveDisplayName({ name: claimed.name || checked.name, kind });
+          notifyAccount();
+          return { ok: true, name: claimed.name || checked.name };
+        }
         saveDisplayName({ name: checked.name, kind });
+        saveGuestDisplayName({ name: checked.name, kind });
         client.setDisplayName(checked.name, kind);
         void ensureCloudAndReady(client);
         notifyAccount();
@@ -585,7 +677,19 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       },
     },
     tips,
-    onboard,
+    onboard: {
+      ...onboard,
+      markMapTour: (state, skipped = false) => {
+        const next = onboard.markMapTour(state, skipped);
+        if (loadAuthUser()) client.setOnboardDone(true);
+        return next;
+      },
+      markAllDone: (state, skipped = true) => {
+        const next = onboard.markAllDone(state, skipped);
+        if (loadAuthUser()) client.setOnboardDone(true);
+        return next;
+      },
+    },
     ensureCloud: () => ensureCloudAndReady(client),
     difficulty: {
       current: () => loadDifficulty(),
@@ -659,13 +763,17 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       signInGoogle: (opts?: SignInOpts) => {
         if (!isAuthConfigured()) return Promise.reject(new Error('auth_not_configured'));
         authFlowLock = true;
+        rememberGuestDisplayName();
+        setAccountGate(true);
         const snap = snapshotFromGame();
         if (snap) saveAnonSnapshot(snap);
-        // signInWithGoogle must start the popup synchronously (no await before it).
+        pendingGuestSnap = snap || null;
+        pendingGuestHex = client.getIdentityHex() || pendingGuestHex;
         return signInWithGoogle(opts).then(async () => {
           await connectFirebaseIdentity(client, true);
-          await afterProgressReady(client);
+          postSessionEvent('login');
         }).catch((err: unknown) => {
+          setAccountGate(false);
           if ((err as { message?: string })?.message !== 'redirecting') {
             reportAuthFailure(client, err, opts?.forceRedirect ? 'redirect' : 'popup');
           }
@@ -678,19 +786,28 @@ function installApi(client: SpacetimeClient): WeltraumApi {
         if (!isAuthConfigured()) throw new Error('auth_not_configured');
         authFlowLock = true;
         try {
+          rememberGuestDisplayName();
+          setAccountGate(true);
           const snap = snapshotFromGame();
           if (snap) saveAnonSnapshot(snap);
+          pendingGuestSnap = snap || null;
+          pendingGuestHex = client.getIdentityHex() || pendingGuestHex;
           await signInWithEmulatorGoogle(email);
           await connectFirebaseIdentity(client, true);
-          await afterProgressReady(client);
+          postSessionEvent('login');
+        } catch (err) {
+          setAccountGate(false);
+          throw err;
         } finally {
           authFlowLock = false;
         }
       },
       startEmailLink: async (email: string) => {
         if (!isAuthConfigured()) throw new Error('auth_not_configured');
+        rememberGuestDisplayName();
         const snap = snapshotFromGame();
         if (snap) saveAnonSnapshot(snap);
+        pendingGuestSnap = snap || null;
         try {
           await startEmailLink(email);
         } catch (err) {
@@ -701,12 +818,17 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       signInApple: (opts?: SignInOpts) => {
         if (!isAuthConfigured()) return Promise.reject(new Error('auth_not_configured'));
         authFlowLock = true;
+        rememberGuestDisplayName();
+        setAccountGate(true);
         const snap = snapshotFromGame();
         if (snap) saveAnonSnapshot(snap);
+        pendingGuestSnap = snap || null;
+        pendingGuestHex = client.getIdentityHex() || pendingGuestHex;
         return signInWithApple(opts).then(async () => {
           await connectFirebaseIdentity(client, true);
-          await afterProgressReady(client);
+          postSessionEvent('login');
         }).catch((err: unknown) => {
+          setAccountGate(false);
           if ((err as { message?: string })?.message !== 'redirecting') {
             reportAuthFailure(client, err, opts?.forceRedirect ? 'redirect' : 'popup');
           }
@@ -717,12 +839,20 @@ function installApi(client: SpacetimeClient): WeltraumApi {
       },
       signOut: async () => {
         importedOnce = false;
+        pendingImport = false;
+        pendingGuestSnap = null;
+        pendingGuestHex = '';
         await signOutFirebase();
-        await client.restoreGuestIdentity();
-        await client.reconcileWithServer();
-        applyHigherServerCoins(client);
+        client.clearLocalPlayerCache();
+        clearLocalPlayerState();
+        const guestName = restoreGuestDisplayName();
+        window.__spaceGame?.resetToFreshPlayer?.(guestName);
+        postSessionEvent('logout');
         notifyAccount();
+        try { window.location.reload(); } catch { /* ignore */ }
       },
+      importGuestIfAgreed: (agreed: boolean) => importGuestIfAgreed(client, agreed),
+      pendingImport: () => pendingImport,
     },
   };
   return api;
@@ -784,6 +914,7 @@ async function init(): Promise<void> {
   console.log('[Weltraum] Initializing SpacetimeDB client...');
   installChunkUpdateHandlers();
   initLanguage();
+  if (loadAuthUser()) setAccountGate(true);
 
   const client = getSpacetimeClient();
   setLevelFetcher((level) => {
@@ -810,11 +941,10 @@ async function init(): Promise<void> {
   const connected = shouldAutoconnect() ? await initSpacetime() : false;
   if (connected) {
     console.log('[Weltraum] SpacetimeDB connected', client.getIdentityHex());
-    if (signed) {
-      await connectFirebaseIdentity(client, true);
+    if (signed || loadAuthUser()) {
+      await connectFirebaseIdentity(client, !!signed);
       await ensureCloudAndReady(client);
-    } else if (loadAuthUser() || welcomeIsDone()) {
-      if (loadAuthUser()) await mergeAfterSignIn(client);
+    } else if (welcomeIsDone()) {
       await ensureCloudAndReady(client);
     } else {
       showGameSync('saved');

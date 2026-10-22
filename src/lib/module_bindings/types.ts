@@ -10,6 +10,15 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const AccountName = __t.object("AccountName", {
+  firebaseSub: __t.string(),
+  displayName: __t.string(),
+  nameKind: __t.string(),
+  identity: __t.identity(),
+  onboardDone: __t.bool(),
+});
+export type AccountName = __Infer<typeof AccountName>;
+
 export const AdminAudit = __t.object("AdminAudit", {
   id: __t.u64(),
   at: __t.timestamp(),
@@ -68,6 +77,13 @@ export const AnalyticsUnique = __t.object("AnalyticsUnique", {
   stamp: __t.string(),
 });
 export type AnalyticsUnique = __Infer<typeof AnalyticsUnique>;
+
+export const ClaimNameResult = __t.object("ClaimNameResult", {
+  ok: __t.bool(),
+  reason: __t.string(),
+  name: __t.string(),
+});
+export type ClaimNameResult = __Infer<typeof ClaimNameResult>;
 
 export const ClaimedName = __t.object("ClaimedName", {
   nameKey: __t.string(),
@@ -133,6 +149,11 @@ export const MyProgressResult = __t.object("MyProgressResult", {
   totalScore: __t.u64(),
   legacyImported: __t.bool(),
   displayName: __t.string(),
+  nameKind: __t.string(),
+  onboardDone: __t.bool(),
+  upgradesJson: __t.string(),
+  achievementsCsv: __t.string(),
+  starsJson: __t.string(),
 });
 export type MyProgressResult = __Infer<typeof MyProgressResult>;
 

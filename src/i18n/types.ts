@@ -223,6 +223,11 @@ export interface Translations {
     replayTutorial: string;
     opening: string;
     signedInAs: string;
+    loadingAccount: string;
+    importGuestTitle: string;
+    importGuestBody: string;
+    importGuestYes: string;
+    importGuestNo: string;
   };
   game: {
     neuBanner: string;

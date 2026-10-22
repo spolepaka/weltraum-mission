@@ -54,7 +54,48 @@ export function nameKey(name: string): string {
   return name.toLowerCase();
 }
 
-/** If `name` is taken, append a two-digit suffix (10–99) that still fits NAME_MAX. */
+export interface AccountNameRow {
+  firebaseSub: string;
+  name: string;
+  createdAtMs: number;
+}
+
+/** Keep the earliest account; later duplicates must pick a new name. */
+export function resolveDuplicateAccountNames(rows: AccountNameRow[]): {
+  keep: AccountNameRow[];
+  rename: AccountNameRow[];
+} {
+  const byKey = new Map<string, AccountNameRow[]>();
+  for (const row of rows) {
+    if (!row.firebaseSub || !row.name) continue;
+    const key = nameKey(row.name);
+    const list = byKey.get(key) || [];
+    list.push(row);
+    byKey.set(key, list);
+  }
+  const keep: AccountNameRow[] = [];
+  const rename: AccountNameRow[] = [];
+  for (const group of byKey.values()) {
+    group.sort((a, b) => a.createdAtMs - b.createdAtMs || a.firebaseSub.localeCompare(b.firebaseSub));
+    keep.push(group[0]);
+    rename.push(...group.slice(1));
+  }
+  return { keep, rename };
+}
+
+export function isNameTakenByOther(
+  name: string,
+  ownerKey: string,
+  claims: Iterable<{ nameKey: string; ownerKey: string }>,
+): boolean {
+  const key = nameKey(name);
+  for (const claim of claims) {
+    if (claim.nameKey === key && claim.ownerKey && claim.ownerKey !== ownerKey) return true;
+  }
+  return false;
+}
+
+/** @deprecated Account names reject instead of suffixing. Kept for generated-name helpers. */
 export function uniquifyDisplayName(name: string, isTaken: (key: string) => boolean): string {
   if (!isTaken(nameKey(name))) return name;
   const core = name.replace(/\s+\d{1,3}$/, '').slice(0, NAME_MAX - 3).trim();

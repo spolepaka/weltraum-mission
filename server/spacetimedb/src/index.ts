@@ -6,7 +6,7 @@
 import { schema, table, t } from 'spacetimedb/server';
 import { assertTrustedCaller, authSnapshotFromCtx, isFirebaseIssuer } from './auth-trust';
 import { buildLevelPayload } from './level-catalog';
-import { nameKey, uniquifyDisplayName, validateDisplayName, type NameKind } from './display-names';
+import { nameKey, validateDisplayName, type NameKind } from './display-names';
 import { plausibleLegacyUnlock } from './legacy-import';
 import { isMillionScaleGrant, maxCoinsForLevel, salePrice } from './economy';
 import { bindAdminCtx, inspectSenderAuth, isAdminEmail, isAdminUid } from './admin';
@@ -209,6 +209,18 @@ const spacetimedb = schema({
       identity: t.identity().primaryKey(),
       email: t.string(),
       firebaseSub: t.string(),
+    }
+  ),
+
+  /** Pilot name + onboard flag keyed by Firebase user, not device or guest identity. */
+  accountName: table(
+    { public: false },
+    {
+      firebaseSub: t.string().primaryKey(),
+      displayName: t.string(),
+      nameKind: t.string(),
+      identity: t.identity(),
+      onboardDone: t.bool().default(false),
     }
   ),
 
@@ -522,6 +534,7 @@ export const onConnect = spacetimedb.clientConnected(ctx => {
     if (isAdminEmail(email) && !ctx.db.adminUser.identity.find(identity)) {
       ctx.db.adminUser.insert({ identity, email, grantedAt: now });
     }
+    bindAccountName(ctx, sub);
   }
 });
 
@@ -1492,45 +1505,223 @@ export const getAnalyticsFunnel = spacetimedb.procedure(
   }
 );
 
+function createdAtMs(ctx: AnyCtx, ident: AnyCtx): number {
+  const row = ctx.db.player.identity.find(ident);
+  return timestampMicros(row?.createdAt as { microsSinceUnixEpoch?: bigint } | undefined);
+}
+
+function writePlayerProfile(ctx: AnyCtx, identity: AnyCtx, displayName: string, nameKind: string): void {
+  const profile = ctx.db.playerProfile.identity.find(identity);
+  if (profile) {
+    ctx.db.playerProfile.identity.update({ ...profile, displayName, nameKind });
+    return;
+  }
+  ctx.db.playerProfile.insert({ identity, displayName, nameKind });
+}
+
+function clearOtherNameHolders(ctx: AnyCtx, key: string, keepIdent: AnyCtx): void {
+  for (const profile of ctx.db.playerProfile.iter()) {
+    if (String(profile.identity) === String(keepIdent)) continue;
+    if (!profile.displayName || nameKey(profile.displayName) !== key) continue;
+    const acc = ctx.db.playerAccount.identity.find(profile.identity);
+    if (!acc?.firebaseSub) continue;
+    ctx.db.playerProfile.identity.update({ ...profile, displayName: '' });
+    const account = ctx.db.accountName.firebaseSub.find(acc.firebaseSub);
+    if (account && nameKey(account.displayName) === key) {
+      ctx.db.accountName.firebaseSub.update({ ...account, displayName: '' });
+    }
+  }
+}
+
+function upsertAccountName(
+  ctx: AnyCtx,
+  sub: string,
+  identity: AnyCtx,
+  displayName: string,
+  nameKind: string,
+  onboardDone?: boolean,
+): void {
+  const existing = ctx.db.accountName.firebaseSub.find(sub);
+  if (existing) {
+    ctx.db.accountName.firebaseSub.update({
+      ...existing,
+      displayName,
+      nameKind,
+      identity,
+      onboardDone: onboardDone == null ? existing.onboardDone : onboardDone,
+    });
+    return;
+  }
+  ctx.db.accountName.insert({
+    firebaseSub: sub,
+    displayName,
+    nameKind,
+    identity,
+    onboardDone: !!onboardDone,
+  });
+}
+
+function claimAccountName(ctx: AnyCtx, name: string, identity: AnyCtx, _sub: string): void {
+  const key = nameKey(name);
+  const existing = ctx.db.claimedName.nameKey.find(key);
+  if (existing && String(existing.identity) !== String(identity)) {
+    ctx.db.claimedName.delete(existing);
+  }
+  if (!ctx.db.claimedName.nameKey.find(key)) {
+    ctx.db.claimedName.insert({ nameKey: key, identity });
+  }
+  clearOtherNameHolders(ctx, key, identity);
+}
+
+function releaseOwnClaim(ctx: AnyCtx, identity: AnyCtx, oldName: string, nextName: string): void {
+  const oldKey = nameKey(oldName);
+  if (!oldKey || oldKey === nameKey(nextName)) return;
+  const oldClaim = ctx.db.claimedName.nameKey.find(oldKey);
+  if (oldClaim && String(oldClaim.identity) === String(identity)) {
+    ctx.db.claimedName.delete(oldClaim);
+  }
+}
+
+function senderFirebaseSub(ctx: AnyCtx): string {
+  const { sub } = readJwtEmail(ctx);
+  if (sub) return sub;
+  const acc = ctx.db.playerAccount.identity.find(ctx.sender);
+  return acc?.firebaseSub || '';
+}
+
+function nameTakenByOtherAccount(ctx: AnyCtx, name: string, identity: AnyCtx, sub: string): boolean {
+  const key = nameKey(name);
+  const claim = ctx.db.claimedName.nameKey.find(key);
+  if (!claim) return false;
+  if (String(claim.identity) === String(identity)) return false;
+  const otherAcc = ctx.db.playerAccount.identity.find(claim.identity);
+  if (otherAcc?.firebaseSub && otherAcc.firebaseSub === sub) return false;
+  return !!otherAcc?.firebaseSub;
+}
+
+function applyDisplayName(ctx: AnyCtx, rawName: string, kind: string): { ok: true; name: string } | { ok: false; reason: string } {
+  ensurePlayer(ctx);
+  const identity = ctx.sender;
+  const nameKind = (kind === 'custom' ? 'custom' : 'generated') as NameKind;
+  const checked = validateDisplayName(rawName, nameKind);
+  if (!checked.ok) return { ok: false, reason: checked.reason };
+
+  const sub = senderFirebaseSub(ctx);
+  if (!sub) {
+    writePlayerProfile(ctx, identity, checked.name, nameKind);
+    return { ok: true, name: checked.name };
+  }
+
+  if (nameTakenByOtherAccount(ctx, checked.name, identity, sub)) {
+    return { ok: false, reason: 'taken' };
+  }
+
+  const profile = ctx.db.playerProfile.identity.find(identity);
+  releaseOwnClaim(ctx, identity, profile?.displayName || '', checked.name);
+  writePlayerProfile(ctx, identity, checked.name, nameKind);
+  claimAccountName(ctx, checked.name, identity, sub);
+  const existing = ctx.db.accountName.firebaseSub.find(sub);
+  upsertAccountName(ctx, sub, identity, checked.name, nameKind, existing?.onboardDone);
+  return { ok: true, name: checked.name };
+}
+
+function bindAccountName(ctx: AnyCtx, sub: string): void {
+  if (!sub) return;
+  const identity = ctx.sender;
+  const existing = ctx.db.accountName.firebaseSub.find(sub);
+  const profile = ctx.db.playerProfile.identity.find(identity);
+
+  if (existing?.displayName) {
+    writePlayerProfile(ctx, identity, existing.displayName, existing.nameKind || 'generated');
+    const key = nameKey(existing.displayName);
+    const claim = ctx.db.claimedName.nameKey.find(key);
+    if (claim && String(claim.identity) !== String(identity)) {
+      const otherCreated = createdAtMs(ctx, claim.identity);
+      const ours = createdAtMs(ctx, identity);
+      if (ours <= otherCreated) {
+        claimAccountName(ctx, existing.displayName, identity, sub);
+      } else {
+        ctx.db.accountName.firebaseSub.update({ ...existing, displayName: '', identity });
+        writePlayerProfile(ctx, identity, '', existing.nameKind || 'generated');
+      }
+    } else {
+      claimAccountName(ctx, existing.displayName, identity, sub);
+    }
+    const row = ctx.db.accountName.firebaseSub.find(sub);
+    if (row && String(row.identity) !== String(identity)) {
+      ctx.db.accountName.firebaseSub.update({ ...row, identity });
+    }
+    return;
+  }
+
+  const candidate = profile?.displayName || '';
+  if (!candidate) {
+    upsertAccountName(ctx, sub, identity, '', profile?.nameKind || 'generated', existing?.onboardDone);
+    return;
+  }
+
+  const claim = ctx.db.claimedName.nameKey.find(nameKey(candidate));
+  if (!claim || String(claim.identity) === String(identity)) {
+    claimAccountName(ctx, candidate, identity, sub);
+    upsertAccountName(ctx, sub, identity, candidate, profile?.nameKind || 'generated', existing?.onboardDone);
+    return;
+  }
+
+  const otherAcc = ctx.db.playerAccount.identity.find(claim.identity);
+  const otherIsAccount = !!(otherAcc?.firebaseSub);
+  const ours = createdAtMs(ctx, identity);
+  const otherCreated = createdAtMs(ctx, claim.identity);
+  if (!otherIsAccount || ours < otherCreated) {
+    claimAccountName(ctx, candidate, identity, sub);
+    upsertAccountName(ctx, sub, identity, candidate, profile?.nameKind || 'generated', existing?.onboardDone);
+    return;
+  }
+
+  writePlayerProfile(ctx, identity, '', profile?.nameKind || 'generated');
+  upsertAccountName(ctx, sub, identity, '', profile?.nameKind || 'generated', existing?.onboardDone);
+}
+
 export const setDisplayName = spacetimedb.reducer(
   { name: t.string(), kind: t.string() },
   (ctx, { name, kind }) => {
-    ensurePlayer(ctx);
-    const identity = ctx.sender;
-    const nameKind = (kind === 'custom' ? 'custom' : 'generated') as NameKind;
     // Custom names are allowed for every identity (guest and signed-in).
-    const checked = validateDisplayName(name, nameKind);
-    if (!checked.ok) {
-      throw new Error(`Invalid display name: ${checked.reason}`);
-    }
+    const result = applyDisplayName(ctx, name, kind);
+    if (!result.ok) throw new Error(`Invalid display name: ${result.reason}`);
+  }
+);
 
-    const finalName = uniquifyDisplayName(checked.name, (key) => {
-      const existingClaim = ctx.db.claimedName.nameKey.find(key);
-      return !!(existingClaim && String(existingClaim.identity) !== String(identity));
+export const claimDisplayName = spacetimedb.procedure(
+  { name: t.string(), kind: t.string() },
+  t.object('ClaimNameResult', {
+    ok: t.bool(),
+    reason: t.string(),
+    name: t.string(),
+  }),
+  (ctx, { name, kind }) => {
+    return ctx.withTx(txCtx => {
+      const bound = bindAdminCtx(ctx, txCtx);
+      const result = applyDisplayName(bound, name, kind);
+      if (result.ok) return { ok: true, reason: '', name: result.name };
+      return { ok: false, reason: result.reason, name: '' };
     });
+  }
+);
 
-    const profile = ctx.db.playerProfile.identity.find(identity);
-    if (profile) {
-      const oldKey = nameKey(profile.displayName);
-      if (oldKey !== nameKey(finalName)) {
-        const oldClaim = ctx.db.claimedName.nameKey.find(oldKey);
-        if (oldClaim && String(oldClaim.identity) === String(identity)) {
-          ctx.db.claimedName.delete(oldClaim);
-        }
-      }
-      ctx.db.playerProfile.identity.update({
-        ...profile,
-        displayName: finalName,
-        nameKind,
-      });
-    } else {
-      ctx.db.playerProfile.insert({ identity, displayName: finalName, nameKind });
-    }
-
-    const finalKey = nameKey(finalName);
-    if (!ctx.db.claimedName.nameKey.find(finalKey)) {
-      ctx.db.claimedName.insert({ nameKey: finalKey, identity });
-    }
+export const setOnboardDone = spacetimedb.reducer(
+  { done: t.bool() },
+  (ctx, { done }) => {
+    const sub = senderFirebaseSub(ctx);
+    if (!sub) return;
+    ensurePlayer(ctx);
+    const existing = ctx.db.accountName.firebaseSub.find(sub);
+    upsertAccountName(
+      ctx,
+      sub,
+      ctx.sender,
+      existing?.displayName || '',
+      existing?.nameKind || 'generated',
+      !!done,
+    );
   }
 );
 
@@ -1545,6 +1736,11 @@ export const getMyProgress = spacetimedb.procedure(
     totalScore: t.u64(),
     legacyImported: t.bool(),
     displayName: t.string(),
+    nameKind: t.string(),
+    onboardDone: t.bool(),
+    upgradesJson: t.string(),
+    achievementsCsv: t.string(),
+    starsJson: t.string(),
   })),
   (ctx) => {
     return ctx.withTx(txCtx => {
@@ -1557,7 +1753,23 @@ export const getMyProgress = spacetimedb.procedure(
       for (const s of txCtx.db.ownedShip.identity.filter(identity)) {
         ships.push(s.shipId);
       }
+      const upgrades: Record<string, number> = {};
+      for (const u of txCtx.db.playerUpgrades.identity.filter(identity)) {
+        upgrades[u.upgradeId] = u.level;
+      }
+      const achievements: string[] = [];
+      for (const a of txCtx.db.playerAchievements.identity.filter(identity)) {
+        achievements.push(a.achievementId);
+      }
+      const stars: Record<string, number> = {};
+      for (const s of txCtx.db.levelStars.identity.filter(identity)) {
+        stars[String(s.level)] = s.stars;
+      }
+      const bound = bindAdminCtx(ctx, txCtx);
+      const sub = senderFirebaseSub(bound);
+      const account = sub ? txCtx.db.accountName.firebaseSub.find(sub) : null;
       const profile = txCtx.db.playerProfile.identity.find(identity);
+      const displayName = sub ? (account?.displayName || '') : (profile?.displayName || '');
       return {
         unlockedLevel: progress.unlockedLevel,
         coins: shop.coins,
@@ -1566,7 +1778,12 @@ export const getMyProgress = spacetimedb.procedure(
         language: player?.language || 'en',
         totalScore: progress.totalScore,
         legacyImported: !!txCtx.db.playerLegacyImport.identity.find(identity),
-        displayName: profile?.displayName || '',
+        displayName,
+        nameKind: (account?.nameKind || profile?.nameKind || 'generated'),
+        onboardDone: !!(account?.onboardDone),
+        upgradesJson: JSON.stringify(upgrades),
+        achievementsCsv: achievements.join(','),
+        starsJson: JSON.stringify(stars),
       };
     });
   }
@@ -1579,26 +1796,6 @@ function findPlayerIdentity(db: AnyCtx, hex: string): AnyCtx {
     if (have === want || have.startsWith(want) || want.startsWith(have)) return p.identity;
   }
   return null;
-}
-
-function copyNameIfMissing(ctx: AnyCtx, destIdent: AnyCtx, srcIdent: AnyCtx): void {
-  const srcProfile = ctx.db.playerProfile.identity.find(srcIdent);
-  if (!srcProfile?.displayName) return;
-  const destProfile = ctx.db.playerProfile.identity.find(destIdent);
-  if (destProfile?.displayName) return;
-  if (destProfile) {
-    ctx.db.playerProfile.identity.update({
-      ...destProfile,
-      displayName: srcProfile.displayName,
-      nameKind: srcProfile.nameKind,
-    });
-    return;
-  }
-  ctx.db.playerProfile.insert({
-    identity: destIdent,
-    displayName: srcProfile.displayName,
-    nameKind: srcProfile.nameKind,
-  });
 }
 
 /** Prefer max/union so a kid never loses guest progress when they sign in. */
@@ -1663,7 +1860,7 @@ function mergeLinkedProgress(ctx: AnyCtx, destIdent: AnyCtx, srcIdent: AnyCtx): 
     if (!have) ctx.db.playerAchievements.insert({ identity: destIdent, achievementId: a.achievementId, unlockedAt: a.unlockedAt });
   }
 
-  copyNameIfMissing(ctx, destIdent, srcIdent);
+  // Guest names stay local-only. Never copy them onto a signed-in account.
 }
 
 function displayNameFor(db: AnyCtx, ident: AnyCtx): string {

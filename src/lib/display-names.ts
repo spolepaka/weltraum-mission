@@ -21,6 +21,7 @@ import {
 export { fugenForm, inflectDeAdj, type DeGender, type DeNoun };
 
 export const DISPLAY_NAME_KEY = 'spaceMissionDisplayName';
+export const GUEST_DISPLAY_NAME_KEY = 'spaceMissionGuestDisplayName';
 export const NAME_MIN = 3;
 export const NAME_MAX = 16;
 export const RECENT_STEM_LIMIT = 40;
@@ -443,6 +444,30 @@ export function loadDisplayName(): StoredDisplayName | null {
 export function saveDisplayName(stored: StoredDisplayName): void {
   try {
     localStorage.setItem(DISPLAY_NAME_KEY, JSON.stringify(stored));
+  } catch {
+    // ignore
+  }
+}
+
+export function clearDisplayName(): void {
+  try { localStorage.removeItem(DISPLAY_NAME_KEY); } catch { /* ignore */ }
+}
+
+export function loadGuestDisplayName(): StoredDisplayName | null {
+  try {
+    const raw = localStorage.getItem(GUEST_DISPLAY_NAME_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredDisplayName;
+    if (!parsed?.name) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveGuestDisplayName(stored: StoredDisplayName): void {
+  try {
+    localStorage.setItem(GUEST_DISPLAY_NAME_KEY, JSON.stringify(stored));
   } catch {
     // ignore
   }
