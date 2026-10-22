@@ -33,7 +33,7 @@ describe('multiplayer HTML wiring', () => {
     expect(html).toContain('onPublicRooms');
     expect(html).toContain('noPublicRooms');
     expect(html).toContain('injectPublicRooms');
-    const hostFn = html.match(/function hostRoom\(tries\) \{[\s\S]*?function joinRoom/)?.[0] || '';
+    const hostFn = html.match(/function hostRoom\(tries(?:, forcedCode)?\) \{[\s\S]*?function joinRoom/)?.[0] || '';
     expect(hostFn.indexOf('startRoomHeartbeat()')).toBeGreaterThan(-1);
     expect(hostFn.indexOf('peer.on("open"')).toBeGreaterThan(-1);
     expect(hostFn.indexOf('startRoomHeartbeat()')).toBeGreaterThan(hostFn.indexOf('peer.on("open"'));

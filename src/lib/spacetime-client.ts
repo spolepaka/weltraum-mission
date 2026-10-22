@@ -19,6 +19,12 @@ import {
   publicRoomFromServer,
   type PublicRoomRow,
 } from './room-list';
+import {
+  applyVersusQueueEvent,
+  listQuickQueue,
+  versusRowFromServer,
+  type VersusQueueRow,
+} from './versus-queue';
 import { isAutomatedClient } from './geo-privacy';
 import {
   loadAuthUser,
@@ -92,11 +98,16 @@ class SpacetimeClient {
   private identityToken: string | null = null;
   private subscriptionHandle: SubscriptionHandle | null = null;
   private roomSubscriptionHandle: SubscriptionHandle | null = null;
+  private versusSubscriptionHandle: SubscriptionHandle | null = null;
   private publicRooms = new Map<string, PublicRoomRow>();
   private publicRoomListeners: Array<(rows: PublicRoomRow[]) => void> = [];
   private livePublicRooms = false;
   private roomPollTimer: ReturnType<typeof setInterval> | null = null;
   private roomCallbacksBound = false;
+  private versusQueue = new Map<string, VersusQueueRow>();
+  private versusListeners: Array<(rows: VersusQueueRow[]) => void> = [];
+  private liveVersusQueue = false;
+  private versusCallbacksBound = false;
   private localCache: PlayerData | null = null;
   private pendingReducerCalls: Array<() => Promise<void>> = [];
   private dataListeners: Array<(data: PlayerData) => void> = [];
@@ -409,6 +420,22 @@ class SpacetimeClient {
 
     this.bindPublicRoomCallbacks(conn);
     if (this.publicRoomListeners.length) this.startRoomPoll();
+
+    this.versusSubscriptionHandle = conn.subscriptionBuilder()
+      .onApplied(() => {
+        console.log('[SpacetimeDB] versus_queue subscription applied');
+        this.liveVersusQueue = true;
+        this.bindVersusQueueCallbacks(conn);
+        this.seedVersusQueueFromTable(conn);
+      })
+      .onError((ctx) => {
+        console.warn('[SpacetimeDB] versus_queue subscribe failed (module republish needed)', ctx.event);
+        this.liveVersusQueue = false;
+      })
+      .subscribe([
+        'SELECT * FROM versus_queue',
+      ]);
+    this.bindVersusQueueCallbacks(conn);
   }
 
   private publicRoomTable(conn: DbConnection | null = this.connection): {
@@ -565,8 +592,11 @@ class SpacetimeClient {
       this.connection = null;
       this.subscriptionHandle = null;
       this.roomSubscriptionHandle = null;
+      this.versusSubscriptionHandle = null;
       this.livePublicRooms = false;
       this.roomCallbacksBound = false;
+      this.liveVersusQueue = false;
+      this.versusCallbacksBound = false;
     }
     this.stopRoomPoll();
     this.setStatus('disconnected');
@@ -1485,6 +1515,103 @@ class SpacetimeClient {
   closePublicRoom(code: string): void {
     this.queueOrCallReducer(() => {
       (this.connection?.reducers as { closePublicRoom?: (a: { code: string }) => void }).closePublicRoom?.({ code });
+    });
+  }
+
+  private versusQueueTable(conn: DbConnection | null = this.connection): {
+    onInsert: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+    onUpdate: (cb: (ctx: unknown, oldRow: Record<string, unknown>, row: Record<string, unknown>) => void) => void;
+    onDelete: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+    iter: () => Iterable<Record<string, unknown>>;
+  } | null {
+    const table = (conn?.db as { versusQueue?: {
+      onInsert: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+      onUpdate: (cb: (ctx: unknown, oldRow: Record<string, unknown>, row: Record<string, unknown>) => void) => void;
+      onDelete: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+      iter: () => Iterable<Record<string, unknown>>;
+    } } | undefined)?.versusQueue;
+    return table || null;
+  }
+
+  private bindVersusQueueCallbacks(conn: DbConnection): void {
+    if (this.versusCallbacksBound) return;
+    const table = this.versusQueueTable(conn);
+    if (!table) return;
+    this.versusCallbacksBound = true;
+    table.onInsert((_ctx, row) => {
+      applyVersusQueueEvent(this.versusQueue, { type: 'insert', row: versusRowFromServer(row) });
+      this.notifyVersusQueue();
+    });
+    table.onUpdate((_ctx, _old, row) => {
+      applyVersusQueueEvent(this.versusQueue, { type: 'update', row: versusRowFromServer(row) });
+      this.notifyVersusQueue();
+    });
+    table.onDelete((_ctx, row) => {
+      applyVersusQueueEvent(this.versusQueue, { type: 'delete', code: String(row.code || '') });
+      this.notifyVersusQueue();
+    });
+  }
+
+  private seedVersusQueueFromTable(conn: DbConnection): void {
+    const table = this.versusQueueTable(conn);
+    if (!table) return;
+    this.versusQueue.clear();
+    for (const row of table.iter()) {
+      applyVersusQueueEvent(this.versusQueue, { type: 'insert', row: versusRowFromServer(row) });
+    }
+    this.notifyVersusQueue();
+  }
+
+  private notifyVersusQueue(): void {
+    const rows = this.getVersusQueue();
+    this.versusListeners.forEach((fn) => fn(rows));
+  }
+
+  getVersusQueue(): VersusQueueRow[] {
+    return listQuickQueue(this.versusQueue);
+  }
+
+  hasLiveVersusQueue(): boolean {
+    return this.liveVersusQueue;
+  }
+
+  onVersusQueue(callback: (rows: VersusQueueRow[]) => void): () => void {
+    this.versusListeners.push(callback);
+    callback(this.getVersusQueue());
+    return () => {
+      this.versusListeners = this.versusListeners.filter((fn) => fn !== callback);
+    };
+  }
+
+  publishVersusQueue(row: { code: string; hostName: string; hostShip: string; kind: string }): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { publishVersusQueue?: (a: typeof row) => void }).publishVersusQueue?.(row);
+    });
+  }
+
+  heartbeatVersusQueue(row: { code: string; hostName: string; hostShip: string; kind: string }): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { heartbeatVersusQueue?: (a: typeof row) => void }).heartbeatVersusQueue?.(row);
+    });
+  }
+
+  closeVersusQueue(code: string): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { closeVersusQueue?: (a: { code: string }) => void }).closeVersusQueue?.({ code });
+    });
+  }
+
+  claimVersusQueue(code: string, guestName: string, guestShip: string): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { claimVersusQueue?: (a: { code: string; guestName: string; guestShip: string }) => void }).claimVersusQueue?.({ code, guestName, guestShip });
+    });
+  }
+
+  reportVersusResult(matchId: string, winnerPid: number, hostRounds: number, guestRounds: number): void {
+    this.queueOrCallReducer(() => {
+      (this.connection?.reducers as { reportVersusResult?: (a: { matchId: string; winnerPid: number; hostRounds: number; guestRounds: number }) => void }).reportVersusResult?.({
+        matchId, winnerPid, hostRounds, guestRounds,
+      });
     });
   }
 

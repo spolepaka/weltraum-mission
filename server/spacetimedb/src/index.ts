@@ -9,6 +9,7 @@ import { buildLevelPayload } from './level-catalog';
 import { nameKey, validateDisplayName, type NameKind } from './display-names';
 import { plausibleLegacyUnlock } from './legacy-import';
 import { isMillionScaleGrant, maxCoinsForLevel, salePrice } from './economy';
+import { prizeToAward, utcDayKeyFromMicros, validateVersusReport, VERSUS_QUEUE_TTL_US } from './versus';
 import {
   ADMIN_ROLES_SEEDED_KEY,
   bindAdminCtx,
@@ -358,6 +359,43 @@ const spacetimedb = schema({
       players: t.u32(),
       inGame: t.bool(),
       heartbeat: t.timestamp(),
+    }
+  ),
+
+  versusQueue: table(
+    { public: true },
+    {
+      code: t.string().primaryKey(),
+      hostIdentity: t.identity().index('btree'),
+      guestIdentity: t.identity(),
+      hostHex: t.string(),
+      guestHex: t.string(),
+      hostName: t.string(),
+      guestName: t.string(),
+      hostShip: t.string(),
+      guestShip: t.string(),
+      kind: t.string(),
+      inMatch: t.bool(),
+      heartbeat: t.timestamp(),
+    }
+  ),
+
+  versusSettled: table(
+    { public: false },
+    {
+      matchId: t.string().primaryKey(),
+      winnerHex: t.string(),
+      prize: t.u32(),
+      at: t.timestamp(),
+    }
+  ),
+
+  versusPrizeDay: table(
+    { public: false },
+    {
+      identity: t.identity().primaryKey(),
+      dayKey: t.u32(),
+      awarded: t.u32(),
     }
   ),
 
@@ -2780,5 +2818,173 @@ export const listPublicRooms = spacetimedb.procedure(
       rooms.sort((a, b) => a.level - b.level || a.hostName.localeCompare(b.hostName));
       return { roomsJson: JSON.stringify(rooms.slice(0, 40)) };
     });
+  }
+);
+
+function sweepStaleVersusQueue(ctx: AnyCtx): void {
+  const now = timestampMicros(ctx.timestamp as { microsSinceUnixEpoch?: bigint });
+  if (!now) return;
+  for (const row of [...ctx.db.versusQueue.iter()]) {
+    const beat = timestampMicros(row.heartbeat as { microsSinceUnixEpoch?: bigint; __timestamp_micros_since_unix_epoch__?: bigint });
+    if (beat && now - beat > VERSUS_QUEUE_TTL_US) {
+      ctx.db.versusQueue.delete(row);
+      console.info(`versus_queue sweep ${row.code}`);
+    }
+  }
+}
+
+function upsertVersusQueue(
+  ctx: AnyCtx,
+  code: string,
+  kind: string,
+  hostName: string,
+  hostShip: string,
+): void {
+  sweepStaleVersusQueue(ctx);
+  const hex = identityKey(ctx.sender);
+  const ship = validateShip(hostShip) ? hostShip : 'starter';
+  const k = kind === 'challenge' ? 'challenge' : 'quick';
+  const existing = ctx.db.versusQueue.code.find(code);
+  const row = {
+    code,
+    hostIdentity: ctx.sender,
+    guestIdentity: existing?.guestIdentity || ctx.sender,
+    hostHex: hex,
+    guestHex: existing?.guestHex || '',
+    hostName: safeRoomName(hostName),
+    guestName: existing?.guestName || '',
+    hostShip: ship,
+    guestShip: existing?.guestShip || '',
+    kind: k,
+    inMatch: existing ? !!existing.inMatch : false,
+    heartbeat: ctx.timestamp,
+  };
+  if (existing) {
+    if (identityKey(existing.hostIdentity) !== hex) throw new Error('Not your versus room');
+    ctx.db.versusQueue.code.update(row);
+    return;
+  }
+  for (const old of [...ctx.db.versusQueue.hostIdentity.filter(ctx.sender)]) {
+    ctx.db.versusQueue.delete(old);
+  }
+  ctx.db.versusQueue.insert(row);
+  console.info(`versus_queue insert ${code} kind=${k}`);
+}
+
+export const publishVersusQueue = spacetimedb.reducer(
+  { code: t.string(), hostName: t.string(), hostShip: t.string(), kind: t.string() },
+  (ctx, { code, hostName, hostShip, kind }) => {
+    assertNotBanned(ctx);
+    ensurePlayer(ctx);
+    const clean = cleanRoomCode(code);
+    if (clean.length !== 5) throw new Error('Bad versus code');
+    upsertVersusQueue(ctx, clean, kind, hostName, hostShip);
+  }
+);
+
+export const heartbeatVersusQueue = spacetimedb.reducer(
+  { code: t.string(), hostName: t.string(), hostShip: t.string(), kind: t.string() },
+  (ctx, { code, hostName, hostShip, kind }) => {
+    const clean = cleanRoomCode(code);
+    if (clean.length !== 5) return;
+    const existing = ctx.db.versusQueue.code.find(clean);
+    if (existing && identityKey(existing.hostIdentity) !== identityKey(ctx.sender)) return;
+    upsertVersusQueue(ctx, clean, kind || existing?.kind || 'quick', hostName || existing?.hostName || 'Pilot', hostShip || existing?.hostShip || 'starter');
+  }
+);
+
+export const closeVersusQueue = spacetimedb.reducer(
+  { code: t.string() },
+  (ctx, { code }) => {
+    const clean = cleanRoomCode(code);
+    const existing = clean ? ctx.db.versusQueue.code.find(clean) : null;
+    if (existing && identityKey(existing.hostIdentity) === identityKey(ctx.sender)) {
+      ctx.db.versusQueue.delete(existing);
+      console.info(`versus_queue delete ${existing.code} reason=close`);
+      return;
+    }
+    for (const old of [...ctx.db.versusQueue.hostIdentity.filter(ctx.sender)]) {
+      ctx.db.versusQueue.delete(old);
+      console.info(`versus_queue delete ${old.code} reason=close-host`);
+    }
+  }
+);
+
+export const claimVersusQueue = spacetimedb.reducer(
+  { code: t.string(), guestName: t.string(), guestShip: t.string() },
+  (ctx, { code, guestName, guestShip }) => {
+    assertNotBanned(ctx);
+    ensurePlayer(ctx);
+    sweepStaleVersusQueue(ctx);
+    const clean = cleanRoomCode(code);
+    const row = ctx.db.versusQueue.code.find(clean);
+    if (!row) throw new Error('Versus room not found');
+    const me = identityKey(ctx.sender);
+    if (identityKey(row.hostIdentity) === me) return;
+    if (row.guestHex && row.guestHex !== me) throw new Error('Versus room taken');
+    const ship = validateShip(guestShip) ? guestShip : 'starter';
+    ctx.db.versusQueue.code.update({
+      ...row,
+      guestIdentity: ctx.sender,
+      guestHex: me,
+      guestName: safeRoomName(guestName),
+      guestShip: ship,
+      inMatch: true,
+      heartbeat: ctx.timestamp,
+    });
+    console.info(`versus_queue claim ${clean} guest=${me.slice(0, 8)}`);
+  }
+);
+
+export const reportVersusResult = spacetimedb.reducer(
+  { matchId: t.string(), winnerPid: t.u32(), hostRounds: t.u32(), guestRounds: t.u32() },
+  (ctx, { matchId, winnerPid, hostRounds, guestRounds }) => {
+    assertNotBanned(ctx);
+    ensurePlayer(ctx);
+    const clean = cleanRoomCode(matchId);
+    if (clean.length !== 5) throw new Error('Bad match id');
+    const check = validateVersusReport({ winnerPid: winnerPid | 0, hostRounds: hostRounds | 0, guestRounds: guestRounds | 0 });
+    if (!check.ok) throw new Error(check.reason || 'Bad versus report');
+    const row = ctx.db.versusQueue.code.find(clean);
+    if (!row) throw new Error('Versus match not found');
+    const me = identityKey(ctx.sender);
+    const hostHex = row.hostHex || identityKey(row.hostIdentity);
+    const guestHex = row.guestHex || '';
+    if (me !== hostHex && me !== guestHex) throw new Error('Not in this match');
+    if ((winnerPid | 0) === 2 && !guestHex) throw new Error('No guest');
+    const already = ctx.db.versusSettled.matchId.find(clean);
+    if (already) return;
+    const winnerHex = (winnerPid | 0) === 1 ? hostHex : guestHex;
+    if (!winnerHex) throw new Error('No winner identity');
+    const winnerIdent = (winnerPid | 0) === 1 ? row.hostIdentity : row.guestIdentity;
+    const dayKey = utcDayKeyFromMicros(ctx.timestamp.microsSinceUnixEpoch || 0n);
+    const dayRow = ctx.db.versusPrizeDay.identity.find(winnerIdent);
+    const alreadyToday = dayRow && dayRow.dayKey === dayKey ? dayRow.awarded : 0;
+    const prize = prizeToAward(alreadyToday);
+    ctx.db.versusSettled.insert({
+      matchId: clean,
+      winnerHex,
+      prize,
+      at: ctx.timestamp,
+    });
+    if (prize > 0) {
+      const shop = ctx.db.playerShop.identity.find(winnerIdent);
+      if (shop) {
+        const next = shop.coins + BigInt(prize);
+        const clamped = next > BigInt(MAX_COINS) ? BigInt(MAX_COINS) : next;
+        ctx.db.playerShop.identity.update({ ...shop, coins: clamped });
+        writeCoinEvent(ctx, winnerIdent, BigInt(prize), 'versus', 0);
+      }
+      if (dayRow) {
+        ctx.db.versusPrizeDay.identity.update({
+          identity: winnerIdent,
+          dayKey,
+          awarded: (dayRow.dayKey === dayKey ? dayRow.awarded : 0) + prize,
+        });
+      } else {
+        ctx.db.versusPrizeDay.insert({ identity: winnerIdent, dayKey, awarded: prize });
+      }
+    }
+    console.info(`versus_settle ${clean} winner=${winnerHex.slice(0, 8)} prize=${prize}`);
   }
 );
