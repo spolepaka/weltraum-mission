@@ -6,6 +6,7 @@ import { currentIdToken, ensureFirebase, isAuthConfigured, loadAuthUser, signInW
 import { getSpacetimeClient, initSpacetime } from './lib/spacetime-client';
 import { isEmptyGuest, matchesPlayerFilter, sortPlayers } from './lib/empty-guest';
 import { STORE_FULL_IP, GEO_RETENTION_DAYS } from './lib/geo-privacy';
+import { OWNER_EMAIL } from '../server/spacetimedb/src/admin';
 
 function peekIdTokenClaims(token?: string): { email: string; iss: string; sub: string; emailVerified: boolean } {
   if (!token) return { email: '', iss: '', sub: '', emailVerified: false };
@@ -212,6 +213,27 @@ async function renderApp(client: ReturnType<typeof getSpacetimeClient>, email: s
       </header>
       <main>
         <section>
+          <div class="onlineNow" id="onlineNow">
+            <h2>Online now</h2>
+            <div class="stats" id="onlineStats"></div>
+            <table>
+              <thead><tr><th>Name</th><th>Doing</th><th>Since</th></tr></thead>
+              <tbody id="onlineRows"><tr><td colspan="3" class="muted">Connecting…</td></tr></tbody>
+            </table>
+          </div>
+          <div class="admins" id="admins">
+            <h2>Admins</h2>
+            <p class="muted">Owner ${esc(OWNER_EMAIL)} is always admin and cannot be removed. Grant is checked from the Firebase email on the server, not a client flag.</p>
+            <div class="row">
+              <input id="grantEmail" type="email" placeholder="email@example.com" />
+              <button type="button" id="grantAdmin">Grant admin</button>
+            </div>
+            <p id="adminNote" class="muted"></p>
+            <table>
+              <thead><tr><th>Email</th><th>Role</th><th></th></tr></thead>
+              <tbody id="adminRows"></tbody>
+            </table>
+          </div>
           <div class="stats" id="stats"></div>
           <div class="row">
             <input id="q" placeholder="Search id, name, email, linked id" />
@@ -267,7 +289,90 @@ async function renderApp(client: ReturnType<typeof getSpacetimeClient>, email: s
   q.addEventListener('input', () => { state.page = 0; paintRows(client); });
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter') void reload(client); });
   (root.querySelector('#reload') as HTMLButtonElement).onclick = () => { void reload(client); };
+  (root.querySelector('#grantAdmin') as HTMLButtonElement).onclick = () => { void grantAdmin(client); };
+  client.setOnlinePresence('menu', email);
   await reload(client);
+  await refreshLive(client);
+  window.setInterval(() => { void refreshLive(client); }, 4000);
+}
+
+const ACTIVITY_LABEL: Record<string, string> = {
+  menu: 'In menus',
+  solo: 'Solo',
+  coop: 'Co-op',
+  versus: 'Versus',
+};
+
+async function refreshLive(client: ReturnType<typeof getSpacetimeClient>): Promise<void> {
+  client.heartbeatOnline();
+  const online = await client.getOnlineNow();
+  const stats = root.querySelector('#onlineStats') as HTMLElement | null;
+  const body = root.querySelector('#onlineRows') as HTMLElement | null;
+  if (stats) {
+    stats.innerHTML = `
+      <div class="card live">Online now<b>${online?.total ?? 0}</b></div>
+      <div class="card">Menus<b>${online?.menu ?? 0}</b></div>
+      <div class="card">Solo<b>${online?.solo ?? 0}</b></div>
+      <div class="card">Co-op<b>${online?.coop ?? 0}</b></div>
+      <div class="card">Versus<b>${online?.versus ?? 0}</b></div>`;
+  }
+  if (body) {
+    const people = online?.people || [];
+    body.innerHTML = people.map((p) => `<tr>
+      <td>${esc(p.name || 'Pilot')}</td>
+      <td>${esc(ACTIVITY_LABEL[p.activity] || p.activity)}</td>
+      <td>${fmtWhen(p.since)}</td>
+    </tr>`).join('') || '<tr><td colspan="3" class="muted">Nobody online right now.</td></tr>';
+  }
+  const roles = await client.adminListRoles();
+  const adminBody = root.querySelector('#adminRows') as HTMLElement | null;
+  if (adminBody) {
+    adminBody.innerHTML = roles.map((r) => `<tr>
+      <td>${esc(r.email)}</td>
+      <td>${r.owner ? '<span class="chip">owner</span>' : '<span class="chip">admin</span>'}</td>
+      <td>${r.owner ? '' : `<button type="button" class="danger revoke" data-email="${esc(r.email)}">Revoke</button>`}</td>
+    </tr>`).join('') || '<tr><td colspan="3" class="muted">No roles yet.</td></tr>';
+    adminBody.querySelectorAll('button.revoke').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const email = btn.getAttribute('data-email') || '';
+        void revokeAdmin(client, email);
+      });
+    });
+  }
+}
+
+async function grantAdmin(client: ReturnType<typeof getSpacetimeClient>): Promise<void> {
+  const input = root.querySelector('#grantEmail') as HTMLInputElement | null;
+  const note = root.querySelector('#adminNote') as HTMLElement | null;
+  const email = (input?.value || '').trim();
+  if (!note) return;
+  try {
+    await client.adminGrantRole(email);
+    note.className = 'ok';
+    note.textContent = `Granted admin to ${email}.`;
+    if (input) input.value = '';
+    await refreshLive(client);
+  } catch (err) {
+    note.className = 'err';
+    note.textContent = err instanceof Error ? err.message : String(err);
+  }
+}
+
+async function revokeAdmin(client: ReturnType<typeof getSpacetimeClient>, email: string): Promise<void> {
+  const note = root.querySelector('#adminNote') as HTMLElement | null;
+  try {
+    await client.adminRevokeRole(email);
+    if (note) {
+      note.className = 'ok';
+      note.textContent = `Revoked admin from ${email}.`;
+    }
+    await refreshLive(client);
+  } catch (err) {
+    if (note) {
+      note.className = 'err';
+      note.textContent = err instanceof Error ? err.message : String(err);
+    }
+  }
 }
 
 async function reload(client: ReturnType<typeof getSpacetimeClient>): Promise<void> {

@@ -15,6 +15,11 @@
   .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 110px; }
   .card b { display: block; font-size: 20px; }
+  .card.live { border-color: var(--ok); }
+  .card.live b { color: var(--ok); }
+  .onlineNow, .admins { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 14px; }
+  .onlineNow h2, .admins h2 { margin: 0 0 8px; font-size: 16px; }
+  .onlineNow table tr { cursor: default; }
   input, select, button { font: inherit; border-radius: 8px; border: 1px solid #4a6cff; padding: 6px 10px; background: #0c1730; color: #fff; }
   button { background: #2a4dff; cursor: pointer; }
   button.danger { background: #a32030; }

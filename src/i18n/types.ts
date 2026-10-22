@@ -104,6 +104,7 @@ export interface Translations {
   unlockedByAchievements: string;
   yourRecords: string;
   onlinePlay: string;
+  onlineNow: string;
   onlineTitle: string;
   onlineIntro: string;
   createRoom: string;

@@ -2,11 +2,18 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   ADMIN_EMAILS,
+  OWNER_EMAIL,
+  SEED_ADMIN_EMAILS,
+  applySeedAdminRoles,
   bindAdminCtx,
+  canGrantAdmin,
+  canRevokeAdmin,
   emailFromJwtPayload,
   inspectSenderAuth,
   isAdminEmail,
   isAdminPrincipal,
+  isGrantedAdmin,
+  isOwnerEmail,
   isAdminUid,
   normalizeEmail,
   payloadFromJwt,
@@ -28,6 +35,25 @@ describe('admin access', () => {
     expect(isAdminUid('')).toBe(false);
     expect(isAdminPrincipal('sumankpolepaka@gmail.com', '')).toBe(true);
     expect(isAdminPrincipal('kid@example.com', '')).toBe(false);
+    expect(OWNER_EMAIL).toBe('sumankpolepaka@gmail.com');
+    expect(isOwnerEmail('SumanKPolepaka@gmail.com')).toBe(true);
+    expect(SEED_ADMIN_EMAILS).toEqual(['joshiepolepaka@gmail.com']);
+    expect(isGrantedAdmin('joshiepolepaka@gmail.com', SEED_ADMIN_EMAILS)).toBe(true);
+    expect(isGrantedAdmin('kid@example.com', SEED_ADMIN_EMAILS)).toBe(false);
+  });
+
+  it('seeds Joshi once and never lets the owner be removed', () => {
+    const first = applySeedAdminRoles([], false, 1);
+    expect(first.added).toEqual(['sumankpolepaka@gmail.com', 'joshiepolepaka@gmail.com']);
+    expect(first.seeded).toBe(true);
+    const afterRevokeJoshi = first.rows.filter((row) => row.email !== 'joshiepolepaka@gmail.com');
+    const again = applySeedAdminRoles(afterRevokeJoshi, true, 2);
+    expect(again.added).toEqual([]);
+    expect(again.rows.map((row) => row.email)).toEqual(['sumankpolepaka@gmail.com']);
+    expect(canRevokeAdmin('sumankpolepaka@gmail.com').ok).toBe(false);
+    expect(canRevokeAdmin('joshiepolepaka@gmail.com')).toEqual({ ok: true, email: 'joshiepolepaka@gmail.com' });
+    expect(canGrantAdmin('Kid@Example.com')).toEqual({ ok: true, email: 'kid@example.com' });
+    expect(canGrantAdmin('not-an-email').ok).toBe(false);
   });
 
   it('reads email from fullPayload and rawPayload', () => {
@@ -66,7 +92,7 @@ describe('admin access', () => {
     const writes = [
       'adminSetCoins', 'adminAddCoins', 'adminUnlockLevel', 'adminGrantShip',
       'adminRemoveShip', 'adminResetProgress', 'adminResetPlayer', 'adminBan', 'adminUnban',
-      'adminSetTestFlag', 'adminPurgeEmptyGuests',
+      'adminSetTestFlag', 'adminPurgeEmptyGuests', 'adminGrantRole', 'adminRevokeRole',
     ];
     for (const name of writes) {
       expect(moduleSrc).toContain(`export const ${name}`);
@@ -91,5 +117,14 @@ describe('admin access', () => {
     expect(adminTs).toContain('type PURGE');
     expect(adminTs).toContain('Coin history');
     expect(adminTs).toContain('Location (GDPR)');
+    expect(adminTs).toContain('Online now');
+    expect(adminTs).toContain('Grant admin');
+    expect(adminTs).toContain('adminGrantRole');
+    expect(adminTs).toContain('adminRevokeRole');
+    expect(adminTs).toContain('getOnlineNow');
+    expect(moduleSrc).toContain('adminRole');
+    expect(moduleSrc).toContain('onlineSession');
+    expect(moduleSrc).toContain('canRevokeAdmin');
+    expect(adminTs).toContain('cannot be removed');
   });
 });
