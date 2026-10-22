@@ -109,6 +109,7 @@ export const en: Translations = {
   unlockedByAchievements: 'unlocked by achievements',
   yourRecords: 'Your Records',
   onlinePlay: 'Online Co-op',
+  onlineNow: '{n} online',
   onlineTitle: 'Play Online',
   onlineIntro: 'Fly together in the same level – on up to 5 iPads!',
   createRoom: 'Create Room',

@@ -77,6 +77,7 @@ import * as roomList from './lib/room-list';
 import * as roomJoin from './lib/room-join';
 import * as migrate from './lib/host-migrate';
 import * as economy from './lib/economy';
+import { formatOnlineBadge, inferOnlineActivity, shouldShowOnlineBadge } from './lib/online-now';
 import { ROADSTERS } from './lib/roadsters';
 import { drawRoadster } from './lib/roadster-draw';
 import * as roadsterNet from './lib/roadster-net';
@@ -245,6 +246,9 @@ declare global {
       applyAccountSnapshot?: (p: Record<string, unknown>) => void;
       askImportGuest?: (title: string, body: string, yes: string, no: string) => Promise<boolean>;
       coop?: Record<string, unknown>;
+      onlineActivity?: () => string;
+      net?: () => { role?: string | null; inGame?: boolean };
+      state?: () => { state?: string };
     };
     __I18N_BUNDLE__?: unknown;
   }
@@ -910,6 +914,47 @@ function bindAuthWatch(client: SpacetimeClient): void {
   });
 }
 
+function currentOnlineActivity(): string {
+  const game = window.__spaceGame;
+  if (game && typeof game.onlineActivity === 'function') return game.onlineActivity();
+  const net = game?.net?.();
+  const playing = game?.state?.()?.state === 'play' || game?.state?.()?.state === 'dying' || game?.state?.()?.state === 'sucked';
+  return inferOnlineActivity({ versus: false, netRole: net?.role, playing });
+}
+
+function paintOnlineNowBadge(total: number, isAdmin: boolean): void {
+  const text = formatOnlineBadge(total, t('onlineNow', { n: total }));
+  const show = shouldShowOnlineBadge(isAdmin);
+  for (const id of ['onlineNowHud', 'onlineNowMap']) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.textContent = text;
+    el.classList.toggle('hidden', !show);
+  }
+}
+
+function startOnlineNowWatch(client: SpacetimeClient): void {
+  const tick = async () => {
+    const name = loadDisplayName()?.name || 'Pilot';
+    const activity = currentOnlineActivity();
+    client.setOnlinePresence(activity, name);
+    if (!client.isConnected()) {
+      paintOnlineNowBadge(0, false);
+      return;
+    }
+    client.heartbeatOnline(activity, name);
+    const snap = await client.getOnlineNow();
+    paintOnlineNowBadge(snap?.total || 0, !!snap?.admin);
+  };
+  void tick();
+  setInterval(() => { void tick(); }, 5000);
+  client.onStatusChange((status) => {
+    if (status === 'connected') void tick();
+    if (status === 'disconnected' || status === 'offline' || status === 'error') paintOnlineNowBadge(0, false);
+  });
+  onLanguageChange(() => { void tick(); });
+}
+
 async function init(): Promise<void> {
   console.log('[Weltraum] Initializing SpacetimeDB client...');
   installChunkUpdateHandlers();
@@ -957,6 +1002,7 @@ async function init(): Promise<void> {
   if (needsFirebaseNow()) {
     bindAuthWatch(client);
   }
+  startOnlineNowWatch(client);
   clearSoftReloadGuard();
 }
 

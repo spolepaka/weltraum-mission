@@ -5,7 +5,15 @@
  * ProcedureCtx has no senderAuth. JWT lives on withTx()'s TransactionCtx.
  */
 
-export const ADMIN_EMAILS = ['sumankpolepaka@gmail.com'] as const;
+export const OWNER_EMAIL = 'sumankpolepaka@gmail.com';
+
+/** Hard-coded owner. Always admin and cannot be removed from the role table. */
+export const ADMIN_EMAILS = [OWNER_EMAIL] as const;
+
+/** Seeded on first module boot. Can be revoked later by the owner. */
+export const SEED_ADMIN_EMAILS = ['joshiepolepaka@gmail.com'] as const;
+
+export const ADMIN_ROLES_SEEDED_KEY = 'adminRolesSeeded';
 
 /** Fill in Suman's Firebase UID once known. Email check remains required to work. */
 export const ADMIN_UIDS: readonly string[] = [];
@@ -28,8 +36,69 @@ export function normalizeUid(raw: unknown): string {
   return String(raw || '').trim();
 }
 
+export function isOwnerEmail(email: string): boolean {
+  return normalizeEmail(email) === OWNER_EMAIL;
+}
+
 export function isAdminEmail(email: string): boolean {
-  return (ADMIN_EMAILS as readonly string[]).includes(normalizeEmail(email));
+  return isOwnerEmail(email);
+}
+
+export function bootstrapAdminEmails(): string[] {
+  return [OWNER_EMAIL, ...SEED_ADMIN_EMAILS].map(normalizeEmail);
+}
+
+export type AdminRoleRow = {
+  email: string;
+  grantedBy: string;
+  grantedAt: number;
+};
+
+export function applySeedAdminRoles(
+  existing: AdminRoleRow[],
+  seeded: boolean,
+  now: number,
+): { rows: AdminRoleRow[]; seeded: boolean; added: string[] } {
+  const emails = new Set(existing.map((row) => normalizeEmail(row.email)));
+  const rows = existing.map((row) => ({ ...row, email: normalizeEmail(row.email) }));
+  const added: string[] = [];
+  const add = (email: string, grantedBy: string) => {
+    const e = normalizeEmail(email);
+    if (!e || emails.has(e)) return;
+    emails.add(e);
+    rows.push({ email: e, grantedBy, grantedAt: now });
+    added.push(e);
+  };
+  add(OWNER_EMAIL, 'system');
+  if (!seeded) {
+    for (const email of SEED_ADMIN_EMAILS) add(email, OWNER_EMAIL);
+  }
+  return { rows, seeded: true, added };
+}
+
+export function isGrantedAdmin(email: string, roleEmails: Iterable<string>): boolean {
+  const e = normalizeEmail(email);
+  if (!e) return false;
+  if (isOwnerEmail(e)) return true;
+  for (const row of roleEmails) {
+    if (normalizeEmail(row) === e) return true;
+  }
+  return false;
+}
+
+export function canGrantAdmin(email: string): { ok: true; email: string } | { ok: false; reason: string } {
+  const e = normalizeEmail(email);
+  if (!e || e.length > 80 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+    return { ok: false, reason: 'Invalid email' };
+  }
+  return { ok: true, email: e };
+}
+
+export function canRevokeAdmin(email: string): { ok: true; email: string } | { ok: false; reason: string } {
+  const e = normalizeEmail(email);
+  if (!e) return { ok: false, reason: 'Invalid email' };
+  if (isOwnerEmail(e)) return { ok: false, reason: 'Cannot remove owner' };
+  return { ok: true, email: e };
 }
 
 export function isAdminUid(uid: string): boolean {
