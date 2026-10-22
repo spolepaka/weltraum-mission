@@ -8,7 +8,7 @@ import { assertTrustedCaller, authSnapshotFromCtx, isFirebaseIssuer } from './au
 import { buildLevelPayload } from './level-catalog';
 import { nameKey, validateDisplayName, type NameKind } from './display-names';
 import { plausibleLegacyUnlock } from './legacy-import';
-import { isMillionScaleGrant, maxCoinsForLevel, salePrice } from './economy';
+import { isMillionScaleGrant, maxCoinsForLevel, salePrice, UNLOCK_SHIPS, upgradeSalePrice } from './economy';
 import { prizeToAward, utcDayKeyFromMicros, validateVersusReport, VERSUS_QUEUE_TTL_US } from './versus';
 import {
   ADMIN_ROLES_SEEDED_KEY,
@@ -57,9 +57,19 @@ const VALID_SHIPS = new Set([
 ]);
 
 const VALID_ACHIEVEMENTS = new Set([
-  'firstWin', 'combo10', 'combo25', 'boss3', 'boss10', 'noHit', 'speedrun',
-  'coins1k', 'coins10k', 'coins100k', 'allShips', 'maxUpgrades', 'level25',
-  'level50', 'level75', 'level100', 'perfect3', 'missions10', 'sessions50'
+  // Current client ACH ids (36)
+  'first', 'lv10', 'lv50', 'max12', 'max25', 'max50', 'max75', 'max100',
+  'rock100', 'rock1k', 'rock10k', 'ufo25', 'ufo250',
+  'boss1', 'boss10', 'boss30', 'comet5',
+  'combo10', 'combo25', 'combo50',
+  'coin1k', 'coin10k', 'coin100k',
+  'star25', 'three10', 'three40', 'pow50',
+  'nohit1', 'nohit10', 'ships5', 'ships15',
+  'golden', 'treasure', 'twoP', 'online', 'ghost',
+  // Legacy ids still stored on older rows
+  'firstWin', 'boss3', 'noHit', 'speedrun',
+  'coins1k', 'coins10k', 'coins100k', 'allShips', 'maxUpgrades',
+  'level25', 'level50', 'level75', 'level100', 'perfect3', 'missions10', 'sessions50',
 ]);
 
 const SECRET_CODES: Record<string, { key: string; coins: number }> = {
@@ -989,6 +999,7 @@ export const getLevelData = spacetimedb.procedure(
 export const addOwnedShip = spacetimedb.reducer(
   { shipId: t.string() },
   (ctx, { shipId }) => {
+    assertAdmin(ctx);
     const identity = ctx.sender;
     
     if (!validateShip(shipId)) {
@@ -1002,6 +1013,41 @@ export const addOwnedShip = spacetimedb.reducer(
     }
     
     ctx.db.ownedShip.insert({ identity, shipId });
+  }
+);
+
+export const claimUnlockShip = spacetimedb.reducer(
+  { shipId: t.string() },
+  (ctx, { shipId }) => {
+    assertNotBanned(ctx);
+    ensurePlayer(ctx);
+    const identity = ctx.sender;
+    if (!validateShip(shipId)) throw new Error(`Invalid ship: ${shipId}`);
+    if (salePrice(shipId) !== null) throw new Error('Ship is for sale');
+    const rule = UNLOCK_SHIPS[shipId];
+    if (!rule) throw new Error('Ship is not an unlock reward');
+    if (rule.level) {
+      const progress = ctx.db.playerProgress.identity.find(identity);
+      const unlocked = progress?.unlockedLevel ?? 1;
+      let starred = false;
+      for (const row of ctx.db.levelStars.identity.filter(identity)) {
+        if (row.level === rule.level && row.stars > 0) { starred = true; break; }
+      }
+      if (!starred && unlocked < rule.level) throw new Error('Unlock not earned');
+    }
+    if (rule.ach) {
+      let have = false;
+      for (const a of ctx.db.playerAchievements.identity.filter(identity)) {
+        if (a.achievementId === rule.ach) { have = true; break; }
+      }
+      if (!have) throw new Error('Achievement not earned');
+    }
+    for (const s of ctx.db.ownedShip.identity.filter(identity)) {
+      if (s.shipId === shipId) return;
+    }
+    ctx.db.ownedShip.insert({ identity, shipId });
+    const shop = ctx.db.playerShop.identity.find(identity);
+    if (shop) ctx.db.playerShop.identity.update({ ...shop, equippedShip: shipId });
   }
 );
 
@@ -1109,6 +1155,8 @@ export const purchaseUpgrade = spacetimedb.reducer(
   { upgradeId: t.string(), price: t.u64() },
   (ctx, { upgradeId, price }) => {
     const identity = ctx.sender;
+    // Client-sent `price` is ignored — catalog is the only charge (needs republish).
+    void price;
     
     if (!VALID_UPGRADE_IDS.has(upgradeId)) {
       throw new Error(`Invalid upgrade: ${upgradeId}`);
@@ -1131,14 +1179,20 @@ export const purchaseUpgrade = spacetimedb.reducer(
     if (currentLevel >= maxLevel) {
       throw new Error('Upgrade already at max level');
     }
+
+    const catalog = upgradeSalePrice(upgradeId, currentLevel);
+    if (catalog === null) {
+      throw new Error('Upgrade not for sale');
+    }
+    const cost = BigInt(catalog);
     
-    if (shop.coins < price) {
+    if (shop.coins < cost) {
       throw new Error('Insufficient coins');
     }
     
     ctx.db.playerShop.identity.update({
       ...shop,
-      coins: shop.coins - price,
+      coins: shop.coins - cost,
     });
     
     ctx.db.playerUpgrades.insert({
