@@ -310,8 +310,11 @@ describe('Tesla Roadster rocket boost / barrel roll', () => {
     expect(startRoadsterBoost('beepbuggy', 0, false).roll).toBe(false);
     expect(startRoadsterBoost('starter', 1, false).roll).toBe(false);
     expect(html).toContain('tryRoadsterBoost');
+    expect(html).toContain('requestRoadsterBoost');
     expect(html).toContain('boostBtn');
     expect(html).toContain('tapBoost');
+    expect(html).toContain('tapFlip');
+    expect(html).toContain('rboostFlip');
     expect(html).toContain('rollU');
     expect(html).toContain('roadsterHitCheck');
   });
