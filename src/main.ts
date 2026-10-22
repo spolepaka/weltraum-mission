@@ -66,6 +66,7 @@ import * as migrate from './lib/host-migrate';
 import * as economy from './lib/economy';
 import { ROADSTERS } from './lib/roadsters';
 import { drawRoadster } from './lib/roadster-draw';
+import * as roadsterNet from './lib/roadster-net';
 import {
   boostCooldown,
   boostDuration,
@@ -129,6 +130,7 @@ export interface WeltraumApi {
       flips: typeof flipsOnBoost;
       rollDur: typeof rollDuration;
     };
+    net: typeof roadsterNet;
   };
   onPurchaseUpgrade: (upgradeId: string, price: number) => boolean;
   onSecretCode: (code: string) => { success: boolean; message: string };
@@ -551,6 +553,7 @@ function installApi(client: SpacetimeClient): WeltraumApi {
         flips: flipsOnBoost,
         rollDur: rollDuration,
       },
+      net: roadsterNet,
     },
     onPurchaseUpgrade: (upgradeId, price) => client.purchaseUpgrade(upgradeId, BigInt(price)),
     onSecretCode: (code) => client.applySecretCode(code),
