@@ -22,6 +22,7 @@ import {
 import {
   applyVersusQueueEvent,
   findChallenge,
+  listOpenVersus,
   listQuickQueue,
   myVersusRole,
   versusRowFromServer,
@@ -116,5 +117,22 @@ describe('versus queue rows', () => {
     expect(listingFreshness(now - 20_000, now)).toBe('dead');
     expect(findChallenge(map, 'duel1', now)).toBeNull();
     expect(myVersusRole(row, 'aa')).toBe('host');
+  });
+
+  it('keeps a live listing when the SDK uses the underscored timestamp field', () => {
+    const now = Date.now();
+    const row = versusRowFromServer({
+      code: 'seen1',
+      hostHex: 'bb',
+      hostName: 'Bea',
+      hostShip: 'starter',
+      kind: 'quick',
+      inMatch: false,
+      heartbeat: { __timestamp_micros_since_unix_epoch__: BigInt(now) * 1000n },
+    });
+    expect(row.heartbeatMs).toBeGreaterThan(now - 2000);
+    const map = new Map<string, VersusQueueRow>();
+    applyVersusQueueEvent(map, { type: 'insert', row }, now);
+    expect(listOpenVersus(map, now).map((r) => r.code)).toEqual(['SEEN1']);
   });
 });

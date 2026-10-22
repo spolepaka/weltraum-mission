@@ -326,19 +326,20 @@
   #onLevels button.sel { background: #ffd54a; color: #2a1660; border-color: #fff; }
   #onStatus { min-height: 28px; font-size: 19px; font-weight: bold; } #onStatus.good { color: #7dffa8; } #onStatus.bad { color: #ff9a9a; }
   #onlineScreen .small { font-size: 14px; color: #aab4e8; }
-  #onVisRow, #onMenuVisRow, #onRoomList { margin: 6px 0; }
+  #onVisRow, #onMenuVisRow, #onRoomList, #onDuelList { margin: 6px 0; }
   #onVisRow label, #onMenuVisRow label { display: inline-flex; align-items: center; gap: 6px; margin: 0 8px; font-size: 16px; min-height: 44px; }
-  #onRoomRows { text-align: left; max-height: 168px; overflow-y: auto; margin: 4px 0; }
+  #onRoomRows, #onDuelRows { text-align: left; max-height: 168px; overflow-y: auto; margin: 4px 0; }
   .roomRow { display: flex; align-items: center; gap: 10px; background: rgba(20,30,80,.65); border: 2px solid #4a6cff; border-radius: 14px; padding: 10px 12px; margin: 6px 0; min-height: 52px; }
+  .roomRow.duel { border-color: #ff9ae0; background: rgba(80,20,60,.65); }
   .roomRow b { color: #ffd54a; }
   .roomRow .meta { flex: 1; font-size: 16px; }
   .roomRow button { font-family: inherit; font-size: 18px; font-weight: bold; border: none; border-radius: 16px; padding: 10px 18px; min-height: 48px; min-width: 96px; background: #ffd54a; color: #2a1660; cursor: pointer; }
   .roomRow.stale { opacity: 0.55; border-color: #6a6a8a; }
   .roomRow.stale button { background: #6a6a8a; color: #d8d8e8; cursor: default; }
-  #onEmptyRooms { font-size: 17px; color: #ffd54a; font-weight: bold; text-align: center; padding: 10px 8px; }
+  #onEmptyRooms, #onEmptyDuels { font-size: 17px; color: #ffd54a; font-weight: bold; text-align: center; padding: 10px 8px; }
   #onRefreshRooms { font-size: 16px; min-height: 44px; padding: 8px 16px; }
   #onCodeRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 8px 0 0; }
-  #onMenu #onlineIntro, #onMenu #openRoomsLabel, #onMenu #orJoinCode { margin: 4px 0; }
+  #onMenu #onlineIntro, #onMenu #openRoomsLabel, #onMenu #openDuelsLabel, #onMenu #orJoinCode { margin: 4px 0; }
   #missionToast { min-height: 26px; font-weight: bold; color: #7dffa8; }
   #coinPill { cursor: pointer; }
   #secretBox { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 6px; font-size: 20px; }
@@ -499,6 +500,8 @@
       <p id="openRoomsLabel">Public rooms</p>
       <div id="onRoomList"><div id="onRoomRows"></div>
       <div class="btnRow"><button class="alt" id="onRefreshRooms">Refresh</button></div></div>
+      <p id="openDuelsLabel">Public 1 vs 1</p>
+      <div id="onDuelList"><div id="onDuelRows"></div></div>
       <div id="onMenuVisRow" class="small">
         <label><input type="radio" name="onMenuVis" id="onMenuVisPublic" value="public" checked> <span id="onMenuVisPublicLbl">Public</span></label>
         <label><input type="radio" name="onMenuVis" id="onMenuVisPrivate" value="private"> <span id="onMenuVisPrivateLbl">Private</span></label>
@@ -4077,6 +4080,7 @@
       .sort(function (a, b) { return (a.heartbeatMs || 0) - (b.heartbeatMs || 0); })[0];
     if (!older) return;
     try { if (st.closeVersusQueue) st.closeVersusQueue(mine); } catch (e) {}
+    net.versus = true; net.vsKind = "quick";
     joinRoom(older.code);
   }
   function netEmit(e) { if (net.role === "host" && net.inGame && net.connected) net.evq.push(e); }
@@ -4260,14 +4264,22 @@
   }
   function pushVersusListing(forceClose) {
     var st = stClient(); if (!st || !net.versus || net.role !== "host") return;
-    if (forceClose || !net.code) {
-      try { if (st.closeVersusQueue && net.code) st.closeVersusQueue(net.code); } catch (e) {}
+    var api = roomApi();
+    var leaving = !!forceClose || !net.code || !visPublic() || !!net.inGame;
+    var canPub = api && api.shouldPublishListing
+      ? api.shouldPublishListing({ isPublic: !!visPublic(), role: net.role, peerReady: !!net.peerReady, code: net.code, leaving: leaving })
+      : (!leaving && net.peerReady && visPublic());
+    if (!canPub) {
+      if (leaving || forceClose || !visPublic()) {
+        try { if (st.closeVersusQueue && net.code) st.closeVersusQueue(net.code); } catch (e) {}
+        net.listed = false;
+      }
       return;
     }
     var row = { code: net.code, hostName: myPilotName(), hostShip: curShip().id, kind: net.vsKind || "quick" };
     try {
-      if (net.inGame && st.closeVersusQueue) st.closeVersusQueue(net.code);
-      else if (st.publishVersusQueue) st.publishVersusQueue(row);
+      if (st.publishVersusQueue) st.publishVersusQueue(row);
+      net.listed = true;
     } catch (e) {}
   }
   function pushRoomListing(forceClose) {
@@ -4300,8 +4312,39 @@
     net.listed = false;
   }
   var lastRoomRows = [];
+  var lastVersusRows = [];
   var unsubPublicRooms = null;
   var unsubVersusQueue = null;
+  function versusFreshness(row) {
+    var api = window.__weltraum && window.__weltraum.versus;
+    if (api && api.listingFreshness) return api.listingFreshness(row.heartbeatMs);
+    return "fresh";
+  }
+  function renderVersusRows(rows) {
+    var box = $("onDuelRows"); if (!box) return;
+    var mine = net.role === "host" ? net.code : "";
+    lastVersusRows = (rows || []).filter(function (r) { return r && r.code && r.code !== mine && !r.inMatch; });
+    if (!lastVersusRows.length) {
+      box.innerHTML = "<p class='small' id='onEmptyDuels'>" + tr("noPublicDuels") + "</p>";
+      return;
+    }
+    box.innerHTML = lastVersusRows.map(function (r) {
+      var stale = versusFreshness(r) === "stale";
+      var btn = stale
+        ? "<button disabled>" + tr("roomStale") + "</button>"
+        : "<button data-vsjoin='" + r.code + "' data-vskind='" + (r.kind || "quick") + "'>" + tr("joinOpen") + "</button>";
+      return "<div class='roomRow duel" + (stale ? " stale" : "") + "' data-code='" + r.code + "'><div class='meta'><b>" + String(r.hostName || "Pilot").slice(0, 16) + "</b><br>" +
+        "⚔️ " + tr("versusTitle") + "</div>" + btn + "</div>";
+    }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll("[data-vsjoin]"), function (btn) {
+      btn.addEventListener("click", function () { audio(); joinVersus(btn.getAttribute("data-vsjoin"), btn.getAttribute("data-vskind")); });
+    });
+  }
+  function joinVersus(code, kind) {
+    net.versus = true;
+    net.vsKind = kind === "challenge" ? "challenge" : "quick";
+    joinRoom(code);
+  }
   function renderRoomRows(rows) {
     var box = $("onRoomRows"); if (!box) return;
     var api = roomApi();
@@ -4329,7 +4372,9 @@
     var st = stClient();
     if (st && st.onVersusQueue) {
       if (unsubVersusQueue) { try { unsubVersusQueue(); } catch (e) {} }
-      unsubVersusQueue = st.onVersusQueue(function () { maybeJoinQueuedRival(); });
+      unsubVersusQueue = st.onVersusQueue(function (rows) { renderVersusRows(rows); maybeJoinQueuedRival(); });
+      if (st.getOpenVersus) renderVersusRows(st.getOpenVersus());
+      else if (st.getVersusQueue) renderVersusRows(st.getVersusQueue());
     }
     if (st && st.onPublicRooms) {
       if (unsubPublicRooms) { try { unsubPublicRooms(); } catch (e) {} }
@@ -4503,16 +4548,12 @@
     netTeardown(); net.role = "host"; net.lvl = Math.min(progress.unlocked, net.lvl || 1);
     net.versus = keepVersus; net.vsKind = keepKind; net.vsWins = [0, 0]; net.vsRound = 1; net.vsSettled = false;
     if (keepVersus) {
-      net.isPublic = false;
-      var visPriv = $("onVisPrivate"), visPub = $("onVisPublic");
-      if (visPriv) visPriv.checked = true;
-      if (visPub) visPub.checked = false;
       var ask = $("onAskJoin"); if (ask) ask.checked = false;
       applyAskToJoin();
     }
     syncVisFromMenu();
     var code = (forcedCode && String(forcedCode).length === CODE_LEN) ? String(forcedCode).toUpperCase() : genCode();
-    net.code = code; net.myPid = 1; net.hostPid = 1; net.gen = 0; if (!keepVersus) net.isPublic = visPublic(); net.peerReady = false;
+    net.code = code; net.myPid = 1; net.hostPid = 1; net.gen = 0; net.isPublic = visPublic(); net.peerReady = false;
     onShow("room"); $("onCodeShow").textContent = code; onStatus("⏳ " + (keepVersus ? tr("versusWaiting") : tr("tips.creatingRoom")));
     if (keepVersus) {
       var hintEl = $("friendsEnterCode"); if (hintEl) hintEl.textContent = tr(keepKind === "challenge" ? "versusCodeHint" : "versusWaiting");
@@ -4576,6 +4617,7 @@
     trackPlay("room_joined");
     var api = roomApi();
     var keepCode = cleanCode(code);
+    var keepVersus = !!net.versus, keepKind = net.vsKind || "quick";
     if (keepCode.length !== CODE_LEN) { onStatus(tr("tips.codeLen", { n: CODE_LEN }), "bad"); return; }
     if (api && api.isOwnListedRoom ? api.isOwnListedRoom(net.role, net.code, keepCode) : (net.role === "host" && net.code === keepCode)) {
       onShow("room"); hostStatus(); return;
@@ -4584,6 +4626,7 @@
     var keepGen = forcedGen ? (gen || 0) : 0;
     var tries = 0;
     if (!net.recovering) netTeardown();
+    net.versus = keepVersus; net.vsKind = keepKind;
     net.role = "guest"; net.code = keepCode; net.gen = keepGen;
     onStatus("🔗 " + tr("tips.connecting", { code: keepCode }));
     function attempt() {
@@ -7296,10 +7339,50 @@
   var skinSel = load("spaceMissionSkin", "std"); if (!SKIN_BY[skinSel]) skinSel = "std";
   function achVal(a) { var k = a[4]; if (k === "three") return threeStarCount(); if (k === "ships") return shop.owned.length; return rec[k] || 0; }
   function skinUnlocked(id) { if (id === "std") return true; for (var i = 0; i < ACH.length; i++) if (ACH[i][6] === id) return !!achDone[ACH[i][0]]; return false; }
-  var achQueue = [], achToastT = 0, achSoon = 0;
+  var achQueue = [], achToastT = 0, achSoon = 0, achQuiet = false;
+  function achPushCloud(id) {
+    try {
+      var st = window.__weltraum && window.__weltraum.spacetime;
+      if (st && st.unlockAchievement) st.unlockAchievement(id);
+    } catch (e) {}
+  }
+  function achHideToasts() {
+    achQueue = [];
+    achToastT = 0;
+    achSoon = 0;
+    var t = $("achToast");
+    if (t) t.classList.remove("show");
+  }
+  function satisfiedAchIds() {
+    var ids = [];
+    ACH.forEach(function (a) { if (achVal(a) >= a[5]) ids.push(a[0]); });
+    return ids;
+  }
+  function achAdoptSilent(incoming) {
+    achQuiet = true;
+    var api = window.__weltraum && window.__weltraum.achievements;
+    var before = achDone;
+    if (api && api.mergeSilentAchievements) {
+      achDone = api.mergeSilentAchievements(achDone, incoming || [], satisfiedAchIds());
+    } else {
+      (incoming || []).forEach(function (id) { if (id) achDone[id] = achDone[id] || 1; });
+      ACH.forEach(function (a) { if (achVal(a) >= a[5]) achDone[a[0]] = achDone[a[0]] || Date.now(); });
+    }
+    Object.keys(achDone).forEach(function (id) { if (id && !before[id]) achPushCloud(id); });
+    achHideToasts();
+    save("spaceMissionAch", JSON.stringify(achDone));
+    updateAchBtn();
+    achQuiet = false;
+  }
   function achCheck() {
     var neu = 0;
-    ACH.forEach(function (a) { if (!achDone[a[0]] && achVal(a) >= a[5]) { achDone[a[0]] = Date.now(); achQueue.push(a); neu++; } });
+    ACH.forEach(function (a) {
+      if (!achDone[a[0]] && achVal(a) >= a[5]) {
+        achDone[a[0]] = Date.now();
+        if (!achQuiet) { achQueue.push(a); achPushCloud(a[0]); }
+        neu++;
+      }
+    });
     if (neu) { save("spaceMissionAch", JSON.stringify(achDone)); updateAchBtn(); }
   }
   function updateAchBtn() {
@@ -7946,11 +8029,8 @@
         });
       }
       if (replace && p.stars) progress.stars = p.stars;
-      if (replace && p.achievements) {
-        achDone = {};
-        p.achievements.forEach(function (id) { if (id) achDone[id] = 1; });
-        save("spaceMissionAch", JSON.stringify(achDone));
-        updateAchBtn();
+      if (replace || (p.achievements && p.achievements.length)) {
+        achAdoptSilent(p.achievements || []);
       }
       if (replace && p.onboardDone) {
         var ob = onboardApi();
@@ -8058,7 +8138,9 @@
       var econ = window.__weltraum && window.__weltraum.economy;
       return econ && econ.coopBossKillAward ? econ.coopBossKillAward(L, stars, collected, "normal", players) : 0;
     },
-    roomListNow: function () { return { public: visPublic(), code: net.code, hostPid: net.hostPid, gen: net.gen, peerReady: !!net.peerReady, listed: !!net.listed, rows: lastRoomRows.slice() }; },
+    roomListNow: function () { return { public: visPublic(), code: net.code, hostPid: net.hostPid, gen: net.gen, peerReady: !!net.peerReady, listed: !!net.listed, rows: lastRoomRows.slice(), duels: lastVersusRows.slice() }; },
+    versusListNow: function () { return lastVersusRows.slice(); },
+    achInfo: function () { return { done: Object.keys(achDone), queue: achQueue.map(function (a) { return a[0]; }), toast: !!($("achToast") && $("achToast").classList.contains("show")), quiet: !!achQuiet }; },
     hostSoloStart: function (L) {
       net.role = "host"; net.inGame = true; net.guests = net.guests || []; net.nPl = liveOccupancy();
       startGame(L || 1);
@@ -8194,6 +8276,9 @@
     setTxt("enterRoomCode", tr("enterRoomCode"));
     setTxt("orJoinCode", tr("orJoinCode"));
     setTxt("openRoomsLabel", tr("openRooms"));
+    setTxt("openDuelsLabel", tr("openDuels"));
+    var emptyDuels = $("onEmptyDuels"); if (emptyDuels) emptyDuels.textContent = tr("noPublicDuels");
+    if ($("onlineScreen") && !$("onlineScreen").classList.contains("hidden") && lastVersusRows && lastVersusRows.length) renderVersusRows(lastVersusRows);
     setTxt("onRefreshRooms", tr("refreshRooms"));
     setTxt("onVisPublicLbl", tr("roomPublic"));
     setTxt("onVisPrivateLbl", tr("roomPrivate"));

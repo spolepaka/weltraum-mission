@@ -336,6 +336,37 @@ export const UsedSecretCode = __t.object("UsedSecretCode", {
 });
 export type UsedSecretCode = __Infer<typeof UsedSecretCode>;
 
+export const VersusPrizeDay = __t.object("VersusPrizeDay", {
+  identity: __t.identity(),
+  dayKey: __t.u32(),
+  awarded: __t.u32(),
+});
+export type VersusPrizeDay = __Infer<typeof VersusPrizeDay>;
+
+export const VersusQueue = __t.object("VersusQueue", {
+  code: __t.string(),
+  hostIdentity: __t.identity(),
+  guestIdentity: __t.identity(),
+  hostHex: __t.string(),
+  guestHex: __t.string(),
+  hostName: __t.string(),
+  guestName: __t.string(),
+  hostShip: __t.string(),
+  guestShip: __t.string(),
+  kind: __t.string(),
+  inMatch: __t.bool(),
+  heartbeat: __t.timestamp(),
+});
+export type VersusQueue = __Infer<typeof VersusQueue>;
+
+export const VersusSettled = __t.object("VersusSettled", {
+  matchId: __t.string(),
+  winnerHex: __t.string(),
+  prize: __t.u32(),
+  at: __t.timestamp(),
+});
+export type VersusSettled = __Infer<typeof VersusSettled>;
+
 export const WeeklyBoardResult = __t.object("WeeklyBoardResult", {
   weekKey: __t.string(),
   rowsJson: __t.string(),

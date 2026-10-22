@@ -2,6 +2,7 @@
  * Client-side versus queue events (same pattern as public rooms).
  */
 
+import { heartbeatToMs } from './room-list';
 import { listingFreshness, type VersusKind } from './versus';
 
 export interface VersusQueueRow {
@@ -23,13 +24,10 @@ export type VersusQueueEvent =
 
 export function versusRowFromServer(raw: Record<string, unknown>): VersusQueueRow {
   const kind = raw.kind === 'challenge' ? 'challenge' : 'quick';
-  const beat = raw.heartbeatMs ?? raw.heartbeat;
-  let heartbeatMs = 0;
-  if (typeof beat === 'number') heartbeatMs = beat > 1e12 ? Math.floor(beat / 1000) : beat;
-  else if (beat && typeof beat === 'object') {
-    const micros = (beat as { microsSinceUnixEpoch?: bigint | number }).microsSinceUnixEpoch;
-    if (micros !== undefined) heartbeatMs = Math.floor(Number(micros) / 1000);
-  }
+  const fromMs = raw.heartbeatMs;
+  const heartbeatMs = typeof fromMs === 'number' && Number.isFinite(fromMs)
+    ? (fromMs > 1e12 ? Math.floor(fromMs / 1000) : fromMs)
+    : heartbeatToMs(raw.heartbeat) || 0;
   return {
     code: String(raw.code || '').toUpperCase(),
     hostHex: String(raw.hostHex || ''),
@@ -51,14 +49,18 @@ export function applyVersusQueueEvent(
 ): VersusQueueRow[] {
   if (event.type === 'delete') map.delete(event.code);
   else map.set(event.row.code, event.row);
-  return listQuickQueue(map, nowMs);
+  return listOpenVersus(map, nowMs);
+}
+
+export function listOpenVersus(map: Map<string, VersusQueueRow>, nowMs = Date.now()): VersusQueueRow[] {
+  return [...map.values()].filter((row) => {
+    if (row.inMatch) return false;
+    return listingFreshness(row.heartbeatMs, nowMs) !== 'dead';
+  });
 }
 
 export function listQuickQueue(map: Map<string, VersusQueueRow>, nowMs = Date.now()): VersusQueueRow[] {
-  return [...map.values()].filter((row) => {
-    if (row.inMatch || row.kind !== 'quick') return false;
-    return listingFreshness(row.heartbeatMs, nowMs) !== 'dead';
-  });
+  return listOpenVersus(map, nowMs).filter((row) => row.kind === 'quick');
 }
 
 export function findChallenge(map: Map<string, VersusQueueRow>, code: string, nowMs = Date.now()): VersusQueueRow | null {

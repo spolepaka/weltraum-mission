@@ -50,21 +50,27 @@ import AdminSetTestFlagReducer from "./admin_set_test_flag_reducer";
 import AdminUnbanReducer from "./admin_unban_reducer";
 import AdminUnlockLevelReducer from "./admin_unlock_level_reducer";
 import ApplySecretCodeReducer from "./apply_secret_code_reducer";
+import ClaimUnlockShipReducer from "./claim_unlock_ship_reducer";
+import ClaimVersusQueueReducer from "./claim_versus_queue_reducer";
 import ClosePublicRoomReducer from "./close_public_room_reducer";
+import CloseVersusQueueReducer from "./close_versus_queue_reducer";
 import CompleteLevelResultReducer from "./complete_level_result_reducer";
 import EnsurePlayerRowReducer from "./ensure_player_row_reducer";
 import EquipShipReducer from "./equip_ship_reducer";
 import HeartbeatOnlineReducer from "./heartbeat_online_reducer";
 import HeartbeatPublicRoomReducer from "./heartbeat_public_room_reducer";
+import HeartbeatVersusQueueReducer from "./heartbeat_versus_queue_reducer";
 import ImportProgressReducer from "./import_progress_reducer";
 import LegacyImportReducer from "./legacy_import_reducer";
 import LinkGuestIdentityReducer from "./link_guest_identity_reducer";
 import PublishPublicRoomReducer from "./publish_public_room_reducer";
+import PublishVersusQueueReducer from "./publish_versus_queue_reducer";
 import PurchaseShipReducer from "./purchase_ship_reducer";
 import PurchaseUpgradeReducer from "./purchase_upgrade_reducer";
 import ReportErrorReducer from "./report_error_reducer";
 import ReportMpJoinReducer from "./report_mp_join_reducer";
 import ReportPresenceReducer from "./report_presence_reducer";
+import ReportVersusResultReducer from "./report_versus_result_reducer";
 import RequestLevelDataReducer from "./request_level_data_reducer";
 import ResetProgressReducer from "./reset_progress_reducer";
 import SetDisplayNameReducer from "./set_display_name_reducer";
@@ -96,6 +102,7 @@ import * as ListPublicRoomsProcedure from "./list_public_rooms_procedure";
 // Import all table schema definitions
 import PublicRoomRow from "./public_room_table";
 import ServerConfigRow from "./server_config_table";
+import VersusQueueRow from "./versus_queue_table";
 import WeeklyScoreRow from "./weekly_score_table";
 
 /** Type-only namespace exports for generated type groups. */
@@ -127,6 +134,20 @@ const tablesSchema = __schema({
       { name: 'server_config_key_key', constraint: 'unique', columns: ['key'] },
     ],
   }, ServerConfigRow),
+  versusQueue: __table({
+    name: 'versus_queue',
+    indexes: [
+      { accessor: 'code', name: 'versus_queue_code_idx_btree', algorithm: 'btree', columns: [
+        'code',
+      ] },
+      { accessor: 'hostIdentity', name: 'versus_queue_host_identity_idx_btree', algorithm: 'btree', columns: [
+        'hostIdentity',
+      ] },
+    ],
+    constraints: [
+      { name: 'versus_queue_code_key', constraint: 'unique', columns: ['code'] },
+    ],
+  }, VersusQueueRow),
   weeklyScore: __table({
     name: 'weekly_score',
     indexes: [
@@ -161,21 +182,27 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_unban", AdminUnbanReducer),
   __reducerSchema("admin_unlock_level", AdminUnlockLevelReducer),
   __reducerSchema("apply_secret_code", ApplySecretCodeReducer),
+  __reducerSchema("claim_unlock_ship", ClaimUnlockShipReducer),
+  __reducerSchema("claim_versus_queue", ClaimVersusQueueReducer),
   __reducerSchema("close_public_room", ClosePublicRoomReducer),
+  __reducerSchema("close_versus_queue", CloseVersusQueueReducer),
   __reducerSchema("complete_level_result", CompleteLevelResultReducer),
   __reducerSchema("ensure_player_row", EnsurePlayerRowReducer),
   __reducerSchema("equip_ship", EquipShipReducer),
   __reducerSchema("heartbeat_online", HeartbeatOnlineReducer),
   __reducerSchema("heartbeat_public_room", HeartbeatPublicRoomReducer),
+  __reducerSchema("heartbeat_versus_queue", HeartbeatVersusQueueReducer),
   __reducerSchema("import_progress", ImportProgressReducer),
   __reducerSchema("legacy_import", LegacyImportReducer),
   __reducerSchema("link_guest_identity", LinkGuestIdentityReducer),
   __reducerSchema("publish_public_room", PublishPublicRoomReducer),
+  __reducerSchema("publish_versus_queue", PublishVersusQueueReducer),
   __reducerSchema("purchase_ship", PurchaseShipReducer),
   __reducerSchema("purchase_upgrade", PurchaseUpgradeReducer),
   __reducerSchema("report_error", ReportErrorReducer),
   __reducerSchema("report_mp_join", ReportMpJoinReducer),
   __reducerSchema("report_presence", ReportPresenceReducer),
+  __reducerSchema("report_versus_result", ReportVersusResultReducer),
   __reducerSchema("request_level_data", RequestLevelDataReducer),
   __reducerSchema("reset_progress", ResetProgressReducer),
   __reducerSchema("set_display_name", SetDisplayNameReducer),
