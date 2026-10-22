@@ -1,16 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ROOM_STALE_MS,
   ROOM_TTL_MS,
   applyPublicRoomEvent,
   canPublishRoom,
+  decorateListedRooms,
   filterJoinableRooms,
   heartbeatToMs,
   shouldCloseListing,
+  shouldCloseOnHidden,
+  shouldCloseOnPageHide,
+  shouldPublishListing,
   isJoinableListing,
   isListingFresh,
+  listingFreshness,
   pruneStaleRooms,
   publicRoomFromServer,
-  sanitizeListedName,
   type PublicRoomRow,
 } from '../src/lib/room-list';
 
@@ -92,5 +97,34 @@ describe('public room list', () => {
     expect(shouldCloseListing({ leaving: false, listed: true })).toBe(false);
     expect(shouldCloseListing({ leaving: true, listed: true })).toBe(true);
     expect(shouldCloseListing({ leaving: true, listed: false })).toBe(false);
+  });
+
+  it('does not publish until the host Peer is open', () => {
+    expect(shouldPublishListing({ isPublic: true, role: 'host', peerReady: false, code: 'V43NX' })).toBe(false);
+    expect(shouldPublishListing({ isPublic: true, role: 'host', peerReady: true, code: 'V43NX' })).toBe(true);
+    expect(shouldPublishListing({ isPublic: true, role: 'guest', peerReady: true, code: 'V43NX' })).toBe(false);
+  });
+
+  it('greys a stale heartbeat and hides a dead one', () => {
+    expect(listingFreshness(now - ROOM_STALE_MS - 10, now)).toBe('stale');
+    expect(listingFreshness(now - 1_000, now)).toBe('fresh');
+    expect(listingFreshness(undefined, now)).toBe('dead');
+    expect(isJoinableListing({ code: 'V43NX', hostName: 'Ada', level: 1, players: 1, heartbeatMs: now - ROOM_STALE_MS - 10 }, now)).toBe(false);
+    const shown = decorateListedRooms([
+      { code: 'V43NX', hostName: 'Ada', level: 1, players: 1, heartbeatMs: now - ROOM_STALE_MS - 10 },
+      { code: 'TREK4', hostName: 'Bea', level: 2, players: 1, heartbeatMs: now },
+    ], now);
+    expect(shown.map((r) => r.code)).toEqual(['V43NX', 'TREK4']);
+    expect(shown[0].joinable).toBe(false);
+    expect(shown[0].freshness).toBe('stale');
+    expect(shown[1].joinable).toBe(true);
+  });
+
+  it('closes a listed room on a real leave, not on a persisted iPad sleep with friends', () => {
+    expect(shouldCloseOnPageHide({ persisted: true, listed: true })).toBe(false);
+    expect(shouldCloseOnPageHide({ persisted: false, listed: true })).toBe(true);
+    expect(shouldCloseOnHidden({ hidden: true, occupancy: 1, listed: true })).toBe(true);
+    expect(shouldCloseOnHidden({ hidden: true, occupancy: 2, listed: true })).toBe(false);
+    expect(shouldCloseOnHidden({ hidden: false, occupancy: 1, listed: true })).toBe(false);
   });
 });

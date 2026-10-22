@@ -35,10 +35,32 @@ describe('multiplayer HTML wiring', () => {
     expect(html).toContain('injectPublicRooms');
     const hostFn = html.match(/function hostRoom\(tries\) \{[\s\S]*?function joinRoom/)?.[0] || '';
     expect(hostFn.indexOf('startRoomHeartbeat()')).toBeGreaterThan(-1);
-    expect(hostFn.indexOf('startRoomHeartbeat()')).toBeLessThan(hostFn.indexOf('peer.on("open"'));
+    expect(hostFn.indexOf('peer.on("open"')).toBeGreaterThan(-1);
+    expect(hostFn.indexOf('startRoomHeartbeat()')).toBeGreaterThan(hostFn.indexOf('peer.on("open"'));
     const openHandler = hostFn.match(/peer\.on\("open", function \(\) \{[\s\S]*?\}\);/)?.[0] || '';
-    expect(openHandler).not.toContain('startRoomHeartbeat()');
-    expect(openHandler).toContain('pushRoomListing()');
+    expect(openHandler).toContain('startRoomHeartbeat()');
+    expect(openHandler).toContain('peerReady = true');
+  });
+
+  it('retries a transient peer-unavailable instead of showing room-not-found once', () => {
+    const joinFn = html.match(/function joinRoom\(code, gen\) \{[\s\S]*?function attachGuest/)?.[0] || '';
+    expect(joinFn).toContain('shouldRetryJoin');
+    expect(joinFn).toContain('nextJoinDelay');
+    expect(joinFn).toContain('isOwnListedRoom');
+    expect(joinFn).toContain('cleanCode(code)');
+    expect(html).toContain('shouldCloseOnPageHide');
+    expect(html).toContain('shouldCloseOnHidden');
+    expect(html).toContain('roomRow.stale');
+    expect(html).toContain('decorateListedRooms');
+  });
+
+  it('spawns ships from occupancy, not a forced second seat', () => {
+    expect(html).toContain('function coopShipCountNow()');
+    expect(html).toContain('function uniqueOkGuests()');
+    expect(html).not.toMatch(/Math\.max\(2,\s*Math\.min\(5,\s*net\.nPl/);
+    expect(html).not.toMatch(/net\.nPl = Math\.max\(2,/);
+    expect(html).toContain('hostSoloStart');
+    expect(html).toContain('seedGuest');
   });
 
   it('does not close a listing when the heartbeat is restarted', () => {

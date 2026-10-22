@@ -132,6 +132,7 @@ export const de: Translations = {
   noOpenRooms: 'Noch keine öffentlichen Räume – erstelle einen!',
   noPublicRooms: 'Noch keine öffentlichen Räume – erstelle einen!',
   joinOpen: 'Mitfliegen',
+  roomStale: 'Host nicht da',
   refreshRooms: 'Aktualisieren',
   orJoinCode: 'Oder tippe einen Raum-Code:',
   onlineFooter: 'Der Raum-Chef ist P1, die anderen P2 bis P5. Pilotennamen stehen über den Schiffen. Je mehr Spieler, desto mehr Gegner! Alle brauchen Internet.',
