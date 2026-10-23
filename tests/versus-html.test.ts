@@ -85,6 +85,7 @@ describe('versus HTML and module wiring', () => {
     expect(server).toContain('export const reportVersusResult');
     expect(client).toContain('SELECT * FROM versus_queue');
     expect(client).toContain('SELECT * FROM versus_rating');
+    expect(client).toContain('hasLiveVersusRating');
     expect(client).toContain('getMyVersusRating');
     expect(client).toContain('publishVersusQueue');
     expect(client).toContain('reportVersusResult');

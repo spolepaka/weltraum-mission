@@ -356,7 +356,9 @@ class SpacetimeClient {
             this.connection = null;
             this.subscriptionHandle = null;
             this.roomSubscriptionHandle = null;
+            this.versusRatingHandle = null;
             this.livePublicRooms = false;
+            this.liveVersusRating = false;
             this.roomCallbacksBound = false;
             if (!this.silentReconnect && !this.isReconnecting) {
               this.scheduleReconnect();
@@ -1688,6 +1690,10 @@ class SpacetimeClient {
 
   hasLiveVersusQueue(): boolean {
     return this.liveVersusQueue;
+  }
+
+  hasLiveVersusRating(): boolean {
+    return this.liveVersusRating;
   }
 
   onVersusQueue(callback: (rows: VersusQueueRow[]) => void): () => void {
