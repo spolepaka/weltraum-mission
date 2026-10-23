@@ -24,6 +24,7 @@ describe('outer fleet ships', () => {
   it('keeps client, server, versus and HTML catalogs in lockstep', () => {
     expect(ECON_MAX).toBe(250);
     expect(SERVER_OUTER_IDS).toEqual(OUTER_IDS);
+    expect(SERVER_OUTER.map((s) => s.id)).toEqual(OUTER_IDS);
     const client = outerCombat();
     const server = serverCombat();
     for (const id of OUTER_IDS) {

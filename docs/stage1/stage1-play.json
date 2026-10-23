@@ -1,0 +1,28 @@
+{
+  "base": "http://127.0.0.1:4178",
+  "at": "2026-10-23T23:27:15.645Z",
+  "errors": [],
+  "notes": [
+    "unlocked=250",
+    "map world0 planets=18 world=0",
+    "worlds=[{\"w\":0,\"label\":\"🏠 Galaxy 1: Home Galaxy\",\"info\":0},{\"w\":6,\"label\":\"👑 Galaxy 7: Emperor Realm\",\"info\":6},{\"w\":12,\"label\":\"☄️ Galaxy 13: Kuiper Crown\",\"info\":12}]",
+    "L100 start {\"L\":100,\"blurb\":\"\",\"heat\":1.8,\"boss\":\"emperor ROBO-EMPEROR: FINAL FORM hp9000 []\"} sim={\"level\":100,\"state\":\"play\",\"lives\":3,\"score\":0,\"lt\":0,\"boss\":null,\"coinsRun\":0,\"time\":0}",
+    "L100 boss {\"frozen\":0,\"shower\":null,\"meteors\":0,\"snipers\":[\"rest\",\"enter\"],\"worm\":null,\"flare\":null,\"mines\":2,\"ice\":1,\"armored\":[],\"bossType\":\"emperor\",\"bossHp\":14580,\"bossPhase\":1,\"bossLaser\":null,\"empShield\":null,\"blocks\":0,\"drones\":0,\"immune\":false,\"bossY\":-110,\"bossX\":480,\"bossSz\":446,\"W\":960,\"holes\":0,\"confetti\":0,\"msg\":\"💥 Ouch! 2 hearts left\"}",
+    "L250 start {\"L\":250,\"blurb\":\"\",\"heat\":2.2,\"boss\":\"emperor WELTRAUM KAISER: STAR CROWN hp20000 []\"}",
+    "L250 boss {\"frozen\":0,\"shower\":null,\"meteors\":0,\"snipers\":[],\"worm\":null,\"flare\":null,\"mines\":0,\"ice\":0,\"armored\":[],\"bossType\":\"emperor\",\"bossHp\":36080,\"bossPhase\":1,\"bossLaser\":null,\"empShield\":null,\"blocks\":0,\"drones\":0,\"immune\":false,\"bossY\":-169,\"bossX\":480,\"bossSz\":590,\"W\":960,\"holes\":0,\"confetti\":0,\"msg\":\"💥 Oh no!\"}",
+    "L174 {\"L\":174,\"blurb\":\"Boss tricks: Solar storm, Homing missiles\",\"heat\":1.96,\"boss\":\"vault EUROPA VAULT MIND hp9000 [flare,missiles]\"}",
+    "shop Outer Fleet tab: 30/30 cards (Rivet Kite … Star Crown)",
+    "after unlock progress unlocked=250"
+  ],
+  "shots": [
+    "qa-stage1-map-world0",
+    "qa-stage1-map-world0",
+    "qa-stage1-map-world6",
+    "qa-stage1-map-world12",
+    "qa-stage1-kaiser-100-play",
+    "qa-stage1-kaiser-250-play",
+    "qa-stage1-late-174",
+    "qa-stage1-shop-outer"
+  ],
+  "errorCount": 0
+}
