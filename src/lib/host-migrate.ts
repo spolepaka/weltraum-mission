@@ -69,7 +69,7 @@ export function onlyOneLeft(roster: RosterSeat[], currentHostPid = 1): boolean {
 
 export function buildResume(partial: Partial<ResumePayload> & { code: string; hostPid: number; gen: number; name: string }): ResumePayload {
   return {
-    L: Math.max(1, Math.min(100, Math.floor(partial.L || 1))),
+    L: Math.max(1, Math.min(250, Math.floor(partial.L || 1))),
     lt: Math.max(0, Number(partial.lt) || 0),
     sc: Math.max(0, Math.floor(partial.sc || 0)),
     hl: Math.max(0, Math.floor(partial.hl || 0)),

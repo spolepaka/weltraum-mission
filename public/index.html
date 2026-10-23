@@ -94,6 +94,9 @@
   #mapTitle .sub { display: inline-block; margin-top: 6px; background: rgba(20,30,70,.75); border: 2px solid #4a6cff; border-radius: 14px; padding: 4px 14px; font-size: 18px; }
   #mapHint { position: absolute; bottom: calc(16px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); zoom: var(--s); white-space: nowrap;
     background: rgba(20,30,70,.75); border: 2px solid #7dffea; border-radius: 16px; padding: 6px 16px; font-size: 18px; }
+  #worldPager { position: absolute; top: calc(92px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; zoom: var(--s); pointer-events: auto; z-index: 5; }
+  #worldLabel { background: rgba(20,30,70,.9); border: 2px solid #ffd54a; border-radius: 14px; padding: 6px 14px; font-size: 15px; min-width: 210px; text-align: center; color: #ffe9a0; }
+  #worldPrev, #worldNext { position: relative; top: auto; left: auto; right: auto; font-size: 22px; width: 48px; height: 48px; padding: 0; }
   .mapBtn { position: absolute; pointer-events: auto; zoom: var(--s); border-radius: 18px; border: 2px solid #8fb0ff; background: rgba(40,60,140,.75); color: #fff; font-size: 16px; padding: 8px 12px; cursor: pointer; font-family: inherit; }
   #resetBtn { bottom: calc(14px + env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); font-size: 14px; background: rgba(90,30,50,.75); border-color: #ff9a9a; }
   #helpBtn { font-size: 22px; width: 52px; height: 52px; border-radius: 50%; padding: 0; flex: 0 0 auto; }
@@ -408,6 +411,7 @@
 
 <div id="mapHud" class="hidden">
   <div id="mapTitle"><h1 id="gameTitle">🚀 Space Mission</h1><div class="sub"><span id="lblTotalScore">Total Score</span>: <b id="totalScore">0</b> &nbsp;·&nbsp; <span id="lblRecord">Record</span>: <b id="bestStart">0</b> &nbsp;·&nbsp; 🪙 <b id="mapCoins">0</b></div><div id="onlineNowMap" class="hidden">🟢 0 online</div></div>
+  <div id="worldPager"><button id="worldPrev" class="mapBtn" aria-label="Previous galaxy">◀</button><div id="worldLabel">🏠 Galaxy 1</div><button id="worldNext" class="mapBtn" aria-label="Next galaxy">▶</button></div>
   <div id="mapHint">👆 Tap on a planet!</div>
   <div id="mapColL">
     <div id="mapColLTop">
@@ -773,9 +777,8 @@
   }
   function bossLocName(key, fallback) { return (cat().bosses && cat().bosses[key]) || fallback; }
   function locBossForLevel(L, fallback) {
-    var map = { 3: "l3", 6: "l6", 9: "l9", 12: "l12", 15: "l15", 18: "l18b", 24: "l24", 30: "l30", 36: "l36", 45: "l45", 48: "l48", 57: "l57", 60: "l60", 66: "l66", 72: "l72", 75: "l75", 81: "l81", 90: "l90", 96: "l96", 100: "l100" };
     if (L === 18 && fallback && /KAISER|EMPEROR/i.test(fallback) && !/GREIF|GRABBER/i.test(fallback)) return bossLocName("l18", fallback);
-    return bossLocName(map[L] || "default", fallback || "BOSS");
+    return bossLocName("l" + L, fallback || "BOSS");
   }
   function locNouns(body) { return (cat().bossNouns && cat().bossNouns[body]) || PB_NOUNS[body]; }
   function locAdjList() { var a = cat().bossAdj; return (a && a.length) ? a : PB_ADJ; }
@@ -796,7 +799,7 @@
     return c ? [a[0], a[1], c.name, c.desc, a[4], a[5], a[6]] : a;
   }
   function locSkin(id, fallback) { return (cat().skins && cat().skins[id]) || fallback; }
-  var SECTOR_KEYS = ["home", "nebel", "frost", "sonnen", "asteroid", "schatten", "jenseits"];
+  var SECTOR_KEYS = ["home", "nebel", "frost", "sonnen", "asteroid", "schatten", "jenseits", "phobos", "titanw", "europa", "saturn", "uranus", "kuiper"];
   function sectorName(sec, L) {
     var i = (typeof L === "number") ? (typeof secIdx === "function" ? secIdx(L) : 0) : SECTORS.indexOf(sec);
     return tr("sectors." + (SECTOR_KEYS[i] || "home")) || (sec && sec.name) || "";
@@ -942,8 +945,8 @@
   var touchTarget = null; // logische x-Position des Fingers beim Ziehen der Rakete (nur 1 Finger)
 
   // Feste Level: normale Level dauern LEVEL_TIME Sekunden, Boss-Level (3, 6, … 18) enden, wenn der Boss besiegt ist
-  var LEVEL_TIME = 35, MAX_LEVEL = 100, levelTime = 0, finishTimer = 0, bossSpawned = false;
-  function isBossLevel(L) { return L > 0 && (L % 3 === 0 || L === 100); }
+  var LEVEL_TIME = 35, MAX_LEVEL = 250, levelTime = 0, finishTimer = 0, bossSpawned = false;
+  function isBossLevel(L) { return L > 0 && (L % 3 === 0 || L === 100 || L === 250); }
   // ---------- Sektoren / Galaxien (je eigenes Aussehen) ----------
   var SECTORS = [
     { from: 1, to: 18, name: "Heimat-Galaxie", icon: "🏠", bg: ["#050816", "#1a0f3d"], neb: ["rgba(150,60,200,0.18)", "rgba(40,120,220,0.15)"], map: "#0d0a2e", pl: ["#9fd0ff", "#283c8c"], tint: null, pre: "", col: "#8fb0ff", sig: [] },
@@ -952,18 +955,24 @@
     { from: 46, to: 60, name: "Lava-Sektor", icon: "🌋", bg: ["#1a0503", "#4a1206"], neb: ["rgba(255,100,30,0.24)", "rgba(255,40,40,0.16)"], map: "#36100a", pl: ["#ffb070", "#8a1a06"], tint: "#ff6a1a", pre: "LAVA-", col: "#ffa070", types: ["lava", "gas", "moon"], hues: [10, 25, 40], sig: ["meteor", "mines"] },
     { from: 61, to: 75, name: "Kristall-Wirbel", icon: "💎", bg: ["#02120e", "#0a3a30"], neb: ["rgba(60,255,180,0.2)", "rgba(80,160,255,0.16)"], map: "#072c24", pl: ["#b0ffe0", "#0a6a50"], tint: "#3affb0", pre: "KRISTALL-", col: "#7dffc8", types: ["crystal", "toxic", "ring"], hues: [150, 170, 120], sig: ["grid", "sniper"] },
     { from: 76, to: 90, name: "Schatten-Zone", icon: "🌑", bg: ["#020107", "#16082a"], neb: ["rgba(120,40,200,0.22)", "rgba(60,20,120,0.25)"], map: "#100620", pl: ["#c8a0ff", "#2a0a4a"], tint: "#9a5aff", pre: "SCHATTEN-", col: "#c09aff", types: ["moon", "crystal", "toxic", "gas"], hues: [270, 250, 290, 230], sig: ["wind", "cloak"] },
-    { from: 91, to: 100, name: "Kaiser-Reich", icon: "👑", bg: ["#0c0802", "#2e2008"], neb: ["rgba(255,213,74,0.2)", "rgba(208,140,255,0.16)"], map: "#241806", pl: ["#fff0a0", "#8a6a10"], tint: "#ffd54a", pre: "GOLD-", col: "#ffe07a", types: ["ring", "lava", "crystal", "gas"], hues: [45, 30, 280, 50], sig: ["missile", "grid", "wells"] }
+    { from: 91, to: 100, name: "Kaiser-Reich", icon: "👑", bg: ["#0c0802", "#2e2008"], neb: ["rgba(255,213,74,0.2)", "rgba(208,140,255,0.16)"], map: "#241806", pl: ["#fff0a0", "#8a6a10"], tint: "#ffd54a", pre: "GOLD-", col: "#ffe07a", types: ["ring", "lava", "crystal", "gas"], hues: [45, 30, 280, 50], sig: ["missile", "grid", "wells"] },
+    { from: 101, to: 125, name: "Phobos-Werften", icon: "🛠️", bg: ["#0a0c10", "#2a2418"], neb: ["rgba(200,160,80,0.18)", "rgba(120,90,40,0.16)"], map: "#1a1810", pl: ["#d8c090", "#4a3a1a"], tint: "#d4a017", pre: "PHOBOS-", col: "#e8c878", types: ["moon", "lava", "gas"], hues: [40, 25, 50], sig: ["mines", "armor"] },
+    { from: 126, to: 150, name: "Titan-Gießerei", icon: "🏭", bg: ["#140806", "#3a1808"], neb: ["rgba(255,100,30,0.22)", "rgba(200,40,10,0.16)"], map: "#2a1008", pl: ["#ff9040", "#5a1a08"], tint: "#ff6a1a", pre: "TITAN-", col: "#ff9a50", types: ["lava", "gas", "moon"], hues: [18, 8, 30], sig: ["meteor", "mines"] },
+    { from: 151, to: 175, name: "Europa-Tresor", icon: "🧊", bg: ["#041018", "#0a3050"], neb: ["rgba(120,220,255,0.2)", "rgba(80,160,220,0.14)"], map: "#082030", pl: ["#d0f0ff", "#1a4a70"], tint: "#7fe0ff", pre: "EUROPA-", col: "#9fe8ff", types: ["ice", "crystal", "moon"], hues: [195, 210, 180], sig: ["flare", "icy"] },
+    { from: 176, to: 200, name: "Saturn-Ringflotte", icon: "🪐", bg: ["#100c08", "#2a2010"], neb: ["rgba(255,210,120,0.16)", "rgba(180,140,60,0.12)"], map: "#1c160c", pl: ["#f0d090", "#6a4a18"], tint: "#e8c060", pre: "SATURN-", col: "#ffd88a", types: ["ring", "gas", "moon"], hues: [42, 28, 50], sig: ["missile", "grid"] },
+    { from: 201, to: 225, name: "Uranus-Sturmwerk", icon: "🌀", bg: ["#041018", "#0a2840"], neb: ["rgba(80,220,200,0.18)", "rgba(60,160,220,0.14)"], map: "#061820", pl: ["#80ffe0", "#0a4a50"], tint: "#3affc8", pre: "URANUS-", col: "#7dffd0", types: ["gas", "ice", "crystal"], hues: [170, 190, 150], sig: ["wind", "grid"] },
+    { from: 226, to: 250, name: "Kuiper-Krone", icon: "☄️", bg: ["#05030c", "#180828"], neb: ["rgba(180,80,255,0.18)", "rgba(80,40,160,0.16)"], map: "#0c0618", pl: ["#e0c0ff", "#2a1050"], tint: "#c08cff", pre: "KUIPER-", col: "#d8b0ff", types: ["moon", "crystal", "toxic"], hues: [270, 290, 250], sig: ["holes", "cloak"] }
   ];
   function secIdx(L) { for (var i = SECTORS.length - 1; i > 0; i--) if (L >= SECTORS[i].from) return i; return 0; }
   function curSector() { return SECTORS[secIdx(level)]; }
-  var SECTOR_BOSS = { 18: 1, 30: 1, 45: 1, 60: 1, 75: 1, 90: 1, 100: 1 };
+  var SECTOR_BOSS = { 18: 1, 30: 1, 45: 1, 60: 1, 75: 1, 90: 1, 100: 1, 120: 1, 150: 1, 174: 1, 198: 1, 225: 1, 250: 1 };
   function isSectorBoss(L) { return !!SECTOR_BOSS[L]; }
   // ---------- Schwierigkeit ab Level 19 ("Hitze"), per Balance-Test in 3er-Gruppen eingestellt (siehe levels-log.md) ----------
   var TUNE = { 19: 1.45, 22: 1.45, 25: 1.45, 28: 1.1, 37: 1.45, 40: 1.26, 46: 1.26, 49: 1.15, 52: 1.26, 55: 1.1, 61: 1.15, 64: 1.26, 67: 1.26, 70: 1.38, 73: 1.15, 76: 1.59, 82: 1.26, 91: 1.52, 94: 1.26, 97: 1.54 }; // Gruppe (erstes Level der 3er-Gruppe) -> Faktor
-  var TUNE_BOSS = { 33: 0.6, 57: 0.9, 60: 0.9, 72: 0.85, 81: 0.65, 84: 0.85, 90: 0.8, 100: 0.9 }; // v30: weniger Herzen → 90/100 etwas leichter, damit die Siegchance ungefähr gleich bleibt
+  var TUNE_BOSS = { 33: 0.6, 57: 0.9, 60: 0.9, 72: 0.85, 81: 0.65, 84: 0.85, 90: 0.8, 100: 0.9, 120: 0.88, 150: 0.86, 174: 0.85, 198: 0.84, 225: 0.83, 250: 0.82 }; // v30: weniger Herzen → 90/100 etwas leichter; 250 etwas milder, weil der Prime-Kaiser größer und stärker ist
   var TUNE_ATK = { 33: 0.65, 57: 0.9, 72: 0.85, 81: 0.7, 84: 0.85, 60: 0.85, 90: 0.4 }; // Sektor-Bosse: weniger Angriffe statt weniger HP
   var TUNE_MOD = { 60: 2.5, 90: 2.5 }; // + halb so viele Steine während des Kampfs // Abstand zwischen Boss-Tricks (Minen, Lenkraketen …) x Faktor // Level -> extra Boss-Faktor (Level 100: Robo-Kaiser, Ziel 20–40 % Siegchance mit dem besten Schiff)
-  function heat(L) { L = L || level; if (L < 19) return 1; var b = 19 + 3 * Math.floor((L - 19) / 3); return (1.3 + 0.5 * Math.min(1, (L - 19) / 80)) * (TUNE[b] || 1) * (TUNE_L[L] || 1); }
+  function heat(L) { L = L || level; if (L < 19) return 1; if (L <= 100) { var b = 19 + 3 * Math.floor((L - 19) / 3); return (1.3 + 0.5 * Math.min(1, (L - 19) / 80)) * (TUNE[b] || 1) * (TUNE_L[L] || 1); } return (1.72 + 0.48 * ((L - 100) / 150)) * (TUNE_L[L] || 1); }
   var TUNE_L = { 84: 0.8, 89: 0.8 }; // einzelne Level fein einstellen
   function srand(seed) { seed = (Math.abs(seed | 0) % 2147483646) + 1; return function () { seed = seed * 16807 % 2147483647; return (seed - 1) / 2147483646; }; }
   function sshuffle(a, rng) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(rng() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
@@ -975,6 +984,7 @@
     if (L <= 15) { var o = BOSS_TYPES[L] || ["saucer", 25 + L * 2, 90, "BOSS"]; return { type: o[0], hp: o[1], speed: o[2], name: locBossForLevel(L, o[3]), mods: [], tint: null }; }
     var sec = SECTORS[secIdx(L)];
     if (L === 100) return { type: "emperor", hp: 9000, speed: 70, name: locBossForLevel(100, "ROBO-KAISER: FINALE FORM"), mods: [], tint: null, final: true, sector: true };
+    if (L === 250) return { type: "emperor", hp: 20000, speed: 70, name: locBossForLevel(250, "WELTRAUM-KAISER: STERNENKRONE"), mods: [], tint: null, final: true, sector: true, prime: true };
     var fixed = { 18: ["kraken", 820, "GREIFARM-MUTTERSCHIFF"], 30: ["station", 1900, "NEBEL-FESTUNG"], 45: ["scorpion", 2700, "FROST-GESCHÜTZKREUZER"], 60: ["sun", 3700, "SONNEN-TITAN"], 75: ["golem", 4300, "KRISTALL-ASTEROIDENBASIS"], 90: ["guardian", 5400, "SCHWARZLOCH-WÄCHTER"] }[L];
     var rng = srand(L * 7919 + 13);
     var mpool = sshuffle(["laser", "drones", "missiles", "minions", "rain", "holes", "grid", "wells", "snipers", "mines", "flare"], rng);
@@ -982,13 +992,19 @@
       var nm = L === 18 ? [] : L === 30 ? ["minions", "drones"] : L === 45 ? ["rain", "drones"] : L === 60 ? ["mines", "missiles"] : L === 75 ? ["laser", "drones", "snipers"] : ["minions", "missiles", "wells"];
       return { type: fixed[0], hp: fixed[1], speed: BOSS_BASE[fixed[0]][1], name: locBossForLevel(L, L === 75 ? (bossGene(75) && bossGene(75).name) : fixed[2]), mods: nm, tint: L === 75 ? "#3affb0" : null, sector: true };
     }
+    if (L > 100) {
+      var lateFixed = { 120: ["forge", 7000], 150: ["foundry", 8000], 174: ["vault", 9000], 198: ["ringfleet", 10000], 225: ["stormcore", 11000] }[L];
+      var lateMods = mpool.slice(0, 1 + (L >= 160 ? 1 : 0) + (L >= 210 ? 1 : 0));
+      if (lateFixed) return { type: lateFixed[0], hp: lateFixed[1], speed: 68, name: locBossForLevel(L, lateFixed[0]), mods: lateMods, tint: null, sector: true, art: L };
+      return { type: "art", hp: Math.round(4800 + 20 * (L - 100)), speed: 78, name: locBossForLevel(L, "BOSS"), mods: lateMods, tint: null, art: L };
+    }
     var pool = ["saucer", "robo", "twins", "golem", "crystal", "kraken"];
     if (L > 30) pool.push("station"); if (L > 45) pool.push("scorpion"); if (L > 60) pool.push("sun"); if (L > 90) pool.push("guardian");
     var type = pool[Math.floor(rng() * pool.length)], base = BOSS_BASE[type];
     var nMods = 1 + (L >= 40 ? 1 : 0) + (L >= 70 ? 1 : 0), mods = [];
     mpool.forEach(function (m) { if (mods.length >= nMods) return; if (m === "laser" && (type === "robo" || type === "crystal" || type === "guardian")) return; if (m === "flare" && type === "sun") return; mods.push(m); });
     var bg = bossGene(L);
-    return { type: type, hp: Math.round(base[0] * (330 + 17 * (L - 18))), speed: base[1] * (1 + (L - 18) * 0.003), name: bg ? bg.name : locShort(type), mods: mods, tint: sec.tint };
+    return { type: type, hp: Math.round(base[0] * (330 + 17 * (L - 18))), speed: base[1] * (1 + (L - 18) * 0.003), name: locBossForLevel(L, bg ? bg.name : locShort(type)), mods: mods, tint: null, art: L };
   }
   function startGame(L, opts) {
     try {
@@ -1006,7 +1022,7 @@
     else L = Math.max(1, Math.min(MAX_LEVEL, L || progress.unlocked));
     curStats = shipStats(); coinsArr = []; coinsRun = 0;
     // Universums-Titan war in Level 13–17 zu stark: dort lädt sein Schild langsamer und die Drohnen treffen schwächer
-    if (shop.equipped === "kaiserbrecher" && L === 100) curStats = Object.assign({}, curStats, { dmg: curStats.dmg * 1.6 }); // gebaut, um den Kaiser zu brechen
+    if (shop.equipped === "kaiserbrecher" && (L === 100 || L === 250)) curStats = Object.assign({}, curStats, { dmg: curStats.dmg * 1.6 }); // gebaut, um den Kaiser zu brechen
     if (shop.equipped === "uni" && L >= 13 && L <= 17) curStats = Object.assign({}, curStats, { regen: 20, orbitK: 0.6 });
     TRIPLE_TIME = 10 * curStats.dur; LASER_TIME = 6 * curStats.dur; MAGNET_TIME = 10 * curStats.dur;
     MAXLIVES = Math.max(1, curStats.hearts + modeTune().extraHearts); regenT = curStats.regen; // Herzen nie über das Maximum des Schiffs
@@ -1163,6 +1179,9 @@
       var ns = SECTORS[secIdx(L + 1)], su = sectorShipFor(L);
       $("winInfo").innerHTML = "🌌 " + tr("game.newGalaxy") + " <b>" + ns.icon + " " + sectorName(ns, L + 1) + "</b>!" + (su ? "<br>🚀 " + tr("game.newShipUnlocked") + " <b>" + shipNameOf(su) + "</b>" : "");
       confettiT = 4;
+    } else if (sectorShipFor(L)) {
+      var gift = sectorShipFor(L), prevW = $("winInfo").textContent;
+      $("winInfo").innerHTML = (prevW ? prevW + "<br>" : "") + "🚀 " + tr("game.newShipUnlocked") + " <b>" + shipNameOf(gift) + "</b>";
     }
     $("winNext").textContent = (net.role ? tr("leaveRoom") : tr("continue")) + " 🗺️";
     hideCelebrate();
@@ -1219,8 +1238,8 @@
   var BOSS_TYPES = { 3: ["saucer", 28, 90, "UFO-MUTTERSCHIFF"], 6: ["robo", 58, 80, "ROBO-SCHLACHTSCHIFF"], 9: ["twins", 72, 70, "ZWILLINGS-UFOs"], 12: ["golem", 250, 64, "ASTEROIDEN-BASIS"], 15: ["crystal", 400, 85, "KRISTALL-KREUZER"], 18: ["emperor", 880, 60, "ROBO-WELTRAUM-KAISER"] };
   function spawnBoss() {
     var spec = bossSpec(level), bt = [spec.type, Math.round(spec.hp * (level >= 19 ? heat() * (TUNE_BOSS[level] || 1) : 1) * (typeof teamScale === "function" ? teamScale() : 1) * modeTune().bossHp), spec.speed, spec.name];
-    var esz = Math.min(W * 0.5, H * 0.62, 500), ek = esz / 360;
-    boss = { type: bt[0], name: bt[3], mods: spec.mods, tint: spec.tint, final: !!spec.final, sector: !!spec.sector, atk: (level >= 19 ? Math.min(2.2, (1 + (level - 18) * 0.006) * (0.55 + 0.45 * heat()) * Math.sqrt(TUNE_BOSS[level] || 1) * (TUNE_ATK[level] || 1)) : 1) * (typeof teamAtk === "function" ? teamAtk() : 1), modK: TUNE_MOD[level] || 1, holeImmune: level >= 18, modT: {}, x: W / 2, y: bt[0] === "emperor" ? -140 * ek : -80, targetY: bt[0] === "emperor" ? 132 + 120 * ek : 210, k: ek, sz: esz,
+    var esz = spec.prime ? Math.min(W * 0.72, H * 0.82, 760) : Math.min(W * 0.5, H * 0.62, 500), ek = esz / 360;
+    boss = { type: bt[0], name: bt[3], mods: spec.mods, tint: spec.tint, final: !!spec.final, sector: !!spec.sector, prime: !!spec.prime, atk: (level >= 19 ? Math.min(2.2, (1 + (level - 18) * 0.006) * (0.55 + 0.45 * heat()) * Math.sqrt(TUNE_BOSS[level] || 1) * (TUNE_ATK[level] || 1)) : 1) * (typeof teamAtk === "function" ? teamAtk() : 1), modK: TUNE_MOD[level] || 1, holeImmune: level >= 18, modT: {}, x: W / 2, y: bt[0] === "emperor" ? -140 * ek : -80, targetY: bt[0] === "emperor" ? 132 + 120 * ek : 210, k: ek, sz: esz,
       shield: null, shieldCd: 6, droneT: 3, powerT: 9, immuneT: 0, blocks: 0, vx: bt[2] * (Math.random() < 0.5 ? -1 : 1), hp: bt[1], maxHp: bt[1],
       bombTimer: 2.5, spreadT: 3.2, laserCd: 3.5, summonCd: 0, phase: 1, laser: null, t: 0, flash: 0 };
     hideMsg(); SFX.boss(); tone(90, 45, 0.9, "sawtooth", 0.07, 0.2); tone(90, 45, 0.9, "sawtooth", 0.07, 1.1);
@@ -1240,6 +1259,12 @@
     if (boss.type === "scorpion") return [[boss.x, boss.y, 78, 36], [boss.x - 95, boss.y + 18, 26, 22], [boss.x + 95, boss.y + 18, 26, 22]];
     if (boss.type === "sun") return [[boss.x, boss.y, 74, 74]];
     if (boss.type === "guardian") return [[boss.x, boss.y, 62, 62]];
+    if (boss.type === "forge") return [[boss.x, boss.y, 88, 62], [boss.x, boss.y - 58, 36, 28]];
+    if (boss.type === "foundry") return [[boss.x, boss.y, 92, 68], [boss.x, boss.y + 20, 110, 28]];
+    if (boss.type === "vault") return [[boss.x, boss.y, 70, 70]];
+    if (boss.type === "ringfleet") return [[boss.x, boss.y, 100, 36], [boss.x, boss.y, 58, 58]];
+    if (boss.type === "stormcore") return [[boss.x, boss.y, 74, 74]];
+    if (boss.type === "art") return [[boss.x, boss.y, 72, 48]];
     return [[boss.x, boss.y, 75, 35]];
   }
   function dropBomb(x, y, vx, vy) { var hk = level >= 19 ? 0.75 + 0.25 * heat() : 1; bombs.push({ x: x, y: y, vx: (vx || 0) * hk, vy: (vy || 105) * hk * speedScale(), r: 11, t: 0 }); }
@@ -1671,6 +1696,12 @@
         if (b.fx2 <= 0) { b.fx2 = 8; if (drones.filter(function (d) { return d.missile; }).length < ((b.modK || 1) > 1 ? 2 : 3)) ((b.modK || 1) > 1 ? [0] : [0, 1]).forEach(function (q) { drones.push({ missile: true, x: rnd(60, W - 60), y: -20 - q * 50, vx: 0, t: 0, warn: 1 }); }); }
         if (rp >= 6 && b.fx3 <= 0) { b.fx3 = rp === 7 ? 10 : 13; if (rp === 6) startStorm(); else if (ufos.filter(function (u) { return u.sniper && !u.dead; }).length < 2) spawnSniper(); }
       }
+      if (b.prime) {
+        b.fx4 = (b.fx4 === undefined ? 4 : b.fx4) - dt; b.fx5 = (b.fx5 === undefined ? 7 : b.fx5) - dt;
+        if (b.fx4 <= 0) { b.fx4 = rp >= 6 ? 6 : 9; [-90, 0, 90].forEach(function (vx) { dropBomb(b.x + vx * 0.4, cy + 50 * k, vx * 0.6, 120); }); }
+        if (b.fx5 <= 0) { b.fx5 = 11; if (drones.filter(function (d) { return d.missile; }).length < 4) drones.push({ missile: true, x: rnd(50, W - 50), y: -24, vx: 0, t: 0, warn: 0.8 }); }
+        if (rp >= 7) b.atk = Math.max(b.atk || 1, 1.45);
+      }
       if (ph === 1) { if (b.bombTimer <= 0) { b.bombTimer = 1.9; [-50, 0, 50].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 100); }); } }
       else {
         if (b.laserCd <= 0) { startBossLaser(); return; }
@@ -1697,6 +1728,15 @@
             tone(900, 500, 0.25, "square", 0.05);
           }
         }
+      }
+    } else if (b.type === "art" || b.type === "forge" || b.type === "foundry" || b.type === "vault" || b.type === "ringfleet" || b.type === "stormcore") {
+      var late = b.hp / b.maxHp < 0.5;
+      if (b.laserCd <= 0 && (b.type !== "art" || late)) { startBossLaser(); return; }
+      if (b.bombTimer <= 0) {
+        b.bombTimer = late ? 2.0 : 2.6;
+        if (b.type === "ringfleet" || b.type === "stormcore") [-60, 0, 60].forEach(function (vx) { dropBomb(b.x, b.y + 40, vx, 105); });
+        else if (b.type === "foundry" || b.type === "forge") [-40, 40].forEach(function (vx) { dropBomb(b.x, b.y + 45, vx, 100); });
+        else dropBomb(b.x, b.y + 36);
       }
     }
   }
@@ -1845,7 +1885,7 @@
   }
 
   // ---------- Einzigartige Bosse: jedes Boss-Level bekommt sein eigenes Design + Namen ----------
-  var BOSS_FIXED_LOOK = { 3: 1, 6: 1, 9: 1, 12: 1, 15: 1, 18: 1, 30: 1, 45: 1, 60: 1, 90: 1, 100: 1 };
+  var BOSS_FIXED_LOOK = { 3: 1, 6: 1, 9: 1, 12: 1, 15: 1, 18: 1, 30: 1, 45: 1, 60: 1, 90: 1, 100: 1, 120: 1, 150: 1, 174: 1, 198: 1, 225: 1, 250: 1 };
   var PB_BODIES = ["saucer", "warship", "station", "monster", "robot", "crystal", "eye", "beetle"];
   var PB_NOUNS = { saucer: ["MUTTERSCHIFF", "UNTERTASSE", "INVASOREN-SCHIFF"], warship: ["SCHLACHTKREUZER", "ZERSTÖRER", "FREGATTE"], station: ["RAUMSTATION", "ORBIT-FESTUNG", "PLATTFORM"],
     monster: ["WELTRAUM-MONSTER", "ALIEN-BESTIE", "STERNENFRESSER"], robot: ["KAMPFROBOTER", "MEGA-MECH", "ROBO-TITAN"], crystal: ["KRISTALLWESEN", "PRISMA-GEIST", "SPLITTER-WESEN"],
@@ -1855,7 +1895,7 @@
   var ROBO_BOSS = { 24: ["walker", 0, "MECHA-STAMPFER"], 36: ["head", 0, "TITAN-ROBOKOPF"], 48: ["trans", 0, "WANDEL-ROBOJET"], 57: ["carrier", 0, "DROHNEN-TRÄGER-ROBOTER"],
     66: ["walker", 1, "SPINNEN-MECH"], 72: ["head", 1, "GIGA-ROBOSCHÄDEL"], 81: ["trans", 1, "TRANSFORMO-KREUZER"], 96: ["carrier", 1, "SCHWARM-KOMMANDO-ROBOTER"] };
   var pbList = null;
-  function pbLevels() { if (!pbList) { pbList = []; for (var L = 3; L < 100; L += 3) if (!BOSS_FIXED_LOOK[L]) pbList.push(L); } return pbList; }
+  function pbLevels() { if (!pbList) { pbList = []; for (var L = 3; L <= 249; L += 3) if (!BOSS_FIXED_LOOK[L]) pbList.push(L); } return pbList; }
   function bossGene(L) {
     var k = pbLevels().indexOf(L); if (k < 0) return null;
     var R = srand(L * 7121 + 99), body = PB_BODIES[(k * 3) % 8], nouns = PB_NOUNS[body];
@@ -2827,6 +2867,12 @@
     if (grid) drawGrid();
     if (boss) {
       if (boss.type === "emperor") drawEmperor(boss);
+      else if (boss.type === "forge") drawForgeBoss(boss);
+      else if (boss.type === "foundry") drawFoundryBoss(boss);
+      else if (boss.type === "vault") drawVaultBoss(boss);
+      else if (boss.type === "ringfleet") drawRingfleetBoss(boss);
+      else if (boss.type === "stormcore") drawStormcoreBoss(boss);
+      else if (boss.type === "art") drawArtBoss(boss);
       else if (bossGene(level) && drawProcBoss(boss)) {}
       else drawTinted(boss.tint, function () {
         if (boss.type === "twins") { { var sp = bossSep(); drawBoss({ x: boss.x - sp, y: boss.y, t: boss.t, flash: boss.flash }, 0.85, 0); drawBoss({ x: boss.x + sp, y: boss.y + Math.sin(boss.t * 2) * 8, t: boss.t + 1, flash: boss.flash }, 0.85, 0); drawTwinMark(boss.x + sp, boss.y); } }
@@ -3189,6 +3235,23 @@
     ctx.shadowBlur = 0; ctx.fillStyle = "#ff3a5a"; ctx.beginPath(); ctx.arc(0, 0, 6, 0, 7); ctx.fill();
     ctx.fillStyle = "#4ec3ff"; ctx.beginPath(); ctx.arc(-26, 4, 4, 0, 7); ctx.arc(26, 4, 4, 0, 7); ctx.fill();
     ctx.restore();
+    if (b.prime) {
+      ctx.save(); ctx.globalAlpha = 0.9;
+      var pg = ctx.createRadialGradient(0, -10, 20, 0, -10, 210); pg.addColorStop(0, "rgba(255,213,74,.22)"); pg.addColorStop(1, "rgba(255,213,74,0)");
+      ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(0, -10, 210, 0, 7); ctx.fill();
+      ctx.strokeStyle = "#ffd54a"; ctx.lineWidth = 3; ctx.setLineDash([12, 10]); ctx.lineDashOffset = -t * 40;
+      ctx.beginPath(); ctx.ellipse(0, -8, 168, 128, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+      [-1, 1].forEach(function (sd) {
+        ctx.fillStyle = metal(-40, 40, "#fff0b0");
+        ctx.beginPath(); ctx.moveTo(sd * 118, -88); ctx.lineTo(sd * 168, -70); ctx.lineTo(sd * 158, -28); ctx.lineTo(sd * 112, -40); ctx.closePath(); ctx.fill(); ctx.stroke();
+        glowDot(sd * 160, -48, 6 + Math.sin(t * 8) * 2, "#ffd54a", 16);
+      });
+      ctx.save(); ctx.translate(0, -148); ctx.rotate(t * 0.4);
+      ctx.strokeStyle = "#ffe066"; ctx.lineWidth = 2; ctx.shadowColor = "#ffd54a"; ctx.shadowBlur = 14;
+      for (var pr = 0; pr < 8; pr++) { var pa = pr * Math.PI / 4; ctx.beginPath(); ctx.moveTo(Math.cos(pa) * 18, Math.sin(pa) * 18); ctx.lineTo(Math.cos(pa) * 38, Math.sin(pa) * 38); ctx.stroke(); }
+      ctx.restore();
+      ctx.restore();
+    }
     // Risse bei Schaden
     if (fr < 0.75) {
       ctx.strokeStyle = "rgba(20,10,10,.85)"; ctx.lineWidth = 2.5; ctx.beginPath();
@@ -3220,6 +3283,115 @@
       ctx.strokeText("⚫ " + tr("canvas.immune"), b.x, b.y + 140 * k); ctx.fillText("⚫ " + tr("canvas.immune"), b.x, b.y + 140 * k);
       ctx.restore();
     }
+  }
+
+  function artRecipe(L) {
+    var a = Math.max(0, (L | 0) - 101);
+    return { hull: a % 24, limbs: Math.floor(a / 3) % 8, crown: (a * 3 + 1) % 8, guns: (a * 2 + 2) % 6, orbit: (a * 5 + 3) % 5, hue: (a * 47 + 18) % 360, hue2: (a * 47 + 148) % 360 };
+  }
+  function drawArtBoss(b) {
+    var L = (b.art | 0) || level, r = artRecipe(L), t = b.t, fl = b.flash > 0, angry = b.hp / b.maxHp < 0.4;
+    ctx.save(); ctx.translate(b.x, b.y + Math.sin(t * 1.4) * 4);
+    var c1 = fl ? "#fff" : "hsl(" + r.hue + ",72%," + (angry ? 62 : 54) + "%)";
+    var c2 = fl ? "#fff" : "hsl(" + r.hue2 + ",70%,36%)";
+    ctx.strokeStyle = "hsl(" + r.hue + ",30%,12%)"; ctx.lineWidth = 3; ctx.lineJoin = "round";
+    var og = ctx.createRadialGradient(0, 0, 8, 0, 0, 110); og.addColorStop(0, "hsla(" + r.hue2 + ",90%,60%,.28)"); og.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = og; ctx.beginPath(); ctx.arc(0, 0, 110, 0, 7); ctx.fill();
+    if (r.orbit) {
+      for (var oi = 0; oi < r.orbit + 1; oi++) {
+        var oa = t * 1.2 + oi * 6.28 / (r.orbit + 1);
+        glowDot(Math.cos(oa) * 78, Math.sin(oa) * 42, 4, "hsl(" + r.hue2 + ",90%,70%)", 10);
+      }
+    }
+    if (r.limbs) {
+      for (var li = 0; li < r.limbs; li++) {
+        var la = -0.9 + li * (1.8 / Math.max(1, r.limbs - 1)) + Math.sin(t * 2 + li) * 0.12;
+        ctx.strokeStyle = c2; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(Math.cos(la) * 34, Math.sin(la) * 18 + 10); ctx.lineTo(Math.cos(la) * 78, Math.sin(la) * 46 + 18); ctx.stroke();
+        ctx.fillStyle = c1; ctx.beginPath(); ctx.arc(Math.cos(la) * 78, Math.sin(la) * 46 + 18, 7, 0, 7); ctx.fill();
+      }
+    }
+    ctx.fillStyle = c1;
+    if (r.hull % 6 === 0) { ctx.beginPath(); ctx.ellipse(0, 8, 70, 36, 0, 0, 7); ctx.fill(); ctx.stroke(); }
+    else if (r.hull % 6 === 1) { ctx.beginPath(); ctx.moveTo(0, -48); ctx.lineTo(62, 10); ctx.lineTo(40, 42); ctx.lineTo(-40, 42); ctx.lineTo(-62, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    else if (r.hull % 6 === 2) { ctx.beginPath(); ctx.rect(-52, -28, 104, 62); ctx.fill(); ctx.stroke(); }
+    else if (r.hull % 6 === 3) { ctx.beginPath(); ctx.moveTo(-48, -20); ctx.lineTo(48, -20); ctx.lineTo(68, 28); ctx.lineTo(0, 50); ctx.lineTo(-68, 28); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    else if (r.hull % 6 === 4) { ctx.beginPath(); ctx.ellipse(0, 0, 48, 52, 0, 0, 7); ctx.fill(); ctx.stroke(); }
+    else { ctx.beginPath(); ctx.moveTo(0, -44); ctx.quadraticCurveTo(70, 0, 0, 48); ctx.quadraticCurveTo(-70, 0, 0, -44); ctx.fill(); ctx.stroke(); }
+    for (var gi = 0; gi < r.guns; gi++) {
+      var gx = (gi - (r.guns - 1) / 2) * 22;
+      ctx.fillStyle = c2; ctx.fillRect(gx - 5, 28, 10, 18); glowDot(gx, 48, 3.5, "hsl(" + r.hue2 + ",90%,65%)", 8);
+    }
+    ctx.fillStyle = "#14080c"; ctx.beginPath(); ctx.ellipse(0, -8, 28, 12, 0, 0, 7); ctx.fill();
+    var lx = ship ? Math.max(-6, Math.min(6, (ship.x - b.x) / 50)) : 0;
+    glowDot(-10 + lx, -8, 5, angry ? "#ff7a2a" : "#ff2a3a", 12); glowDot(10 + lx, -8, 5, angry ? "#ff7a2a" : "#ff2a3a", 12);
+    if (r.crown) {
+      ctx.fillStyle = "hsl(" + r.hue2 + ",85%,62%)";
+      ctx.beginPath(); ctx.moveTo(-22, -36); ctx.lineTo(-18, -52 - r.crown); ctx.lineTo(-8, -38); ctx.lineTo(0, -58 - r.crown); ctx.lineTo(8, -38); ctx.lineTo(18, -52 - r.crown); ctx.lineTo(22, -36); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+  function drawForgeBoss(b) {
+    var t = b.t, fl = b.flash > 0;
+    ctx.save(); ctx.translate(b.x, b.y + Math.sin(t) * 3);
+    ctx.fillStyle = fl ? "#fff" : "#c8a060"; ctx.strokeStyle = "#3a2a10"; ctx.lineWidth = 3;
+    [-1, 1].forEach(function (sd) {
+      ctx.save(); ctx.scale(sd, 1);
+      ctx.beginPath(); ctx.moveTo(40, -20); ctx.lineTo(96, -70 + Math.sin(t * 2) * 6); ctx.lineTo(110, -40); ctx.lineTo(70, 10); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#8a6a30"; ctx.fillRect(88, -20, 16, 50); ctx.restore();
+    });
+    ctx.fillStyle = fl ? "#fff" : "#9a7a40"; ctx.beginPath(); ctx.moveTo(-70, -30); ctx.lineTo(70, -30); ctx.lineTo(58, 50); ctx.lineTo(-58, 50); ctx.closePath(); ctx.fill(); ctx.stroke();
+    glowDot(0, 8, 16 + Math.sin(t * 6) * 3, "#ff9a2a", 20);
+    ctx.fillStyle = "#2a2010"; ctx.fillRect(-22, -48, 44, 18); ctx.fillStyle = "#ff4a3a"; ctx.fillRect(-16, -44, 12, 8); ctx.fillRect(4, -44, 12, 8);
+    ctx.restore();
+  }
+  function drawFoundryBoss(b) {
+    var t = b.t, fl = b.flash > 0;
+    ctx.save(); ctx.translate(b.x, b.y);
+    var halo = ctx.createRadialGradient(0, 0, 10, 0, 0, 130); halo.addColorStop(0, "rgba(255,80,20,.35)"); halo.addColorStop(1, "rgba(255,80,20,0)");
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 0, 130, 0, 7); ctx.fill();
+    ctx.fillStyle = fl ? "#fff" : "#6a2010"; ctx.strokeStyle = "#2a0804"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-80, -20); ctx.lineTo(80, -20); ctx.lineTo(70, 56); ctx.lineTo(-70, 56); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = fl ? "#fff" : "#c04010"; ctx.beginPath(); ctx.arc(0, -8, 36, 0, 7); ctx.fill(); ctx.stroke();
+    glowDot(0, -8, 18 + Math.sin(t * 7) * 4, "#ffd54a", 22);
+    [-1, 1].forEach(function (sd) { ctx.fillStyle = "#8a3010"; ctx.fillRect(sd * 70 - 10, -8, 20, 48); glowDot(sd * 70, 44, 6, "#ff6a1a", 10); });
+    ctx.fillStyle = "#1a0804"; ctx.fillRect(-28, -52, 56, 16); glowDot(-10, -44, 5, "#ff2a2a", 10); glowDot(10, -44, 5, "#ff2a2a", 10);
+    ctx.restore();
+  }
+  function drawVaultBoss(b) {
+    var t = b.t, fl = b.flash > 0;
+    ctx.save(); ctx.translate(b.x, b.y + Math.sin(t * 1.1) * 3);
+    ctx.strokeStyle = "#8fe8ff"; ctx.lineWidth = 2; ctx.globalAlpha = 0.7; ctx.setLineDash([8, 6]); ctx.lineDashOffset = -t * 30;
+    ctx.beginPath(); ctx.arc(0, 0, 78, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    ctx.fillStyle = fl ? "#fff" : "#c8f4ff"; ctx.strokeStyle = "#1a4060"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, -62); ctx.lineTo(54, -18); ctx.lineTo(36, 52); ctx.lineTo(-36, 52); ctx.lineTo(-54, -18); ctx.closePath(); ctx.fill(); ctx.stroke();
+    glowDot(0, 0, 16 + Math.sin(t * 5) * 3, "#7fe0ff", 18);
+    ctx.fillStyle = "#082030"; ctx.beginPath(); ctx.arc(0, -22, 16, 0, 7); ctx.fill(); glowDot(-6, -24, 4, "#fff", 8); glowDot(6, -24, 4, "#fff", 8);
+    ctx.restore();
+  }
+  function drawRingfleetBoss(b) {
+    var t = b.t, fl = b.flash > 0;
+    ctx.save(); ctx.translate(b.x, b.y);
+    ctx.strokeStyle = fl ? "#fff" : "#ffd88a"; ctx.lineWidth = 10; ctx.beginPath(); ctx.ellipse(0, 0, 110, 34, 0, 0, 7); ctx.stroke();
+    ctx.lineWidth = 4; ctx.strokeStyle = "#c09040"; ctx.stroke();
+    ctx.fillStyle = fl ? "#fff" : "#e8c060"; ctx.strokeStyle = "#4a3010"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(0, 0, 48, 48, 0, 0, 7); ctx.fill(); ctx.stroke();
+    glowDot(0, 0, 12 + Math.sin(t * 6) * 2, "#ffe066", 16);
+    for (var i = 0; i < 8; i++) { var a = t * 0.6 + i * 0.785; glowDot(Math.cos(a) * 110, Math.sin(a) * 34, 4, "#ffd54a", 8); }
+    ctx.restore();
+  }
+  function drawStormcoreBoss(b) {
+    var t = b.t, fl = b.flash > 0;
+    ctx.save(); ctx.translate(b.x, b.y + Math.sin(t * 2) * 2);
+    var sg = ctx.createRadialGradient(0, 0, 6, 0, 0, 120); sg.addColorStop(0, "rgba(80,255,220,.4)"); sg.addColorStop(1, "rgba(80,255,220,0)");
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, 120, 0, 7); ctx.fill();
+    ctx.strokeStyle = "#7dffd0"; ctx.lineWidth = 2;
+    for (var i = 0; i < 6; i++) { var a = t * 2 + i; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 90, Math.sin(a) * 90); ctx.stroke(); }
+    ctx.fillStyle = fl ? "#fff" : "#1a4a50"; ctx.strokeStyle = "#7dffd0"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 0, 44, 0, 7); ctx.fill(); ctx.stroke();
+    glowDot(0, 0, 18 + Math.sin(t * 8) * 4, "#80ffe0", 20);
+    ctx.fillStyle = "#041018"; ctx.beginPath(); ctx.arc(-10, -8, 6, 0, 7); ctx.arc(10, -8, 6, 0, 7); ctx.fill();
+    glowDot(-10, -8, 3, "#fff", 6); glowDot(10, -8, 3, "#fff", 6);
+    ctx.restore();
   }
 
   // ---------- Neue Zeichnungen (Level 12–17) ----------
@@ -5356,7 +5528,67 @@
     { id: "chromewasp", name: "Roadster-Rocket", tier: 5, price: 45000, hearts: 5, speed: 1.5, rate: 0.22, shots: 2, dmg: 3.6, regen: 14, perk: "homing", bullet: "#d8e8ff",
       flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-7.2, 31, 0.85], [-2.4, 31, 0.95], [2.4, 31, 0.95], [7.2, 31, 0.85]], perkText: "Zielsuchend + Schild alle 14 s", desc: "Mitternachtssilberner Roadster-Rocket. SpaceX-Kaltgas-Cluster — vier Haupt- plus vier versenkte Düsen — Zielsuch-Schüsse und alle 14 Sekunden ein Schild. 0–60 unter 0,59 s." },
     { id: "apexflash", name: "Roadster Founders-Serie", tier: 5, price: 148000, hearts: 7, speed: 1.62, rate: 0.2, shots: 3, dmg: 4.8, regen: 11, perk: "homing", perk2: "pulse", bullet: "#ffd54a",
-      flame: ["255,255,255", "140,210,255", "40,90,220"], engines: [[-7.4, 31, 0.9], [-2.5, 31, 1], [2.5, 31, 1], [7.4, 31, 0.9], [0, 34, 1.15]], perkText: "Zielsuch-Salve + Schildpuls", desc: "Tesla Roadster Founders-Serie. Chrom-Gold, der große Heckflügel vom offiziellen Raketen-Foto, volle SpaceX-Düsenreihe, dreifach zielsuchend und ein Schildpuls, der Bomben in der Nähe knallt." }
+      flame: ["255,255,255", "140,210,255", "40,90,220"], engines: [[-7.4, 31, 0.9], [-2.5, 31, 1], [2.5, 31, 1], [7.4, 31, 0.9], [0, 34, 1.15]], perkText: "Zielsuch-Salve + Schildpuls", desc: "Tesla Roadster Founders-Serie. Chrom-Gold, der große Heckflügel vom offiziellen Raketen-Foto, volle SpaceX-Düsenreihe, dreifach zielsuchend und ein Schildpuls, der Bomben in der Nähe knallt." },
+    { id: "rivet", name: "Nieten-Drachen", tier: 6, price: 0, unlock: { L: 105 }, hearts: 5, speed: 1.35, rate: 0.26, shots: 2, dmg: 3, regen: 0, bullet: "hsl(172,85%,70%)",
+      flame: ["255,255,255","80,160,255","30,70,200"], engines: [[0, 30, 1]], perkText: "Doppel-Nieten", desc: "Ein Werft-Drachen mit Nietenschüssen." },
+    { id: "crane", name: "Kran-Flügel", tier: 6, price: 0, unlock: { L: 110 }, hearts: 5, speed: 1.36, rate: 0.258, shots: 2, dmg: 3.09, regen: 0, perk: "pierce", bullet: "hsl(213,85%,70%)",
+      flame: ["255,255,255","92,170,255","31,70,200"], engines: [[0, 30, 1]], perkText: "Kran-Strahl durch alles", desc: "Lange Kran-Flügel durchschlagen Gegner." },
+    { id: "welder", name: "Schweiss-Skip", tier: 6, price: 0, unlock: { L: 115 }, hearts: 5, speed: 1.37, rate: 0.256, shots: 2, dmg: 3.18, regen: 0, perk: "burn", bullet: "hsl(254,85%,70%)",
+      flame: ["255,255,255","104,180,255","32,70,200"], engines: [[0, 30, 1]], perkText: "Schweiss-Funken", desc: "Funken setzen Steine in Brand." },
+    { id: "dockn", name: "Dock-Nadel", tier: 6, price: 0, unlock: { L: 120 }, hearts: 5, speed: 1.39, rate: 0.254, shots: 2, dmg: 3.27, regen: 0, perk: "small", perk2: "pierce", hitR: 13, bullet: "hsl(295,85%,70%)",
+      flame: ["255,255,255","116,190,255","33,70,200"], engines: [[0, 30, 1]], perkText: "Winzig + Durchschuss", desc: "Eine schlanke Nadel aus dem Trockendock. Schwer zu treffen!" },
+    { id: "boltfin", name: "Bolzen-Finne", tier: 6, price: 0, unlock: { L: 125 }, hearts: 5, speed: 1.4, rate: 0.252, shots: 2, dmg: 3.36, regen: 0, perk: "homing", bullet: "hsl(336,85%,70%)",
+      flame: ["255,255,255","128,200,255","34,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuch-Bolzen", desc: "Flossen schießen Bolzen, die das Ziel suchen." },
+    { id: "hullmite", name: "Rumpf-Milbe", tier: 6, price: 0, unlock: { L: 130 }, hearts: 5, speed: 1.41, rate: 0.25, shots: 2, dmg: 3.45, regen: 0, perk: "split", bullet: "hsl(17,85%,70%)",
+      flame: ["255,255,255","140,160,255","35,70,200"], engines: [[0, 30, 1]], perkText: "Splitter-Milben", desc: "Treffer zerplatzen in zwei kleine Milben." },
+    { id: "slagskip", name: "Schlacken-Skip", tier: 6, price: 0, unlock: { L: 135 }, hearts: 5, speed: 1.42, rate: 0.248, shots: 2, dmg: 3.54, regen: 0, perk: "quake", bullet: "hsl(58,85%,70%)",
+      flame: ["255,255,255","152,170,255","36,70,200"], engines: [[0, 30, 1]], perkText: "Schlacken-Beben", desc: "Wirft schwere Schlacke, die die Bahn bebt." },
+    { id: "magmapike", name: "Magma-Pike", tier: 6, price: 0, unlock: { L: 140 }, hearts: 5, speed: 1.43, rate: 0.246, shots: 2, dmg: 3.63, regen: 13, perk: "burn", bullet: "hsl(99,85%,70%)",
+      flame: ["255,255,255","164,180,255","37,70,200"], engines: [[0, 30, 1]], perkText: "Feuer-Pike + Schild", desc: "Eine Magma-Lanze mit langsamem Schildpuls." },
+    { id: "smeltwing", name: "Schmelz-Flügel", tier: 6, price: 0, unlock: { L: 145 }, hearts: 6, speed: 1.45, rate: 0.244, shots: 2, dmg: 3.72, regen: 0, perk: "burn", perk2: "wing", bullet: "hsl(140,85%,70%)",
+      flame: ["255,255,255","80,190,255","38,70,200"], engines: [[0, 30, 1]], perkText: "Brand + Begleiter", desc: "Zwei heiße Begleiter fliegen neben dir." },
+    { id: "ingothulk", name: "Barren-Koloss", tier: 6, price: 0, unlock: { L: 150 }, hearts: 6, speed: 1.46, rate: 0.242, shots: 3, dmg: 3.81, regen: 0, bullet: "hsl(181,85%,70%)",
+      flame: ["255,255,255","92,200,255","39,70,200"], engines: [[0, 30, 1]], perkText: "Dreifach-Barren + Schild", desc: "Ein schwerer Gießerei-Panzer. Langsame Schüsse, große Herzen." },
+    { id: "crucibit", name: "Tiegel-Bit", tier: 6, price: 0, unlock: { L: 155 }, hearts: 6, speed: 1.47, rate: 0.24, shots: 2, dmg: 3.9, regen: 14, perk: "nova", bullet: "hsl(222,85%,70%)",
+      flame: ["255,255,255","104,160,255","40,70,200"], engines: [[0, 30, 1]], perkText: "Nova-Schmelze", desc: "Alle paar Sekunden knallt eine Schmelz-Welle." },
+    { id: "forgefin", name: "Schmiede-Finne", tier: 6, price: 0, unlock: { L: 160 }, hearts: 6, speed: 1.48, rate: 0.238, shots: 3, dmg: 3.99, regen: 13, perk: "pierce", perk2: "orbit", drones: 1, bullet: "hsl(263,85%,70%)",
+      flame: ["255,255,255","116,170,255","41,70,200"], engines: [[0, 30, 1]], perkText: "Durchschuss + Hammer-Drohne", desc: "Ein Flossen-Schmiedeschiff mit einer Hammer-Drohne." },
+    { id: "frostbit", name: "Frost-Bit", tier: 6, price: 0, unlock: { L: 165 }, hearts: 6, speed: 1.49, rate: 0.236, shots: 2, dmg: 4.08, regen: 0, perk: "freeze", bullet: "hsl(304,85%,70%)",
+      flame: ["255,255,255","128,180,255","42,70,200"], engines: [[0, 30, 1]], perkText: "Eis-Schüsse frieren", desc: "Kleine Eis-Bits frieren Steine in der Nähe." },
+    { id: "iceauger", name: "Eis-Bohrer", tier: 6, price: 0, unlock: { L: 170 }, hearts: 6, speed: 1.51, rate: 0.234, shots: 3, dmg: 4.17, regen: 0, perk: "pierce", bullet: "hsl(345,85%,70%)",
+      flame: ["255,255,255","140,190,255","43,70,200"], engines: [[0, 30, 1]], perkText: "Bohr-Durchschuss", desc: "Bohrt gerade durch alle Gegner in der Bahn." },
+    { id: "cryowing", name: "Kryo-Flügel", tier: 6, price: 0, unlock: { L: 175 }, hearts: 6, speed: 1.52, rate: 0.232, shots: 2, dmg: 4.26, regen: 0, perk: "freeze", perk2: "frostaura", bullet: "hsl(26,85%,70%)",
+      flame: ["255,255,255","152,200,255","44,70,200"], engines: [[0, 30, 1]], perkText: "Frost-Aura + 3 Schüsse", desc: "Ein Kältefeld bremst Bomben um dich." },
+    { id: "vaultskip", name: "Tresor-Skip", tier: 6, price: 0, unlock: { L: 180 }, hearts: 6, speed: 1.53, rate: 0.23, shots: 3, dmg: 4.35, regen: 14, perk: "phase", bullet: "hsl(67,85%,70%)",
+      flame: ["255,255,255","164,160,255","45,70,200"], engines: [[0, 30, 1]], perkText: "Phasen-Tresor-Schüsse", desc: "Schüsse gleiten durch Eiswände." },
+    { id: "brinefin", name: "Laugen-Finne", tier: 6, price: 0, unlock: { L: 185 }, hearts: 7, speed: 1.54, rate: 0.228, shots: 2, dmg: 4.44, regen: 0, perk: "homing", bullet: "hsl(108,85%,70%)",
+      flame: ["255,255,255","80,170,255","46,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuch-Lauge", desc: "Salzige Such-Pfeile von Europa." },
+    { id: "ringshear", name: "Ring-Schere", tier: 6, price: 0, unlock: { L: 190 }, hearts: 7, speed: 1.55, rate: 0.226, shots: 3, dmg: 4.53, regen: 0, perk: "split", bullet: "hsl(149,85%,70%)",
+      flame: ["255,255,255","92,180,255","47,70,200"], engines: [[0, 30, 1]], perkText: "Splitter-Ringklingen", desc: "Jeder Treffer teilt sich in zwei Ringklingen." },
+    { id: "spokejet", name: "Speichen-Jet", tier: 6, price: 0, unlock: { L: 195 }, hearts: 7, speed: 1.57, rate: 0.224, shots: 2, dmg: 4.62, regen: 0, bullet: "hsl(190,85%,70%)",
+      flame: ["255,255,255","104,190,255","48,70,200"], engines: [[0, 30, 1]], perkText: "Schnelle Speichen", desc: "Schneller Saturn-Jet. Schießt viel!" },
+    { id: "shepwing", name: "Hirten-Flügel", tier: 6, price: 0, unlock: { L: 200 }, hearts: 7, speed: 1.58, rate: 0.222, shots: 3, dmg: 4.71, regen: 15, perk: "homing", perk2: "wing", bullet: "hsl(231,85%,70%)",
+      flame: ["255,255,255","116,200,255","49,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuchend + 2 Hirten", desc: "Zwei Mond-Hirten schießen mit." },
+    { id: "hexsail", name: "Hex-Segel", tier: 6, price: 0, unlock: { L: 205 }, hearts: 7, speed: 1.59, rate: 0.22, shots: 3, dmg: 4.8, regen: 14, perk: "beam", bullet: "hsl(272,85%,70%)",
+      flame: ["255,255,255","128,160,255","50,70,200"], engines: [[0, 30, 1]], perkText: "Sonnenstrahl durch alles", desc: "Hex-Segel halten einen Dauerstrahl." },
+    { id: "scythesk", name: "Orbit-Sense", tier: 6, price: 0, unlock: { L: 210 }, hearts: 7, speed: 1.6, rate: 0.218, shots: 3, dmg: 4.89, regen: 0, perk: "pierce", perk2: "gravity", bullet: "hsl(313,85%,70%)",
+      flame: ["255,255,255","140,170,255","51,70,200"], engines: [[0, 30, 1]], perkText: "Sense + Schwerkraft", desc: "Eine Ringsense, die Gegner anzieht." },
+    { id: "stormcoil", name: "Sturm-Spule", tier: 6, price: 0, unlock: { L: 215 }, hearts: 7, speed: 1.61, rate: 0.216, shots: 3, dmg: 4.98, regen: 0, perk: "chain", bullet: "hsl(354,85%,70%)",
+      flame: ["255,255,255","152,180,255","52,70,200"], engines: [[0, 30, 1]], perkText: "Kettenblitz", desc: "Treffer springen auf zwei weitere Gegner." },
+    { id: "tiltwing", name: "Kipp-Flügel", tier: 6, price: 0, unlock: { L: 220 }, hearts: 7, speed: 1.63, rate: 0.214, shots: 3, dmg: 5.07, regen: 15, perk: "phase", perk2: "timeslow", bullet: "hsl(35,85%,70%)",
+      flame: ["255,255,255","164,190,255","53,70,200"], engines: [[0, 30, 1]], perkText: "Phase + Zeitlupe", desc: "Kippt aus der Gefahr und bremst die Zeit." },
+    { id: "methanray", name: "Methan-Strahl", tier: 6, price: 0, unlock: { L: 225 }, hearts: 8, speed: 1.64, rate: 0.212, shots: 3, dmg: 5.16, regen: 0, perk: "beam", bullet: "hsl(76,85%,70%)",
+      flame: ["255,255,255","80,200,255","54,70,200"], engines: [[0, 30, 1]], perkText: "Strahl + Schild", desc: "Ein cyaner Methan-Strahl von Uranus." },
+    { id: "aurorafin", name: "Aurora-Finne", tier: 6, price: 0, unlock: { L: 230 }, hearts: 8, speed: 1.65, rate: 0.21, shots: 3, dmg: 5.25, regen: 14, perk: "prism", bullet: "hsl(117,85%,70%)",
+      flame: ["255,255,255","92,160,255","55,70,200"], engines: [[0, 30, 1]], perkText: "Prisma-Aurora", desc: "Fünf bunte Aurora-Schüsse." },
+    { id: "oortneedle", name: "Oort-Nadel", tier: 6, price: 0, unlock: { L: 235 }, hearts: 8, speed: 1.66, rate: 0.208, shots: 3, dmg: 5.34, regen: 0, perk: "small", perk2: "pierce", hitR: 13, bullet: "hsl(158,85%,70%)",
+      flame: ["255,255,255","104,170,255","56,70,200"], engines: [[0, 30, 1]], perkText: "Winzige Durchschuss-Nadel", desc: "Eine Kuiper-Nadel. Sehr klein, sehr scharf." },
+    { id: "plutospire", name: "Pluto-Turm", tier: 6, price: 0, unlock: { L: 240 }, hearts: 8, speed: 1.67, rate: 0.206, shots: 3, dmg: 5.43, regen: 16, perk: "homing", perk2: "orbit", drones: 2, bullet: "hsl(199,85%,70%)",
+      flame: ["255,255,255","116,180,255","57,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuchend + 2 Drohnen", desc: "Ein dunkler Turm mit zwei Eis-Drohnen." },
+    { id: "charongate", name: "Charon-Tor", tier: 6, price: 0, unlock: { L: 245 }, hearts: 8, speed: 1.69, rate: 0.204, shots: 3, dmg: 5.52, regen: 0, perk: "nova", perk2: "clone", bullet: "hsl(240,85%,70%)",
+      flame: ["255,255,255","128,190,255","58,70,200"], engines: [[0, 30, 1]], perkText: "Nova + Klon", desc: "Öffnet einen Tor-Klon auf der anderen Seite." },
+    { id: "starcrown", name: "Sternenkrone", tier: 6, price: 0, unlock: { L: 250 }, hearts: 8, speed: 1.7, rate: 0.202, shots: 3, dmg: 5.61, regen: 12, perk: "omega", perk2: "timeslow", drones: 2, bullet: "hsl(281,85%,70%)",
+      flame: ["255,255,255","140,200,255","59,70,200"], engines: [[0, 30, 1]], perkText: "Omega-Krone + Drohnen", desc: "Belohnung für den Weltraum-Kaiser auf 250! Kronen-Schüsse suchen und durchschlagen." }
   ];
   var SHIP_BY = {}; SHIPS.forEach(function (d) { SHIP_BY[d.id] = d; if (d.tier === undefined) d.tier = d.price >= 3000 ? 1 : 0; });
   function shipUnlocked(d) { if (!d.unlock) return true; if (d.unlock.L) return (progress.stars[d.unlock.L] | 0) > 0; if (d.unlock.ach) return !!achDone[d.unlock.ach]; return false; }
@@ -6260,6 +6492,10 @@
   DESIGNS.shadowspeeder = function (t, d, fx) { drawTeslaRoadster("shadowspeeder", t, d, fx); };
   DESIGNS.chromewasp = function (t, d, fx) { drawTeslaRoadster("chromewasp", t, d, fx); };
   DESIGNS.apexflash = function (t, d, fx) { drawTeslaRoadster("apexflash", t, d, fx); };
+  var OUTER_KITS = {"rivet":{"shape":"delta","wing":[36,14],"c":["hsl(12,80%,68%)","hsl(40,70%,42%)","hsl(62,55%,18%)"],"edge":"hsl(12,40%,88%)","acc":"hsl(192,90%,72%)","glass":"hsl(212,70%,55%)","guns":[12],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(192,90%,72%)","len":38,"bw":10,"aura":[54,"hsla(12,80%,60%,.22)","hsla(12,80%,40%,0)"]},"crane":{"shape":"swept","wing":[39,-4],"c":["hsl(53,80%,68%)","hsl(81,70%,42%)","hsl(103,55%,18%)"],"edge":"hsl(53,40%,88%)","acc":"hsl(233,90%,72%)","glass":"hsl(253,70%,55%)","guns":[10,22],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(233,90%,72%)","len":40,"bw":11,"aura":[55,"hsla(53,80%,60%,.22)","hsla(53,80%,40%,0)"]},"welder":{"shape":"wide","wing":[42,8],"c":["hsl(94,80%,68%)","hsl(122,70%,42%)","hsl(144,55%,18%)"],"edge":"hsl(94,40%,88%)","acc":"hsl(274,90%,72%)","glass":"hsl(294,70%,55%)","guns":[12,24,34],"pods":30,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(274,90%,72%)","len":42,"bw":12,"aura":[56,"hsla(94,80%,60%,.22)","hsla(94,80%,40%,0)"]},"dockn":{"shape":"forward","wing":[45,10],"c":["hsl(135,80%,68%)","hsl(163,70%,42%)","hsl(185,55%,18%)"],"edge":"hsl(135,40%,88%)","acc":"hsl(315,90%,72%)","glass":"hsl(335,70%,55%)","guns":[12],"fins":true,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(315,90%,72%)","len":44,"bw":13,"aura":[57,"hsla(135,80%,60%,.22)","hsla(135,80%,40%,0)"]},"boltfin":{"shape":"box","wing":[48,2],"c":["hsl(176,80%,68%)","hsl(204,70%,42%)","hsl(226,55%,18%)"],"edge":"hsl(176,40%,88%)","acc":"hsl(356,90%,72%)","glass":"hsl(16,70%,55%)","guns":[10,22],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(356,90%,72%)","len":46,"bw":14,"aura":[58,"hsla(176,80%,60%,.22)","hsla(176,80%,40%,0)"]},"hullmite":{"shape":"delta","wing":[51,14],"c":["hsl(217,80%,68%)","hsl(245,70%,42%)","hsl(267,55%,18%)"],"edge":"hsl(217,40%,88%)","acc":"hsl(37,90%,72%)","glass":"hsl(57,70%,55%)","guns":[12,24,34],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(37,90%,72%)","len":48,"bw":10,"aura":[59,"hsla(217,80%,60%,.22)","hsla(217,80%,40%,0)"]},"slagskip":{"shape":"swept","wing":[54,-4],"c":["hsl(258,80%,68%)","hsl(286,70%,42%)","hsl(308,55%,18%)"],"edge":"hsl(258,40%,88%)","acc":"hsl(78,90%,72%)","glass":"hsl(98,70%,55%)","guns":[12],"pods":29,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(78,90%,72%)","len":38,"bw":11,"aura":[60,"hsla(258,80%,60%,.22)","hsla(258,80%,40%,0)"]},"magmapike":{"shape":"wide","wing":[36,8],"c":["hsl(299,80%,68%)","hsl(327,70%,42%)","hsl(349,55%,18%)"],"edge":"hsl(299,40%,88%)","acc":"hsl(119,90%,72%)","glass":"hsl(139,70%,55%)","guns":[10,22],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(119,90%,72%)","len":40,"bw":12,"aura":[61,"hsla(299,80%,60%,.22)","hsla(299,80%,40%,0)"]},"smeltwing":{"shape":"forward","wing":[39,10],"c":["hsl(340,80%,68%)","hsl(8,70%,42%)","hsl(30,55%,18%)"],"edge":"hsl(340,40%,88%)","acc":"hsl(160,90%,72%)","glass":"hsl(180,70%,55%)","guns":[12,24,34],"fins":true,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(160,90%,72%)","len":42,"bw":13,"aura":[54,"hsla(340,80%,60%,.22)","hsla(340,80%,40%,0)"]},"ingothulk":{"shape":"box","wing":[42,2],"c":["hsl(21,80%,68%)","hsl(49,70%,42%)","hsl(71,55%,18%)"],"edge":"hsl(21,40%,88%)","acc":"hsl(201,90%,72%)","glass":"hsl(221,70%,55%)","guns":[12],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(201,90%,72%)","len":44,"bw":14,"aura":[55,"hsla(21,80%,60%,.22)","hsla(21,80%,40%,0)"]},"crucibit":{"shape":"delta","wing":[45,14],"c":["hsl(62,80%,68%)","hsl(90,70%,42%)","hsl(112,55%,18%)"],"edge":"hsl(62,40%,88%)","acc":"hsl(242,90%,72%)","glass":"hsl(262,70%,55%)","guns":[10,22],"pods":28,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(242,90%,72%)","len":46,"bw":10,"aura":[56,"hsla(62,80%,60%,.22)","hsla(62,80%,40%,0)"]},"forgefin":{"shape":"swept","wing":[48,-4],"c":["hsl(103,80%,68%)","hsl(131,70%,42%)","hsl(153,55%,18%)"],"edge":"hsl(103,40%,88%)","acc":"hsl(283,90%,72%)","glass":"hsl(303,70%,55%)","guns":[12,24,34],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(283,90%,72%)","len":48,"bw":11,"aura":[57,"hsla(103,80%,60%,.22)","hsla(103,80%,40%,0)"]},"frostbit":{"shape":"wide","wing":[51,8],"c":["hsl(144,80%,68%)","hsl(172,70%,42%)","hsl(194,55%,18%)"],"edge":"hsl(144,40%,88%)","acc":"hsl(324,90%,72%)","glass":"hsl(344,70%,55%)","guns":[12],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(324,90%,72%)","len":38,"bw":12,"aura":[58,"hsla(144,80%,60%,.22)","hsla(144,80%,40%,0)"]},"iceauger":{"shape":"forward","wing":[54,10],"c":["hsl(185,80%,68%)","hsl(213,70%,42%)","hsl(235,55%,18%)"],"edge":"hsl(185,40%,88%)","acc":"hsl(5,90%,72%)","glass":"hsl(25,70%,55%)","guns":[10,22],"fins":true,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(5,90%,72%)","len":40,"bw":13,"aura":[59,"hsla(185,80%,60%,.22)","hsla(185,80%,40%,0)"]},"cryowing":{"shape":"box","wing":[36,2],"c":["hsl(226,80%,68%)","hsl(254,70%,42%)","hsl(276,55%,18%)"],"edge":"hsl(226,40%,88%)","acc":"hsl(46,90%,72%)","glass":"hsl(66,70%,55%)","guns":[12,24,34],"pods":32,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(46,90%,72%)","len":42,"bw":14,"aura":[60,"hsla(226,80%,60%,.22)","hsla(226,80%,40%,0)"]},"vaultskip":{"shape":"delta","wing":[39,14],"c":["hsl(267,80%,68%)","hsl(295,70%,42%)","hsl(317,55%,18%)"],"edge":"hsl(267,40%,88%)","acc":"hsl(87,90%,72%)","glass":"hsl(107,70%,55%)","guns":[12],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(87,90%,72%)","len":44,"bw":10,"aura":[61,"hsla(267,80%,60%,.22)","hsla(267,80%,40%,0)"]},"brinefin":{"shape":"swept","wing":[42,-4],"c":["hsl(308,80%,68%)","hsl(336,70%,42%)","hsl(358,55%,18%)"],"edge":"hsl(308,40%,88%)","acc":"hsl(128,90%,72%)","glass":"hsl(148,70%,55%)","guns":[10,22],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(128,90%,72%)","len":46,"bw":11,"aura":[54,"hsla(308,80%,60%,.22)","hsla(308,80%,40%,0)"]},"ringshear":{"shape":"wide","wing":[45,8],"c":["hsl(349,80%,68%)","hsl(17,70%,42%)","hsl(39,55%,18%)"],"edge":"hsl(349,40%,88%)","acc":"hsl(169,90%,72%)","glass":"hsl(189,70%,55%)","guns":[12,24,34],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(169,90%,72%)","len":48,"bw":12,"aura":[55,"hsla(349,80%,60%,.22)","hsla(349,80%,40%,0)"]},"spokejet":{"shape":"forward","wing":[48,10],"c":["hsl(30,80%,68%)","hsl(58,70%,42%)","hsl(80,55%,18%)"],"edge":"hsl(30,40%,88%)","acc":"hsl(210,90%,72%)","glass":"hsl(230,70%,55%)","guns":[12],"pods":31,"fins":true,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(210,90%,72%)","len":38,"bw":13,"aura":[56,"hsla(30,80%,60%,.22)","hsla(30,80%,40%,0)"]},"shepwing":{"shape":"box","wing":[51,2],"c":["hsl(71,80%,68%)","hsl(99,70%,42%)","hsl(121,55%,18%)"],"edge":"hsl(71,40%,88%)","acc":"hsl(251,90%,72%)","glass":"hsl(271,70%,55%)","guns":[10,22],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(251,90%,72%)","len":40,"bw":14,"aura":[57,"hsla(71,80%,60%,.22)","hsla(71,80%,40%,0)"]},"hexsail":{"shape":"delta","wing":[54,14],"c":["hsl(112,80%,68%)","hsl(140,70%,42%)","hsl(162,55%,18%)"],"edge":"hsl(112,40%,88%)","acc":"hsl(292,90%,72%)","glass":"hsl(312,70%,55%)","guns":[12,24,34],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(292,90%,72%)","len":42,"bw":10,"aura":[58,"hsla(112,80%,60%,.22)","hsla(112,80%,40%,0)"]},"scythesk":{"shape":"swept","wing":[36,-4],"c":["hsl(153,80%,68%)","hsl(181,70%,42%)","hsl(203,55%,18%)"],"edge":"hsl(153,40%,88%)","acc":"hsl(333,90%,72%)","glass":"hsl(353,70%,55%)","guns":[12],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(333,90%,72%)","len":44,"bw":11,"aura":[59,"hsla(153,80%,60%,.22)","hsla(153,80%,40%,0)"]},"stormcoil":{"shape":"wide","wing":[39,8],"c":["hsl(194,80%,68%)","hsl(222,70%,42%)","hsl(244,55%,18%)"],"edge":"hsl(194,40%,88%)","acc":"hsl(14,90%,72%)","glass":"hsl(34,70%,55%)","guns":[10,22],"pods":30,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(14,90%,72%)","len":46,"bw":12,"aura":[60,"hsla(194,80%,60%,.22)","hsla(194,80%,40%,0)"]},"tiltwing":{"shape":"forward","wing":[42,10],"c":["hsl(235,80%,68%)","hsl(263,70%,42%)","hsl(285,55%,18%)"],"edge":"hsl(235,40%,88%)","acc":"hsl(55,90%,72%)","glass":"hsl(75,70%,55%)","guns":[12,24,34],"fins":true,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(55,90%,72%)","len":48,"bw":13,"aura":[61,"hsla(235,80%,60%,.22)","hsla(235,80%,40%,0)"]},"methanray":{"shape":"box","wing":[45,2],"c":["hsl(276,80%,68%)","hsl(304,70%,42%)","hsl(326,55%,18%)"],"edge":"hsl(276,40%,88%)","acc":"hsl(96,90%,72%)","glass":"hsl(116,70%,55%)","guns":[12],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(96,90%,72%)","len":38,"bw":14,"aura":[54,"hsla(276,80%,60%,.22)","hsla(276,80%,40%,0)"]},"aurorafin":{"shape":"delta","wing":[48,14],"c":["hsl(317,80%,68%)","hsl(345,70%,42%)","hsl(7,55%,18%)"],"edge":"hsl(317,40%,88%)","acc":"hsl(137,90%,72%)","glass":"hsl(157,70%,55%)","guns":[10,22],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(137,90%,72%)","len":40,"bw":10,"aura":[55,"hsla(317,80%,60%,.22)","hsla(317,80%,40%,0)"]},"oortneedle":{"shape":"swept","wing":[51,-4],"c":["hsl(358,80%,68%)","hsl(26,70%,42%)","hsl(48,55%,18%)"],"edge":"hsl(358,40%,88%)","acc":"hsl(178,90%,72%)","glass":"hsl(198,70%,55%)","guns":[12,24,34],"pods":29,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(178,90%,72%)","len":42,"bw":11,"aura":[56,"hsla(358,80%,60%,.22)","hsla(358,80%,40%,0)"]},"plutospire":{"shape":"wide","wing":[54,8],"c":["hsl(39,80%,68%)","hsl(67,70%,42%)","hsl(89,55%,18%)"],"edge":"hsl(39,40%,88%)","acc":"hsl(219,90%,72%)","glass":"hsl(239,70%,55%)","guns":[12],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(219,90%,72%)","len":44,"bw":12,"aura":[57,"hsla(39,80%,60%,.22)","hsla(39,80%,40%,0)"]},"charongate":{"shape":"forward","wing":[36,10],"c":["hsl(80,80%,68%)","hsl(108,70%,42%)","hsl(130,55%,18%)"],"edge":"hsl(80,40%,88%)","acc":"hsl(260,90%,72%)","glass":"hsl(280,70%,55%)","guns":[10,22],"fins":true,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(260,90%,72%)","len":46,"bw":13,"aura":[58,"hsla(80,80%,60%,.22)","hsla(80,80%,40%,0)"]},"starcrown":{"shape":"box","wing":[39,2],"c":["hsl(121,80%,68%)","hsl(149,70%,42%)","hsl(171,55%,18%)"],"edge":"hsl(121,40%,88%)","acc":"hsl(301,90%,72%)","glass":"hsl(321,70%,55%)","guns":[12,24,34],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(301,90%,72%)","len":48,"bw":14,"aura":[59,"hsla(121,80%,60%,.22)","hsla(121,80%,40%,0)"]}};
+  Object.keys(OUTER_KITS).forEach(function (id) {
+    DESIGNS[id] = function (t, d, fx) { shipKit(t, d, fx, OUTER_KITS[id]); };
+  });
   function drawShipModel(id, x, y, t, fx, skin) {
     var d = SHIP_BY[id] || (id === "amelia" ? AMELIA_DEF : SHIPS[0]);
     ctx.save(); ctx.translate(x, y); ctx.lineJoin = "round";
@@ -6311,7 +6547,7 @@
   }
   function maxFirePower() { var m = 0; SHIPS.forEach(function (d) { m = Math.max(m, firePower(statsFor(d.id))); }); return m; }
   function bar(f) { return '<span class="sbar"><i style="width:' + Math.round(Math.max(0.06, Math.min(1, f)) * 100) + '%"></i></span>'; }
-  var SHOP_TABS = [["🚀", "tabStart"], ["⭐", "tabPro"], ["🌌", "tabGalaxy"], ["👑", "tabLegend"], ["🎁", "tabSpecial"], ["🏎️", "tabRoadster"]], shopTab = 0;
+  var SHOP_TABS = [["🚀", "tabStart"], ["⭐", "tabPro"], ["🌌", "tabGalaxy"], ["👑", "tabLegend"], ["🎁", "tabSpecial"], ["🏎️", "tabRoadster"], ["☄️", "tabOuter"]], shopTab = 0;
   function shipCardLabel(sd) {
     var o = shop.owned.indexOf(sd.id) >= 0, e = shop.equipped === sd.id;
     if (e) return "✅ " + tr("equipped"); if (o) return tr("tips.owned");
@@ -6478,7 +6714,7 @@
   $("pvBtn").addEventListener("click", buyShipOrEquip);
 
   // ================= LEVEL-KARTE (nach Joshis Zeichnung) =================
-  var MAX_LEVEL_C = 100;
+  var MAX_LEVEL_C = 250;
   var progress = loadProgress(), pendingUnlock = 0;
   function loadProgress() {
     var p = null;
@@ -6497,6 +6733,7 @@
     if (typeof refreshShopBadge === "function") refreshShopBadge();
     var L = progress.unlocked, f = featCopy(L);
     $("mapHint").innerHTML = "👆 " + tr("mapHint") + (f && !(progress.stars[L] > 0) ? "<small>Level " + L + " – " + tr("game.neuBanner") + ": " + f[0] + "</small>" : "");
+    if (typeof refreshWorldPager === "function") refreshWorldPager();
   }
 
   // Planeten-Aussehen: Boss-Level = Mutterschiff-Planet
@@ -6508,10 +6745,32 @@
   }
   // Zickzack wie in der Zeichnung: 1 unten links, 2 rechts höher, 3 links höher, 4 oben rechts …
   var ZIG = [-0.10, 0.10, -0.12, 0.13, -0.08, 0.12, -0.13, 0.09, -0.10, 0.12, -0.09, 0.11, -0.12, 0.10, -0.09, 0.13, -0.11, 0.03];
-  var mapScroll = 0, mapT = 0, mapAnim = null, rocketS = 0, shooters = [], shooterTimer = 1, lockShake = 0, mapPtr = null;
+  var mapScroll = 0, mapT = 0, mapAnim = null, rocketS = 0, shooters = [], shooterTimer = 1, lockShake = 0, mapPtr = null, mapWorld = 0;
   function mapSpacing() { return Math.max(130, Math.min(230, (H - 270) / 3.2)); }
   function mapBaseY() { return H - 150 - safeBottom; }
-  function maxScroll() { return Math.max(0, (MAX_LEVEL_C - 1) * mapSpacing() - (mapBaseY() - 190)); }
+  function worldBase() { return SECTORS[mapWorld].from - 1; }
+  function worldLen() { return SECTORS[mapWorld].to - SECTORS[mapWorld].from + 1; }
+  function maxVisitWorld() {
+    var i = secIdx(progress.unlocked);
+    return Math.min(SECTORS.length - 1, i + 1);
+  }
+  function maxScroll() { return Math.max(0, (worldLen() - 1) * mapSpacing() - (mapBaseY() - 190)); }
+  function refreshWorldPager() {
+    var el = $("worldLabel"); if (!el) return;
+    var sec = SECTORS[mapWorld];
+    el.textContent = sec.icon + " " + tr("tips.galaxyN", { n: mapWorld + 1 }) + ": " + sectorName(sec, sec.from);
+    var prev = $("worldPrev"), next = $("worldNext");
+    if (prev) prev.disabled = mapWorld <= 0;
+    if (next) next.disabled = mapWorld >= maxVisitWorld();
+  }
+  function setMapWorld(i) {
+    var next = Math.max(0, Math.min(maxVisitWorld(), i | 0));
+    if (next === mapWorld) return;
+    mapWorld = next; mapScroll = 0; mapPtr = null;
+    var focus = Math.max(SECTORS[mapWorld].from, Math.min(SECTORS[mapWorld].to, progress.unlocked));
+    centerOn(focus - 1);
+    refreshWorldPager();
+  }
   // Platz zwischen den Knopf-Spalten links/rechts (damit kein Knopf einen Planeten verdeckt)
   var MAP_LCOL = ["helpBtn", "modeBar", "weeklyBtn", "missionBtn", "onlineBtn", "achBtn", "langBtn"], MAP_RCOL = ["twoPBtn", "ghostBtn", "statsBtn", "accountBtn", "fsBtn", "muteBtn"], zigK = 1, zigDirty = true;
   function measureZig() {
@@ -6525,7 +6784,7 @@
   function planetPos(i) { // i = 0-basiert
     if (zigDirty) measureZig();
     var span = Math.min(W, 760);
-    return { x: W / 2 + zigAt(i) * span * 1.6 * zigK, y: mapBaseY() - i * mapSpacing() + mapScroll };
+    return { x: W / 2 + zigAt(i) * span * 1.6 * zigK, y: mapBaseY() - (i - worldBase()) * mapSpacing() + mapScroll };
   }
   function planetR(i) { var r = Math.min(mapSpacing() * 0.27, 52); return isSectorBoss(i + 1) ? r * 1.45 : isBossLevel(i + 1) ? r * 1.3 : r; }
   function segCtrl(i) { // Kontrollpunkt für die geschwungene Linie zwischen Planet i und i+1
@@ -6544,7 +6803,10 @@
   function restS() { // Rakete steht wie in der Zeichnung auf dem Weg, unterwegs zum aktuellen Planeten (z. B. zwischen 2 und 3)
     return progress.unlocked - 1 - 0.4;
   }
-  function centerOn(i) { mapScroll = Math.max(0, Math.min(maxScroll(), H * 0.42 - mapBaseY() + i * mapSpacing())); }
+  function centerOn(i) {
+    var local = i - worldBase();
+    mapScroll = Math.max(0, Math.min(maxScroll(), H * 0.42 - mapBaseY() + local * mapSpacing()));
+  }
 
   function goToMap(fromPlay) {
     if (fromPlay) justReturnedFromPlay = true;
@@ -6558,12 +6820,15 @@
     particles = []; coinsArr = []; confettiT = 0; mines = []; worm = null; flare = null; shower = null; frozen = 0; wind = null; ion = null;
     if (pendingUnlock) {
       var n = pendingUnlock; pendingUnlock = 0;
+      mapWorld = secIdx(n);
       centerOn(n - 1.5);
       rocketS = n - 2 - 0.4;
       mapAnim = { type: "unlock", level: n, t: 0 };
     } else {
+      mapWorld = secIdx(progress.unlocked);
       rocketS = restS(); mapAnim = null; centerOn(progress.unlocked - 1);
     }
+    refreshWorldPager();
     prefetchNextLevels();
     var ob = onboardApi() ? onboardApi().loadOnboard() : null;
     if (!ob || ob.welcomeDone) maybePickName();
@@ -7149,7 +7414,8 @@
 
   function mapTap(x, y) {
     if (mapAnim) return;
-    for (var i = 0; i < MAX_LEVEL_C; i++) {
+    var tapFrom = worldBase(), tapTo = SECTORS[mapWorld].to;
+    for (var i = tapFrom; i < tapTo; i++) {
       var p = planetPos(i), r = planetR(i) + 18;
       if ((x - p.x) * (x - p.x) + (y - p.y) * (y - p.y) < r * r) {
         if (i + 1 > progress.unlocked) {
@@ -7212,7 +7478,7 @@
 
     // Leuchtende Sternen-Spur (gepunktet)
     var unlockingLevel = mapAnim && mapAnim.type === "unlock" ? mapAnim.level : 0;
-    for (var i = 0; i < MAX_LEVEL_C - 1; i++) {
+    for (var i = worldBase(); i < SECTORS[mapWorld].to - 1; i++) {
       var open = (i + 2) <= progress.unlocked && (i + 2) !== unlockingLevel;
       var opening = (i + 2) === unlockingLevel ? Math.min(1, mapAnim.t / 1.2) : 0;
       var a0 = planetPos(i), a1 = planetPos(i + 1);
@@ -7245,14 +7511,14 @@
       ctx.fillStyle = sc2; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(label, lx2, sy0 + 1); ctx.restore();
     }
     // Planeten
-    for (var j = MAX_LEVEL_C - 1; j >= 0; j--) {
+    for (var j = SECTORS[mapWorld].to - 1; j >= worldBase(); j--) {
       var pp2 = planetPos(j); if (pp2.y < -120 || pp2.y > H + 120) continue;
       var L = j + 1, locked = L > progress.unlocked || L === unlockingLevel;
       drawLevelPlanet(L, pp2.x, pp2.y, planetR(j), locked);
     }
     // Kraftfeld-Schloss am Weg zum ersten gesperrten Level (oder das, das sich gerade öffnet)
     var lockLevel = unlockingLevel || (progress.unlocked < MAX_LEVEL_C ? progress.unlocked + 1 : 0);
-    if (lockLevel) {
+    if (lockLevel && lockLevel >= SECTORS[mapWorld].from && lockLevel <= SECTORS[mapWorld].to) {
       var lp = lockPos(lockLevel - 1), openK = unlockingLevel ? Math.min(1, mapAnim.t / 1.0) : 0;
       if (openK < 1) drawForceLock(lp.x + (lockShake > 0 ? Math.sin(mapT * 60) * 5 : 0), lp.y, openK);
     }
@@ -7414,9 +7680,15 @@
     var main = ctx, sb = boss, sl = level, ok = true; ctx = cv.getContext("2d"); boss = null; level = L;
     try {
       ctx.translate(220, 165);
-      var g = bossGene(L), sp = bossSpec(L), b = { x: 0, y: 0, t: 1, flash: 0, hp: 1, maxHp: 1, k: 0.8, phase: 1, wind: 0, type: sp.type, final: L === 100, mods: [] }; boss = b;
+      var g = bossGene(L), sp = bossSpec(L), b = { x: 0, y: 0, t: 1, flash: 0, hp: 1, maxHp: 1, k: L === 250 ? 0.95 : 0.8, phase: 1, wind: 0, type: sp.type, final: L === 100, prime: L === 250, art: L, mods: [] }; boss = b;
       if (g) { if (sp.type === "twins") { ctx.save(); ctx.translate(-62, 0); drawProcBody(g, 1, false, 52, 30, false); ctx.restore(); ctx.save(); ctx.translate(62, 6); drawProcBody(g, 2, false, 52, 30, false); ctx.restore(); } else drawProcBody(g, 1, false, 64, 38, false); }
       else if (sp.type === "emperor") drawEmperor(b);
+      else if (sp.type === "forge") drawForgeBoss(b);
+      else if (sp.type === "foundry") drawFoundryBoss(b);
+      else if (sp.type === "vault") drawVaultBoss(b);
+      else if (sp.type === "ringfleet") drawRingfleetBoss(b);
+      else if (sp.type === "stormcore") drawStormcoreBoss(b);
+      else if (sp.type === "art") drawArtBoss(b);
       else if (sp.type === "twins") { drawBoss({ x: -60, y: 0, t: 1, flash: 0 }, 0.8, 0); drawBoss({ x: 60, y: 6, t: 2, flash: 0 }, 0.8, 0); }
       else ({ robo: drawRobo, golem: drawGolem, crystal: drawCrystal, kraken: drawKraken, station: drawStation, scorpion: drawScorpion, sun: drawSun, guardian: drawGuardian }[sp.type] || drawBoss)(b);
     } catch (e) { ok = false; window.__iconErr = String(e && e.stack || e); }
@@ -7434,11 +7706,11 @@
     ctx.restore();
     // das eigene Boss-Aussehen dieses Levels als Symbol (einmal gerendert, dann nur noch als Bild)
     var ic = bossIcon(L);
-    if (ic) { var iw = r * (L === 100 ? 3.7 : 3.4), ih = iw * ic.height / ic.width; ctx.drawImage(ic, x - iw / 2, y - r * 0.2 - ih / 2 + Math.sin(mapT * 2 + L) * 2, iw, ih); }
+    if (ic) { var iw = r * (L === 250 ? 4.2 : L === 100 ? 3.7 : 3.4), ih = iw * ic.height / ic.width; ctx.drawImage(ic, x - iw / 2, y - r * 0.2 - ih / 2 + Math.sin(mapT * 2 + L) * 2, iw, ih); }
     // BOSS-Schild
     ctx.font = "bold 13px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    var btxt = L === 100 ? "🤖👑 " + tr("canvas.finale") : isSectorBoss(L) ? "👑 " + tr("canvas.sectorBoss") : "👾 " + tr("canvas.boss"), bw2 = ctx.measureText(btxt).width + 16;
-    ctx.fillStyle = L === 100 ? "rgba(180,120,0,.95)" : "rgba(160,20,60,.9)"; roundRectPath(x - bw2 / 2, y - r - 22, bw2, 20, 8); ctx.fill();
+    var btxt = (L === 100 || L === 250) ? "🤖👑 " + tr("canvas.finale") : isSectorBoss(L) ? "👑 " + tr("canvas.sectorBoss") : "👾 " + tr("canvas.boss"), bw2 = ctx.measureText(btxt).width + 16;
+    ctx.fillStyle = (L === 100 || L === 250) ? "rgba(180,120,0,.95)" : "rgba(160,20,60,.9)"; roundRectPath(x - bw2 / 2, y - r - 22, bw2, 20, 8); ctx.fill();
     ctx.fillStyle = "#fff"; ctx.fillText(btxt, x, y - r - 11);
   }
   function drawPadlock(x, y, s, col, lift) {
@@ -7485,6 +7757,8 @@
   });
   canvas.addEventListener("pointercancel", function () { mapPtr = null; });
   canvas.addEventListener("wheel", function (e) { if (state === "map" && !mapAnim) { e.preventDefault(); mapScroll = Math.max(0, Math.min(maxScroll(), mapScroll - e.deltaY * 0.6)); } }, { passive: false });
+  if ($("worldPrev")) $("worldPrev").addEventListener("click", function () { audio(); setMapWorld(mapWorld - 1); tone(500, 700, 0.06, "triangle", 0.04); });
+  if ($("worldNext")) $("worldNext").addEventListener("click", function () { audio(); setMapWorld(mapWorld + 1); tone(500, 700, 0.06, "triangle", 0.04); });
 
   // ---------- Schleife ----------
   var last = performance.now();
@@ -7508,6 +7782,9 @@
     ["max50", "🌠", "Halbzeit-Held", "Schaffe Level 50", "maxLevel", 50, "star"],
     ["max75", "🛰️", "Galaxie-Wächter", "Schaffe Level 75", "maxLevel", 75],
     ["max100", "👑", "Retter des Universums", "Besiege den Kaiser in Level 100", "maxLevel", 100, "kaiser"],
+    ["max150", "🏭", "Gießerei-Ass", "Schaffe Level 150", "maxLevel", 150],
+    ["max200", "🪐", "Ring-Admiral", "Schaffe Level 200", "maxLevel", 200],
+    ["max250", "👑", "Kaiser-Bezwinger", "Besiege den Weltraum-Kaiser in Level 250", "maxLevel", 250],
     ["rock100", "☄️", "Stein-Brecher", "Schieße 100 Asteroiden ab", "rocks", 100],
     ["rock1k", "💥", "Asteroiden-Profi", "Schieße 1.000 Asteroiden ab", "rocks", 1000, "toxic"],
     ["rock10k", "🌋", "Asteroiden-Legende", "Schieße 10.000 Asteroiden ab", "rocks", 10000],
@@ -8143,7 +8420,45 @@
     wormState: function () { return { wy: worm ? Math.round(worm.y) : null, sy: ship ? Math.round(ship.y) : null, x: ship ? Math.round(ship.x) : null, exit: ship ? ship.wormExit : null, cool: +wormCool.toFixed(2), bullets: bullets.map(function (b) { return Math.round(b.x); }) }; },
     lt: function () { return levelTime; },
     progress: function () { return JSON.parse(JSON.stringify(progress)); },
-    mapInfo: function () { var a = []; for (var i = 0; i < MAX_LEVEL_C; i++) { var p = planetPos(i); a.push({ L: i + 1, x: Math.round(p.x * S), y: Math.round(p.y * S), r: Math.round(planetR(i) * S) }); } return { planets: a, anim: mapAnim ? mapAnim.type : null, rocketS: rocketS, scroll: mapScroll, state: state }; },
+    mapInfo: function () { var a = []; for (var i = worldBase(); i < SECTORS[mapWorld].to; i++) { var p = planetPos(i); a.push({ L: i + 1, x: Math.round(p.x * S), y: Math.round(p.y * S), r: Math.round(planetR(i) * S) }); } return { planets: a, anim: mapAnim ? mapAnim.type : null, rocketS: rocketS, scroll: mapScroll, state: state, world: mapWorld }; },
+    setMapWorld: function (i) { setMapWorld(i); return mapWorld; },
+    drawOuterSheet: function () {
+      var ids = Object.keys(OUTER_KITS), cols = 6, rows = 5, cell = 180, pad = 16;
+      var cv = document.createElement("canvas"); cv.width = cols * cell + pad * 2; cv.height = rows * cell + pad * 2 + 36;
+      var main = ctx; ctx = cv.getContext("2d");
+      ctx.fillStyle = "#0a1028"; ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.fillStyle = "#ffd54a"; ctx.font = "bold 22px Trebuchet MS, sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("Outer Fleet — 30 ships (levels 105–250)", cv.width / 2, 28);
+      ids.forEach(function (id, i) {
+        var x = pad + (i % cols) * cell + cell / 2, y = 48 + Math.floor(i / cols) * cell + 70;
+        ctx.save(); ctx.translate(x, y); ctx.scale(1.15, 1.15);
+        try { drawShipModel(id, 0, 0, 1.2, true); } catch (e) { DESIGNS.starter(1.2, SHIP_BY.starter, true); }
+        ctx.restore();
+        ctx.fillStyle = "#e8f0ff"; ctx.font = "bold 13px Trebuchet MS, sans-serif";
+        ctx.fillText((SHIP_BY[id] && shipNameOf(SHIP_BY[id])) || id, x, y + 62);
+        ctx.fillStyle = "#7dffea"; ctx.font = "11px Trebuchet MS, sans-serif";
+        ctx.fillText("L" + (SHIP_BY[id] && SHIP_BY[id].unlock ? SHIP_BY[id].unlock.L : "?"), x, y + 78);
+      });
+      ctx = main;
+      return cv.toDataURL("image/png");
+    },
+    drawKaiserCompare: function () {
+      var cv = document.createElement("canvas"); cv.width = 1280; cv.height = 640;
+      var main = ctx, sb = boss, sl = level; ctx = cv.getContext("2d");
+      ctx.fillStyle = "#050816"; ctx.fillRect(0, 0, 1280, 640);
+      function paint(x, L, prime, label) {
+        ctx.save(); ctx.translate(x, 340);
+        boss = { x: 0, y: 0, t: 1.2, flash: 0, hp: 1, maxHp: 1, k: prime ? 1.15 : 0.78, phase: 1, wind: 0, type: "emperor", final: !prime, prime: !!prime, mods: [] };
+        level = L; drawEmperor(boss);
+        ctx.restore();
+        ctx.fillStyle = "#ffd54a"; ctx.font = "bold 22px Trebuchet MS, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText(label, x, 48);
+      }
+      paint(320, 100, false, "Level 100 — Weltraum Kaiser");
+      paint(960, 250, true, "Level 250 — Weltraum Kaiser: Star Crown");
+      ctx = main; boss = sb; level = sl;
+      return cv.toDataURL("image/png");
+    },
     startLevel: function (L) { startGame(L); },
     tryStartLevel: function (L) { return tryStartLevel(L); },
     prefetch: function () { prefetchNextLevels(); return (window.__weltraum && window.__weltraum.levels && window.__weltraum.levels.prefetchLog) || []; },

@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-const MAX_LEVEL = 100;
+const MAX_LEVEL = 250;
 const MAX_UPGRADE_LEVEL = 5;
 
 const VALID_SHIPS = new Set([
@@ -13,11 +13,17 @@ const VALID_SHIPS = new Set([
   'titan', 'lanze', 'koenig', 'nova', 'quanten', 'uni', 'rochen', 'phoenix',
   'hammer', 'zwilling', 'gravitron', 'spektral', 'segler', 'schatten',
   'drache', 'omega', 'frostwal', 'lindwurm', 'hydra', 'regenbogen', 'kaiserbrecher',
-  'beepbuggy', 'cloudcoupe', 'shadowspeeder', 'chromewasp', 'apexflash'
+  'beepbuggy', 'cloudcoupe', 'shadowspeeder', 'chromewasp', 'apexflash',
+  'rivet', 'crane', 'welder', 'dockn', 'boltfin', 'hullmite', 'slagskip', 'magmapike',
+  'smeltwing', 'ingothulk', 'crucibit', 'forgefin', 'frostbit', 'iceauger', 'cryowing',
+  'vaultskip', 'brinefin', 'ringshear', 'spokejet', 'shepwing', 'hexsail', 'scythesk',
+  'stormcoil', 'tiltwing', 'methanray', 'aurorafin', 'oortneedle', 'plutospire',
+  'charongate', 'starcrown',
 ]);
 
 const VALID_ACHIEVEMENTS = new Set([
   'first', 'lv10', 'lv50', 'max12', 'max25', 'max50', 'max75', 'max100',
+  'max150', 'max200', 'max250',
   'rock100', 'rock1k', 'rock10k', 'ufo25', 'ufo250',
   'boss1', 'boss10', 'boss30', 'comet5',
   'combo10', 'combo25', 'combo50',
@@ -53,15 +59,16 @@ function validateAchievement(achId: string): boolean {
 }
 
 describe('Level Validation', () => {
-  it('accepts valid levels 1-100', () => {
+  it('accepts valid levels 1-250', () => {
     expect(validateLevel(1)).toBe(true);
     expect(validateLevel(50)).toBe(true);
     expect(validateLevel(100)).toBe(true);
+    expect(validateLevel(250)).toBe(true);
   });
 
   it('rejects invalid levels', () => {
     expect(validateLevel(0)).toBe(false);
-    expect(validateLevel(101)).toBe(false);
+    expect(validateLevel(251)).toBe(false);
     expect(validateLevel(-1)).toBe(false);
     expect(validateLevel(1.5)).toBe(false);
     expect(validateLevel(NaN)).toBe(false);
@@ -75,6 +82,8 @@ describe('Ship Validation', () => {
     expect(validateShip('kaiserbrecher')).toBe(true);
     expect(validateShip('beepbuggy')).toBe(true);
     expect(validateShip('apexflash')).toBe(true);
+    expect(validateShip('rivet')).toBe(true);
+    expect(validateShip('starcrown')).toBe(true);
   });
 
   it('rejects invalid ships', () => {
