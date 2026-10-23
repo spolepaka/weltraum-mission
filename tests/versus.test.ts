@@ -8,6 +8,7 @@ import {
   pairQuickWaiters,
   pickQuickMatch,
   prizeToAward,
+  rematchReady,
   roundWinner,
   spawnSide,
   utcDayKey,
@@ -15,7 +16,15 @@ import {
   versusAimSign,
   versusFairStats,
   versusHomeY,
-  VERSUS_DAILY_CAP,
+  youThemScore,
+  iWonMatch,
+  cleanVersusMatchId,
+  eloUpdate,
+  fallbackStrength,
+  filterVersusByStrength,
+  matchBand,
+  withinBand,
+  VERSUS_ELO_START,
   VERSUS_HEARTS,
   VERSUS_PRIZE,
 } from '../src/lib/versus';
@@ -109,11 +118,43 @@ describe('versus score and prize', () => {
     expect(disconnectWinner(1)).toBe(2);
   });
 
-  it('caps the daily prize', () => {
+  it('always awards the full prize (no daily cap)', () => {
     expect(prizeToAward(0)).toBe(VERSUS_PRIZE);
-    expect(prizeToAward(VERSUS_DAILY_CAP)).toBe(0);
-    expect(prizeToAward(VERSUS_DAILY_CAP - 10)).toBe(10);
+    expect(prizeToAward(10_000)).toBe(VERSUS_PRIZE);
+    expect(prizeToAward(160)).toBe(VERSUS_PRIZE);
     expect(utcDayKey(Date.UTC(2026, 9, 22))).toBe(20261022);
+  });
+
+  it('shows the score from each player\'s own view and agrees on the winner', () => {
+    expect(youThemScore(2, 1, true)).toEqual({ you: 2, them: 1 });
+    expect(youThemScore(2, 1, false)).toEqual({ you: 1, them: 2 });
+    expect(iWonMatch(2, 1, true)).toBe(true);
+    expect(iWonMatch(2, 1, false)).toBe(false);
+    expect(rematchReady(true, false)).toBe(false);
+    expect(rematchReady(true, true)).toBe(true);
+    expect(cleanVersusMatchId('hack3')).toBe('HACK3:1');
+    expect(cleanVersusMatchId('HACK3:2')).toBe('HACK3:2');
+  });
+
+  it('pairs similar strength immediately and far-apart players only after a long wait', () => {
+    const now = 1_000_000;
+    const weak = { identity: 'a', name: 'Ada', ship: 'starter', kind: 'quick' as const, code: 'AAAAA', heartbeatMs: now, strength: 1000, queuedAtMs: now };
+    const strong = { identity: 'b', name: 'Bea', ship: 'omega', kind: 'quick' as const, code: 'BBBBB', heartbeatMs: now - 50, strength: 1800, queuedAtMs: now };
+    const peer = { identity: 'c', name: 'Cal', ship: 'starter', kind: 'quick' as const, code: 'CCCCC', heartbeatMs: now - 100, strength: 1050, queuedAtMs: now };
+    expect(pickQuickMatch([weak, strong], 'a', now, now, 1000, now)).toBeNull();
+    expect(pickQuickMatch([weak, peer], 'a', now, now, 1000, now)?.code).toBe('CCCCC');
+    const later = now + 80_000;
+    const lateStrong = { ...strong, heartbeatMs: later - 500 };
+    expect(pickQuickMatch([weak, lateStrong], 'a', later, later, 1000, now)?.code).toBe('BBBBB');
+    expect(filterVersusByStrength([strong, peer], 1000, 0, now).map((r) => r.code)).toEqual(['CCCCC']);
+    expect(filterVersusByStrength([strong], 1000, 80_000, now + 80_000).map((r) => r.code)).toEqual(['BBBBB']);
+    expect(withinBand(1000, 1800, 0)).toBe(false);
+    expect(withinBand(1000, 1800, 80_000)).toBe(true);
+    expect(matchBand(0)).toBeLessThan(200);
+    expect(fallbackStrength(1, 'starter')).toBe(VERSUS_ELO_START);
+    const elo = eloUpdate(1000, 1000, true);
+    expect(elo.a).toBeGreaterThan(1000);
+    expect(elo.b).toBeLessThan(1000);
   });
 });
 

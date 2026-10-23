@@ -317,6 +317,9 @@ export const PublicRoom = __t.object("PublicRoom", {
   inGame: __t.bool(),
   heartbeat: __t.timestamp(),
   versus: __t.bool(),
+  rating: __t.u32(),
+  strength: __t.u32(),
+  queuedAtUs: __t.u64(),
 });
 export type PublicRoom = __Infer<typeof PublicRoom>;
 
@@ -357,8 +360,19 @@ export const VersusQueue = __t.object("VersusQueue", {
   kind: __t.string(),
   inMatch: __t.bool(),
   heartbeat: __t.timestamp(),
+  rating: __t.u32(),
+  strength: __t.u32(),
+  queuedAtUs: __t.u64(),
 });
 export type VersusQueue = __Infer<typeof VersusQueue>;
+
+export const VersusRating = __t.object("VersusRating", {
+  identity: __t.identity(),
+  rating: __t.u32(),
+  matches: __t.u32(),
+  strength: __t.u32(),
+});
+export type VersusRating = __Infer<typeof VersusRating>;
 
 export const VersusSettled = __t.object("VersusSettled", {
   matchId: __t.string(),

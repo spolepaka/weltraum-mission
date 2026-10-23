@@ -23,4 +23,7 @@ export default __t.row({
   kind: __t.string(),
   inMatch: __t.bool().name("in_match"),
   heartbeat: __t.timestamp(),
+  rating: __t.u32(),
+  strength: __t.u32(),
+  queuedAtUs: __t.u64().name("queued_at_us"),
 });

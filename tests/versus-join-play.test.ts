@@ -30,6 +30,22 @@ type GameWin = Window & {
       occupancy?: number;
     };
     versusListNow?: () => Array<{ code: string }>;
+    paintVersusListNow?: () => Array<{ code: string }>;
+    versusInfo?: () => {
+      wins?: number[];
+      round?: number;
+      settled?: boolean;
+      title?: string;
+      score?: string;
+      screen?: boolean;
+      inGame?: boolean;
+      rematchMe?: boolean;
+      rematchThem?: boolean;
+    };
+    forceVersusRound?: (pid: number) => { wins: number[]; settled: boolean; inGame: boolean };
+    setVersusStrength?: (n: number) => number;
+    setVersusWaitMs?: (n: number) => number;
+    clickVersusRematch?: () => { me: boolean; them: boolean };
     coop?: {
       pending?: () => Array<{ peerId: string }>;
       approve?: (id: string) => boolean;
@@ -204,6 +220,135 @@ describe('versus join → approve → match (two browsers)', { timeout: 240000 }
     await host.page.click('#onJoinRequests .onApprove');
     await guest.page.waitForFunction(() => !!(window as GameWin).__spaceGame?.net?.()?.connected, { timeout: 25000 });
     await host.page.waitForFunction(() => !!(window as GameWin).__spaceGame?.net?.()?.inGame, { timeout: 25000 });
+    await host.context.close();
+    await guest.context.close();
+  });
+
+  async function joinApprovedMatch(host: { page: Page }, guest: { page: Page }): Promise<string> {
+    const code = await hostPublicDuel(host.page);
+    await guest.page.click('#onlineBtn');
+    await guest.page.waitForSelector('#onDuelRows', { timeout: 10000 });
+    await guest.page.waitForFunction((want) => {
+      const rows = (window as GameWin).__spaceGame?.versusListNow?.() || [];
+      return rows.some((r) => r.code === want) || !!document.querySelector(`[data-vsjoin="${want}"]`);
+    }, code, { timeout: 25000 });
+    const joinBtn = guest.page.locator(`[data-vsjoin="${code}"]`);
+    if (await joinBtn.count()) await joinBtn.click();
+    else {
+      await guest.page.fill('#onCode', code);
+      await guest.page.click('#onGo');
+    }
+    await host.page.waitForSelector('#onJoinRequests .onApprove', { timeout: 20000 });
+    await host.page.click('#onJoinRequests .onApprove');
+    await host.page.waitForFunction(() => !!(window as GameWin).__spaceGame?.net?.()?.inGame, { timeout: 25000 });
+    await guest.page.waitForFunction(() => !!(window as GameWin).__spaceGame?.net?.()?.inGame, { timeout: 25000 });
+    return code;
+  }
+
+  it('plays a best of 3 to 2–1 with You win / You lose and a rematch', async () => {
+    const host = await openGame(true);
+    const guest = await openGame(false);
+    await joinApprovedMatch(host, guest);
+
+    await host.page.evaluate(() => (window as GameWin).__spaceGame?.forceVersusRound?.(1));
+    await host.page.waitForFunction(() => {
+      const v = (window as GameWin).__spaceGame?.versusInfo?.();
+      return !!(v && v.wins && v.wins[0] === 1 && v.wins[1] === 0 && v.round === 2 && v.inGame);
+    }, { timeout: 15000 });
+    await guest.page.waitForFunction(() => {
+      const v = (window as GameWin).__spaceGame?.versusInfo?.();
+      return !!(v && v.wins && v.wins[0] === 1 && v.round === 2 && v.inGame);
+    }, { timeout: 15000 });
+
+    await host.page.evaluate(() => (window as GameWin).__spaceGame?.forceVersusRound?.(2));
+    await host.page.waitForFunction(() => {
+      const v = (window as GameWin).__spaceGame?.versusInfo?.();
+      return !!(v && v.wins && v.wins[0] === 1 && v.wins[1] === 1 && v.round === 3 && v.inGame);
+    }, { timeout: 15000 });
+
+    await host.page.evaluate(() => (window as GameWin).__spaceGame?.forceVersusRound?.(1));
+    await host.page.waitForFunction(() => {
+      const v = (window as GameWin).__spaceGame?.versusInfo?.();
+      return !!(v && v.settled && /win/i.test(v.title || ''));
+    }, undefined, { timeout: 15000 });
+    try {
+      await guest.page.waitForFunction(() => {
+        const v = (window as GameWin).__spaceGame?.versusInfo?.();
+        return !!(v && v.settled && /lose|verlier/i.test(v.title || ''));
+      }, undefined, { timeout: 15000 });
+    } catch (err) {
+      const info = await guest.page.evaluate(() => (window as GameWin).__spaceGame?.versusInfo?.());
+      throw new Error(`guest end screen: ${JSON.stringify(info)} — ${String(err)}`);
+    }
+
+    const hostInfo = await host.page.evaluate(() => (window as GameWin).__spaceGame?.versusInfo?.());
+    const guestInfo = await guest.page.evaluate(() => (window as GameWin).__spaceGame?.versusInfo?.());
+    expect(hostInfo?.wins).toEqual([2, 1]);
+    expect(guestInfo?.wins).toEqual([2, 1]);
+    expect(hostInfo?.score).toMatch(/You 2|Du 2/);
+    expect(guestInfo?.score).toMatch(/You 1|Du 1/);
+
+    await host.page.waitForTimeout(400);
+    await host.page.screenshot({ path: join(SHOT_DIR, 'versus_end_host_win_1024x768.png') });
+    await guest.page.screenshot({ path: join(SHOT_DIR, 'versus_end_guest_lose_1024x768.png') });
+
+    await guest.page.evaluate(() => (window as GameWin).__spaceGame?.clickVersusRematch?.());
+    await host.page.evaluate(() => (window as GameWin).__spaceGame?.clickVersusRematch?.());
+    await host.page.waitForFunction(() => {
+      const n = (window as GameWin).__spaceGame?.net?.();
+      const v = (window as GameWin).__spaceGame?.versusInfo?.();
+      return !!(n && n.inGame && v && v.wins && v.wins[0] === 0 && v.wins[1] === 0 && !v.settled);
+    }, { timeout: 25000 });
+    await guest.page.waitForFunction(() => !!(window as GameWin).__spaceGame?.net?.()?.inGame, { timeout: 25000 });
+
+    await host.context.close();
+    await guest.context.close();
+  });
+
+  it('hides far-apart public rivals until wait expands, but shows similar ones', async () => {
+    const host = await openGame(true);
+    const guest = await openGame(false);
+    const code = await hostPublicDuel(host.page);
+    await guest.page.click('#onlineBtn');
+    await guest.page.waitForSelector('#onDuelRows', { timeout: 10000 });
+    await guest.page.evaluate(() => (window as GameWin).__spaceGame?.setVersusStrength?.(1800));
+    await guest.page.evaluate(() => (window as GameWin).__spaceGame?.setVersusWaitMs?.(0));
+    const far = await guest.page.evaluate(() => (window as GameWin).__spaceGame?.paintVersusListNow?.() || []);
+    expect(far.some((r) => r.code === code)).toBe(false);
+
+    await guest.page.evaluate(() => (window as GameWin).__spaceGame?.setVersusStrength?.(1020));
+    const near = await guest.page.evaluate(() => (window as GameWin).__spaceGame?.paintVersusListNow?.() || []);
+    expect(near.some((r) => r.code === code)).toBe(true);
+
+    await guest.page.evaluate(() => {
+      (window as GameWin).__spaceGame?.setVersusStrength?.(1800);
+      (window as GameWin).__spaceGame?.setVersusWaitMs?.(80_000);
+    });
+    const later = await guest.page.evaluate(() => (window as GameWin).__spaceGame?.paintVersusListNow?.() || []);
+    expect(later.some((r) => r.code === code)).toBe(true);
+
+    await host.context.close();
+    await guest.context.close();
+  });
+
+  it('private challenge code works across far strengths', async () => {
+    const host = await openGame(true);
+    const guest = await openGame(false);
+    await guest.page.evaluate(() => (window as GameWin).__spaceGame?.setVersusStrength?.(1800));
+    await host.page.click('#onlineBtn');
+    await host.page.click('#onChallenge');
+    await host.page.waitForFunction(() => {
+      const n = (window as GameWin).__spaceGame?.net?.();
+      return !!(n && n.versus && n.peerReady && n.code);
+    }, { timeout: 25000 });
+    const code = await host.page.evaluate(() => (window as GameWin).__spaceGame?.net?.()?.code);
+    await guest.page.click('#onlineBtn');
+    await guest.page.fill('#onCode', code!);
+    await guest.page.click('#onGo');
+    await host.page.waitForSelector('#onJoinRequests .onApprove', { timeout: 20000 });
+    await host.page.click('#onJoinRequests .onApprove');
+    await host.page.waitForFunction(() => !!(window as GameWin).__spaceGame?.net?.()?.inGame, { timeout: 25000 });
+    await guest.page.waitForFunction(() => !!(window as GameWin).__spaceGame?.net?.()?.inGame, { timeout: 25000 });
     await host.context.close();
     await guest.context.close();
   });

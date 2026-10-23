@@ -9,7 +9,16 @@ import { buildLevelPayload } from './level-catalog';
 import { nameKey, validateDisplayName, type NameKind } from './display-names';
 import { plausibleLegacyUnlock } from './legacy-import';
 import { isMillionScaleGrant, maxCoinsForLevel, salePrice, UNLOCK_SHIPS, upgradeSalePrice } from './economy';
-import { prizeToAward, utcDayKeyFromMicros, validateVersusReport, VERSUS_QUEUE_TTL_US } from './versus';
+import {
+  cleanVersusMatchId,
+  effectiveStrength,
+  eloUpdate,
+  prizeToAward,
+  validateVersusReport,
+  VERSUS_ELO_START,
+  VERSUS_QUEUE_TTL_US,
+  withinBand,
+} from './versus';
 import {
   ADMIN_ROLES_SEEDED_KEY,
   bindAdminCtx,
@@ -370,6 +379,9 @@ const spacetimedb = schema({
       inGame: t.bool(),
       heartbeat: t.timestamp(),
       versus: t.bool().default(false),
+      rating: t.u32().default(1000),
+      strength: t.u32().default(0),
+      queuedAtUs: t.u64().default(0n),
     }
   ),
 
@@ -388,6 +400,19 @@ const spacetimedb = schema({
       kind: t.string(),
       inMatch: t.bool(),
       heartbeat: t.timestamp(),
+      rating: t.u32().default(1000),
+      strength: t.u32().default(0),
+      queuedAtUs: t.u64().default(0n),
+    }
+  ),
+
+  versusRating: table(
+    { public: true },
+    {
+      identity: t.identity().primaryKey(),
+      rating: t.u32(),
+      matches: t.u32(),
+      strength: t.u32(),
     }
   ),
 
@@ -2769,6 +2794,20 @@ function timestampMicros(ts: { microsSinceUnixEpoch?: bigint; __timestamp_micros
   return Number.isFinite(n) ? n : 0;
 }
 
+function senderVersusMeta(ctx: AnyCtx): { rating: number; strength: number } {
+  const row = ctx.db.versusRating.identity.find(ctx.sender);
+  const prog = ctx.db.playerProgress.identity.find(ctx.sender);
+  const shop = ctx.db.playerShop.identity.find(ctx.sender);
+  const rating = row?.rating || VERSUS_ELO_START;
+  const strength = effectiveStrength({
+    rating,
+    matches: row?.matches || 0,
+    unlockedLevel: prog?.unlockedLevel || 1,
+    shipId: shop?.equippedShip || 'starter',
+  });
+  return { rating, strength };
+}
+
 function sweepStalePublicRooms(ctx: AnyCtx): void {
   const now = timestampMicros(ctx.timestamp as { microsSinceUnixEpoch?: bigint });
   if (!now) return;
@@ -2786,6 +2825,11 @@ function upsertPublicRoom(ctx: AnyCtx, code: string, hostName: string, level: nu
   const existing = ctx.db.publicRoom.code.find(code);
   const isVersus = !!versus;
   const cap = isVersus ? 2 : 5;
+  const nowUs = timestampMicros(ctx.timestamp as { microsSinceUnixEpoch?: bigint });
+  const meta = isVersus ? senderVersusMeta(ctx) : { rating: VERSUS_ELO_START, strength: 0 };
+  const queuedAtUs = existing && Number(existing.queuedAtUs || 0) > 0
+    ? existing.queuedAtUs
+    : BigInt(nowUs || 0);
   const row = {
     code,
     hostIdentity: ctx.sender,
@@ -2795,6 +2839,9 @@ function upsertPublicRoom(ctx: AnyCtx, code: string, hostName: string, level: nu
     inGame: !!inGame,
     heartbeat: ctx.timestamp,
     versus: isVersus,
+    rating: meta.rating,
+    strength: meta.strength,
+    queuedAtUs,
   };
   if (existing) {
     if (identityKey(existing.hostIdentity) !== identityKey(ctx.sender)) throw new Error('Not your room');
@@ -2857,7 +2904,7 @@ export const listPublicRooms = spacetimedb.procedure(
   (ctx) => {
     return ctx.withTx(txCtx => {
       const now = timestampMicros(txCtx.timestamp as { microsSinceUnixEpoch?: bigint });
-      const rooms: Array<{ code: string; hostName: string; level: number; players: number; versus: boolean; heartbeatMs: number }> = [];
+      const rooms: Array<{ code: string; hostName: string; level: number; players: number; versus: boolean; heartbeatMs: number; rating: number; strength: number; queuedAtMs: number }> = [];
       for (const row of [...txCtx.db.publicRoom.iter()]) {
         const beat = timestampMicros(row.heartbeat as { microsSinceUnixEpoch?: bigint; __timestamp_micros_since_unix_epoch__?: bigint });
         if (now && beat && now - beat > ROOM_TTL_US) {
@@ -2866,6 +2913,7 @@ export const listPublicRooms = spacetimedb.procedure(
         }
         const cap = row.versus ? 2 : 5;
         if (row.inGame || row.players < 1 || row.players >= cap) continue;
+        const queued = Number(row.queuedAtUs || 0);
         rooms.push({
           code: row.code,
           hostName: safeRoomName(row.hostName),
@@ -2873,6 +2921,9 @@ export const listPublicRooms = spacetimedb.procedure(
           players: row.players,
           versus: !!row.versus,
           heartbeatMs: beat ? Math.floor(beat / 1000) : 0,
+          rating: row.rating || VERSUS_ELO_START,
+          strength: row.strength || 0,
+          queuedAtMs: queued > 0 ? Math.floor(queued / 1000) : 0,
         });
       }
       rooms.sort((a, b) => a.level - b.level || a.hostName.localeCompare(b.hostName));
@@ -2905,6 +2956,11 @@ function upsertVersusQueue(
   const ship = validateShip(hostShip) ? hostShip : 'starter';
   const k = kind === 'challenge' ? 'challenge' : 'quick';
   const existing = ctx.db.versusQueue.code.find(code);
+  const nowUs = timestampMicros(ctx.timestamp as { microsSinceUnixEpoch?: bigint });
+  const meta = senderVersusMeta(ctx);
+  const queuedAtUs = existing && Number(existing.queuedAtUs || 0) > 0
+    ? existing.queuedAtUs
+    : BigInt(nowUs || 0);
   const row = {
     code,
     hostIdentity: ctx.sender,
@@ -2918,6 +2974,9 @@ function upsertVersusQueue(
     kind: k,
     inMatch: existing ? !!existing.inMatch : false,
     heartbeat: ctx.timestamp,
+    rating: meta.rating,
+    strength: meta.strength,
+    queuedAtUs,
   };
   if (existing) {
     if (identityKey(existing.hostIdentity) !== hex) throw new Error('Not your versus room');
@@ -2983,6 +3042,22 @@ export const claimVersusQueue = spacetimedb.reducer(
     if (identityKey(row.hostIdentity) === me) return;
     if (row.guestHex && row.guestHex !== me) throw new Error('Versus room taken');
     const ship = validateShip(guestShip) ? guestShip : 'starter';
+    if (row.kind !== 'challenge') {
+      const guest = senderVersusMeta(ctx);
+      const hostStr = row.strength || row.rating || VERSUS_ELO_START;
+      const now = timestampMicros(ctx.timestamp as { microsSinceUnixEpoch?: bigint });
+      const queued = Number(row.queuedAtUs || 0);
+      let waitUs = queued > 0 && now ? Math.max(0, now - queued) : 0;
+      for (const mine of [...ctx.db.publicRoom.hostIdentity.filter(ctx.sender)]) {
+        const q = Number(mine.queuedAtUs || 0);
+        if (q > 0 && now) waitUs = Math.max(waitUs, now - q);
+      }
+      for (const mine of [...ctx.db.versusQueue.hostIdentity.filter(ctx.sender)]) {
+        const q = Number(mine.queuedAtUs || 0);
+        if (q > 0 && now) waitUs = Math.max(waitUs, now - q);
+      }
+      if (!withinBand(guest.strength, hostStr, waitUs)) throw new Error('Strength mismatch');
+    }
     ctx.db.versusQueue.code.update({
       ...row,
       guestIdentity: ctx.sender,
@@ -2996,33 +3071,50 @@ export const claimVersusQueue = spacetimedb.reducer(
   }
 );
 
+function writeVersusRating(ctx: AnyCtx, ident: { toHexString?: () => string }, nextRating: number, strength: number): void {
+  const existing = ctx.db.versusRating.identity.find(ident);
+  if (existing) {
+    ctx.db.versusRating.identity.update({
+      identity: ident,
+      rating: nextRating,
+      matches: (existing.matches || 0) + 1,
+      strength,
+    });
+    return;
+  }
+  ctx.db.versusRating.insert({
+    identity: ident,
+    rating: nextRating,
+    matches: 1,
+    strength,
+  });
+}
+
 export const reportVersusResult = spacetimedb.reducer(
   { matchId: t.string(), winnerPid: t.u32(), hostRounds: t.u32(), guestRounds: t.u32() },
   (ctx, { matchId, winnerPid, hostRounds, guestRounds }) => {
     assertNotBanned(ctx);
     ensurePlayer(ctx);
-    const clean = cleanRoomCode(matchId);
-    if (clean.length !== 5) throw new Error('Bad match id');
+    const id = cleanVersusMatchId(matchId);
+    if (!id) throw new Error('Bad match id');
+    const code = id.split(':')[0];
     const check = validateVersusReport({ winnerPid: winnerPid | 0, hostRounds: hostRounds | 0, guestRounds: guestRounds | 0 });
     if (!check.ok) throw new Error(check.reason || 'Bad versus report');
-    const row = ctx.db.versusQueue.code.find(clean);
+    const row = ctx.db.versusQueue.code.find(code);
     if (!row) throw new Error('Versus match not found');
     const me = identityKey(ctx.sender);
     const hostHex = row.hostHex || identityKey(row.hostIdentity);
     const guestHex = row.guestHex || '';
     if (me !== hostHex && me !== guestHex) throw new Error('Not in this match');
     if ((winnerPid | 0) === 2 && !guestHex) throw new Error('No guest');
-    const already = ctx.db.versusSettled.matchId.find(clean);
+    const already = ctx.db.versusSettled.matchId.find(id);
     if (already) return;
     const winnerHex = (winnerPid | 0) === 1 ? hostHex : guestHex;
     if (!winnerHex) throw new Error('No winner identity');
     const winnerIdent = (winnerPid | 0) === 1 ? row.hostIdentity : row.guestIdentity;
-    const dayKey = utcDayKeyFromMicros(ctx.timestamp.microsSinceUnixEpoch || 0n);
-    const dayRow = ctx.db.versusPrizeDay.identity.find(winnerIdent);
-    const alreadyToday = dayRow && dayRow.dayKey === dayKey ? dayRow.awarded : 0;
-    const prize = prizeToAward(alreadyToday);
+    const prize = prizeToAward();
     ctx.db.versusSettled.insert({
-      matchId: clean,
+      matchId: id,
       winnerHex,
       prize,
       at: ctx.timestamp,
@@ -3030,21 +3122,17 @@ export const reportVersusResult = spacetimedb.reducer(
     if (prize > 0) {
       const shop = ctx.db.playerShop.identity.find(winnerIdent);
       if (shop) {
-        const next = shop.coins + BigInt(prize);
-        const clamped = next > BigInt(MAX_COINS) ? BigInt(MAX_COINS) : next;
+        const nextCoins = shop.coins + BigInt(prize);
+        const clamped = nextCoins > BigInt(MAX_COINS) ? BigInt(MAX_COINS) : nextCoins;
         ctx.db.playerShop.identity.update({ ...shop, coins: clamped });
         writeCoinEvent(ctx, winnerIdent, BigInt(prize), 'versus', 0);
       }
-      if (dayRow) {
-        ctx.db.versusPrizeDay.identity.update({
-          identity: winnerIdent,
-          dayKey,
-          awarded: (dayRow.dayKey === dayKey ? dayRow.awarded : 0) + prize,
-        });
-      } else {
-        ctx.db.versusPrizeDay.insert({ identity: winnerIdent, dayKey, awarded: prize });
-      }
     }
-    console.info(`versus_settle ${clean} winner=${winnerHex.slice(0, 8)} prize=${prize}`);
+    const hostElo = ctx.db.versusRating.identity.find(row.hostIdentity)?.rating || VERSUS_ELO_START;
+    const guestElo = ctx.db.versusRating.identity.find(row.guestIdentity)?.rating || VERSUS_ELO_START;
+    const next = eloUpdate(hostElo, guestElo, (winnerPid | 0) === 1);
+    writeVersusRating(ctx, row.hostIdentity, next.a, next.a);
+    if (guestHex) writeVersusRating(ctx, row.guestIdentity, next.b, next.b);
+    console.info(`versus_settle ${id} winner=${winnerHex.slice(0, 8)} prize=${prize}`);
   }
 );

@@ -146,10 +146,15 @@ export interface Translations {
   versusMatchWin: string;
   versusMatchLose: string;
   versusRematch: string;
+  versusRematchWait: string;
   versusBack: string;
   versusPrize: string;
   versusDisconnect: string;
   versusFair: string;
+  versusYouScore: string;
+  versusRoundN: string;
+  versusRival: string;
+  versusStrengthFar: string;
   joinRequests: string;
   approve: string;
   reject: string;

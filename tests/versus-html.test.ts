@@ -49,6 +49,17 @@ describe('versus HTML and module wiring', () => {
     expect(server).toContain('versusSettled');
     expect(server).toContain('versusPrizeDay');
     expect(server).toMatch(/heartbeat:\s*t\.timestamp\(\),\s*versus:\s*t\.bool\(\)\.default\(false\)/);
+    expect(server).toMatch(/rating:\s*t\.u32\(\)\.default\(1000\)/);
+    expect(server).toMatch(/queuedAtUs:\s*t\.u64\(\)\.default\(0n\)/);
+    expect(server).toMatch(/versusRating:\s*table\(/);
+    expect(html).toContain('t: over ? "vsOver" : "vsRound"');
+    expect(html).toContain('function beginNextVersusRound');
+    expect(html).toContain('function startVersusRematch');
+    expect(html).toContain('if (m.over) net.vsSettled = true');
+    expect(html).toContain('if (typeof hideMsg === "function") hideMsg()');
+    expect(html).toContain('versusYouScore');
+    expect(html).toContain('forceVersusRound');
+    expect(html).toContain('filterVersusByStrength');
     expect(server).toContain('export const publishPublicRoom');
     expect(server).toContain('export const publishVersusQueue');
     expect(server).toContain('export const claimVersusQueue');
@@ -57,6 +68,7 @@ describe('versus HTML and module wiring', () => {
     expect(client).toContain('publishVersusQueue');
     expect(client).toContain('reportVersusResult');
     expect(bindings).toContain("name: 'versus_queue'");
+    expect(bindings).toContain("name: 'versus_rating'");
     expect(bindings).toContain('publish_versus_queue');
   });
 });

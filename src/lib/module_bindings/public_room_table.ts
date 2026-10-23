@@ -19,4 +19,7 @@ export default __t.row({
   inGame: __t.bool().name("in_game"),
   heartbeat: __t.timestamp(),
   versus: __t.bool(),
+  rating: __t.u32(),
+  strength: __t.u32(),
+  queuedAtUs: __t.u64().name("queued_at_us"),
 });
