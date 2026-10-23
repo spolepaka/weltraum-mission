@@ -19,6 +19,9 @@ export interface PublicRoomRow {
   inGame?: boolean;
   versus?: boolean;
   heartbeatMs?: number;
+  rating?: number;
+  strength?: number;
+  queuedAtMs?: number;
 }
 
 export type ListingFreshness = 'fresh' | 'stale' | 'dead';
@@ -84,6 +87,9 @@ function normalizeRoomRow(row: PublicRoomRow): PublicRoomRow {
     inGame: !!row.inGame,
     versus,
     heartbeatMs: row.heartbeatMs,
+    rating: Math.max(0, Math.floor(Number(row.rating) || 0) || undefined),
+    strength: Math.max(0, Math.floor(Number(row.strength) || 0) || undefined),
+    queuedAtMs: Math.max(0, Math.floor(Number(row.queuedAtMs) || 0) || undefined),
   };
 }
 
@@ -141,6 +147,10 @@ export function publicRoomFromServer(row: {
   versus?: boolean;
   heartbeat?: unknown;
   heartbeatMs?: number;
+  rating?: number | string;
+  strength?: number | string;
+  queuedAtMs?: number | string;
+  queuedAtUs?: number | string;
 }): PublicRoomRow {
   const versus = !!row.versus;
   const cap = listingPlayerCap(versus);
@@ -152,6 +162,11 @@ export function publicRoomFromServer(row: {
     inGame: !!row.inGame,
     versus,
     heartbeatMs: row.heartbeatMs !== undefined ? row.heartbeatMs : heartbeatToMs(row.heartbeat),
+    rating: Math.max(0, Math.floor(Number(row.rating) || 0)) || undefined,
+    strength: Math.max(0, Math.floor(Number(row.strength) || 0)) || undefined,
+    queuedAtMs: row.queuedAtMs !== undefined
+      ? Math.max(0, Math.floor(Number(row.queuedAtMs) || 0)) || undefined
+      : (Number(row.queuedAtUs) > 0 ? Math.floor(Number(row.queuedAtUs) / 1000) : undefined),
   };
 }
 

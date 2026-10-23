@@ -16,6 +16,9 @@ export interface VersusQueueRow {
   kind: VersusKind;
   inMatch: boolean;
   heartbeatMs: number;
+  rating?: number;
+  strength?: number;
+  queuedAtMs?: number;
 }
 
 export type VersusQueueEvent =
@@ -39,6 +42,11 @@ export function versusRowFromServer(raw: Record<string, unknown>): VersusQueueRo
     kind,
     inMatch: !!raw.inMatch,
     heartbeatMs,
+    rating: Math.max(0, Math.floor(Number(raw.rating) || 0)) || undefined,
+    strength: Math.max(0, Math.floor(Number(raw.strength) || 0)) || undefined,
+    queuedAtMs: raw.queuedAtMs !== undefined
+      ? Math.max(0, Math.floor(Number(raw.queuedAtMs) || 0)) || undefined
+      : (Number(raw.queuedAtUs) > 0 ? Math.floor(Number(raw.queuedAtUs) / 1000) : undefined),
   };
 }
 

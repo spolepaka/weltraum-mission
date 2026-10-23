@@ -103,6 +103,7 @@ import * as ListPublicRoomsProcedure from "./list_public_rooms_procedure";
 import PublicRoomRow from "./public_room_table";
 import ServerConfigRow from "./server_config_table";
 import VersusQueueRow from "./versus_queue_table";
+import VersusRatingRow from "./versus_rating_table";
 import WeeklyScoreRow from "./weekly_score_table";
 
 /** Type-only namespace exports for generated type groups. */
@@ -148,6 +149,17 @@ const tablesSchema = __schema({
       { name: 'versus_queue_code_key', constraint: 'unique', columns: ['code'] },
     ],
   }, VersusQueueRow),
+  versusRating: __table({
+    name: 'versus_rating',
+    indexes: [
+      { accessor: 'identity', name: 'versus_rating_identity_idx_btree', algorithm: 'btree', columns: [
+        'identity',
+      ] },
+    ],
+    constraints: [
+      { name: 'versus_rating_identity_key', constraint: 'unique', columns: ['identity'] },
+    ],
+  }, VersusRatingRow),
   weeklyScore: __table({
     name: 'weekly_score',
     indexes: [

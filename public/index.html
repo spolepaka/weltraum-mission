@@ -317,6 +317,7 @@
   #onVersus, #onChallenge { min-height: 52px; font-size: 20px; }
   #onVersus { background: rgba(140,40,80,.9); border-color: #ff9ae0; }
   #vsHud { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 6; font-size: 20px; font-weight: bold; background: rgba(20,20,50,.75); border: 2px solid #ff9ae0; border-radius: 14px; padding: 6px 16px; pointer-events: none; }
+  #vsIntro { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); z-index: 8; font-size: 42px; font-weight: bold; background: rgba(20,20,60,.88); border: 3px solid #ffd54a; border-radius: 22px; padding: 16px 36px; pointer-events: none; }
   #vsScreen .panel { max-width: 520px; }
   #onlineScreen .panel { max-width: 600px; max-height: 92vh; overflow-y: auto; }
   #onCodeShow { font-size: 54px; font-weight: bold; letter-spacing: 10px; color: #ffd54a; text-shadow: 0 0 18px rgba(255,213,74,.6); margin: 4px 0; font-family: "Courier New", monospace; }
@@ -374,6 +375,7 @@
 <canvas id="game"></canvas>
 
 <div id="vsHud" class="hidden">1 vs 1</div>
+<div id="vsIntro" class="hidden">Round 1/3</div>
 <div id="hud" class="hidden">
   <div class="box" id="hearts">❤️❤️❤️</div>
   <div class="box" id="coinBox">🪙 <b id="coins">0</b></div>
@@ -3917,7 +3919,9 @@
     evq: [], snaps: [], sendT: 0, inT: 0, seq: 0, idSeq: 0, gShip: null, gStats: null, hShip: null, myX: null, tapFire: false, gcd: 0, lvl: 1,
     lookP1: null, lookP2: null, joinTimer: null, countdown: null, tapBoost: false, tapFlip: false, stats: { snapsTx: 0, snapsRx: 0, inRx: 0, bytes: 0 },
     guests: [], myPid: 0, nPl: 1, looks: {}, roster: [], hostPid: 1, gen: 0, isPublic: true, hostAway: false, recovering: false, hbTimer: null, listed: false, peerReady: false,
-    versus: false, vsKind: "quick", vsWins: [0, 0], vsRound: 1, vsSettled: false, vsRematch: false };
+    versus: false, vsKind: "quick", vsWins: [0, 0], vsRound: 1, vsSettled: false, vsRematch: false,
+    vsRematchMe: false, vsRematchThem: false, vsMatchN: 1, vsHostName: "", vsGuestName: "",
+    vsWaitStart: 0, vsStrength: 0, vsWaitMsOverride: 0 };
   var MAX_PLAYERS = 5;
   function guestByPid(pid) { for (var i = 0; i < net.guests.length; i++) if (net.guests[i].pid === pid) return net.guests[i]; return null; }
   function guestPeerId(g) { return (g && g.conn && g.conn.peer) || g.peerId || ""; }
@@ -3999,64 +4003,162 @@
       else asPid(t.pid, applyHit);
     });
   }
+  function versusNames() {
+    var host = net.vsHostName || (net.role === "host" ? myPilotName() : "") || (net.roster && net.roster[0] && net.roster[0].name) || tr("versusRival");
+    var guest = net.vsGuestName || "";
+    if (net.role === "host") {
+      host = myPilotName();
+      var g = uniqueOkGuests()[0];
+      guest = (g && g.name) || net.vsGuestName || tr("versusRival");
+    } else {
+      guest = myPilotName();
+      host = net.vsHostName || (net.roster && net.roster[0] && net.roster[0].name) || tr("versusRival");
+    }
+    return { host: String(host || tr("versusRival")).slice(0, 16), guest: String(guest || tr("versusRival")).slice(0, 16) };
+  }
+  function versusScoreText(hostWins, guestWins) {
+    var names = versusNames();
+    var iAmHost = net.role === "host";
+    var youThem = vsApi() && vsApi().youThemScore ? vsApi().youThemScore(hostWins, guestWins, iAmHost) : (iAmHost ? { you: hostWins | 0, them: guestWins | 0 } : { you: guestWins | 0, them: hostWins | 0 });
+    var rival = iAmHost ? names.guest : names.host;
+    return tr("versusYouScore", { you: youThem.you, them: youThem.them, name: rival });
+  }
+  function versusWaitMs() {
+    if (net.vsWaitMsOverride) return net.vsWaitMsOverride;
+    if (!net.vsWaitStart) return 0;
+    return Math.max(0, Date.now() - net.vsWaitStart);
+  }
+  function versusMyStrength() {
+    if (net.vsStrength) return net.vsStrength;
+    var api = vsApi();
+    var unlocked = (typeof progress !== "undefined" && progress && progress.unlocked) || 1;
+    var ship = (typeof curShip === "function" && curShip()) ? curShip().id : "starter";
+    return api && api.fallbackStrength ? api.fallbackStrength(unlocked, ship) : (1000 + Math.max(0, unlocked - 1) * 30);
+  }
+  function versusMatchId() {
+    var api = vsApi();
+    var raw = (net.code || "") + ":" + (net.vsMatchN || 1);
+    return api && api.cleanVersusMatchId ? api.cleanVersusMatchId(raw) : raw;
+  }
   function paintVsHud() {
     var el = $("vsHud"); if (!el) return;
     if (!versusOn()) { el.classList.add("hidden"); return; }
     el.classList.remove("hidden");
-    el.textContent = tr("versusPlay") + "  " + (net.vsWins[0] || 0) + " – " + (net.vsWins[1] || 0);
+    el.textContent = versusScoreText(net.vsWins[0] || 0, net.vsWins[1] || 0);
+  }
+  function showVersusRoundIntro(n) {
+    var el = $("vsIntro"); if (!el) return;
+    el.textContent = tr("versusRoundN", { n: n || 1 });
+    el.classList.remove("hidden");
+    setTimeout(function () { if (el) el.classList.add("hidden"); }, 1600);
+    showMsg("⚔️ " + tr("versusRoundN", { n: n || 1 }), "new", 1.6);
+  }
+  function resetVersusArena() {
+    applyVersusFair();
+    bullets = []; rocks = []; ufos = []; bombs = []; stars = []; powers = []; particles = []; coinsArr = [];
+    holes = []; comets = []; beams = []; swallows = []; drones = []; mines = [];
+    boss = null; invuln = 0.6;
+    state = "play";
+    var api = vsApi();
+    function park(pid, s) {
+      if (!s) return;
+      s.down = 0; s.left = false;
+      s.x = W / 2;
+      s.y = api && api.versusHomeY ? api.versusHomeY(pid, H, shipBottom()) : (pid === 2 ? shipBottom() : H - shipBottom());
+    }
+    if (ship) park(1, ship);
+    lives = (vsApi() && vsApi().VERSUS_HEARTS) || 4;
+    others.forEach(function (o, i) {
+      if (!o) return;
+      o.lives = (vsApi() && vsApi().VERSUS_HEARTS) || 4;
+      o.invuln = 0.6;
+      park(i + 2, o.ship);
+    });
+    ["hud", "controls", "power", "wordBox"].forEach(function (id) { var el = $(id); if (el) el.classList.remove("hidden"); });
+    if ($("vsScreen")) $("vsScreen").classList.add("hidden");
+    updateHud();
+    paintVsHud();
+  }
+  function beginNextVersusRound(m) {
+    net.vsWins = [m.host | 0, m.guest | 0];
+    net.vsRound = (m.next | 0) || (vsApi() && vsApi().nextRoundNumber ? vsApi().nextRoundNumber(net.vsWins[0], net.vsWins[1]) : (net.vsWins[0] + net.vsWins[1] + 1));
+    net.inGame = true;
+    resetVersusArena();
+    showVersusRoundIntro(net.vsRound);
   }
   function finishVersusRound(forcedWinner) {
     if (!versusOn() || net.vsSettled) return;
     var lv = allLives();
     var w = forcedWinner || (vsApi() && vsApi().roundWinner ? vsApi().roundWinner(lv[0] || 0, lv[1] || 0) : 0);
     if (!w) return;
-    net.inGame = false;
-    state = "dying";
     if (w === 1) net.vsWins[0]++; else net.vsWins[1]++;
+    var names = versusNames();
+    net.vsHostName = names.host; net.vsGuestName = names.guest;
     var over = vsApi() && vsApi().matchOver ? vsApi().matchOver(net.vsWins[0], net.vsWins[1]) : (net.vsWins[0] >= 2 || net.vsWins[1] >= 2);
-    var payload = { t: "vsOver", w: w, host: net.vsWins[0], guest: net.vsWins[1], over: over ? 1 : 0, prize: 0 };
+    var next = vsApi() && vsApi().nextRoundNumber ? vsApi().nextRoundNumber(net.vsWins[0], net.vsWins[1]) : (net.vsWins[0] + net.vsWins[1] + 1);
+    var payload = { t: over ? "vsOver" : "vsRound", w: w, host: net.vsWins[0], guest: net.vsWins[1], over: over ? 1 : 0, next: next, prize: 0, hostName: names.host, guestName: names.guest };
     if (over) {
       net.vsSettled = true;
+      net.inGame = false;
+      state = "dying";
       try {
-        if (stClient() && stClient().reportVersusResult && net.code) stClient().reportVersusResult(net.code, w, net.vsWins[0], net.vsWins[1]);
+        if (stClient() && stClient().reportVersusResult && net.code) stClient().reportVersusResult(versusMatchId(), w, net.vsWins[0], net.vsWins[1]);
       } catch (e) {}
       payload.prize = (vsApi() && vsApi().VERSUS_PRIZE) || 40;
+      if (net.role === "host") netSend(payload);
+      showVersusOver(payload);
+      return;
     }
     if (net.role === "host") netSend(payload);
-    showVersusOver(payload);
+    beginNextVersusRound(payload);
   }
   function showVersusOver(m) {
     net.inGame = false;
     net.vsWins = [m.host | 0, m.guest | 0];
-    var me = net.role === "host" ? 1 : net.myPid;
-    var iWon = !!(m.over && ((me === 1 && (m.host | 0) >= 2) || (me !== 1 && (m.guest | 0) >= 2)));
-    ["hud", "controls", "power", "wordBox"].forEach(function (id) { var el = $(id); if (el) el.classList.add("hidden"); });
+    if (m.over) net.vsSettled = true;
+    if (m.hostName) net.vsHostName = m.hostName;
+    if (m.guestName) net.vsGuestName = m.guestName;
+    var iAmHost = net.role === "host";
+    var iWon = vsApi() && vsApi().iWonMatch ? vsApi().iWonMatch(m.host | 0, m.guest | 0, iAmHost) : (iAmHost ? (m.host | 0) >= 2 : (m.guest | 0) >= 2);
+    ["hud", "controls", "power", "wordBox", "vsHud"].forEach(function (id) { var el = $(id); if (el) el.classList.add("hidden"); });
+    if ($("vsIntro")) $("vsIntro").classList.add("hidden");
+    if (typeof hideMsg === "function") hideMsg();
     $("vsScreen").classList.remove("hidden");
     $("vsTitle").textContent = m.over ? (iWon ? tr("versusMatchWin") : (m.left ? tr("versusDisconnect") : tr("versusMatchLose"))) : tr("versusRoundOver");
-    $("vsScore").textContent = (m.host | 0) + " – " + (m.guest | 0);
-    $("vsPrize").textContent = m.over ? tr("versusPrize", { n: (vsApi() && vsApi().VERSUS_PRIZE) || 40, cap: (vsApi() && vsApi().VERSUS_DAILY_CAP) || 160 }) : "";
+    $("vsScore").textContent = versusScoreText(m.host | 0, m.guest | 0);
+    $("vsPrize").textContent = m.over ? tr("versusPrize", { n: (vsApi() && vsApi().VERSUS_PRIZE) || 40 }) : "";
     $("vsRematch").classList.toggle("hidden", !m.over);
+    $("vsRematch").textContent = tr("versusRematch") + " 🔄";
     paintVsHud();
   }
+  function paintRematchWait() {
+    if (!$("vsRematch")) return;
+    $("vsRematch").textContent = (net.vsRematchMe && !net.vsRematchThem) ? tr("versusRematchWait") : (tr("versusRematch") + " 🔄");
+  }
+  function startVersusRematch() {
+    net.vsWins = [0, 0]; net.vsRound = 1; net.vsSettled = false;
+    net.vsRematch = false; net.vsRematchMe = false; net.vsRematchThem = false;
+    net.vsMatchN = (net.vsMatchN || 1) + 1;
+    $("vsScreen").classList.add("hidden");
+    if (liveOccupancy() >= 2) hostStart(1);
+  }
   function tryVersusRematch() {
-    if (!versusOn()) return;
-    if (net.role === "host") {
-      net.vsWins = [0, 0]; net.vsRound++; net.vsSettled = false; net.vsRematch = false;
-      $("vsScreen").classList.add("hidden");
-      if (liveOccupancy() >= 2) hostStart(1);
-    } else {
-      netSend({ t: "vsRematch" });
-      net.vsRematch = true;
-    }
+    if (!versusOn() || !net.vsSettled) return;
+    net.vsRematchMe = true;
+    netSend({ t: "vsRematch" });
+    var ready = vsApi() && vsApi().rematchReady ? vsApi().rematchReady(net.vsRematchMe, net.vsRematchThem) : (net.vsRematchMe && net.vsRematchThem);
+    if (net.role === "host" && ready) startVersusRematch();
+    else paintRematchWait();
   }
   function versusDisconnectWin(leftPid) {
     if (!versusOn() || net.vsSettled) return;
     var w = vsApi() && vsApi().disconnectWinner ? vsApi().disconnectWinner(leftPid) : (leftPid === 1 ? 2 : 1);
     net.vsWins = w === 1 ? [2, net.vsWins[1] || 0] : [net.vsWins[0] || 0, 2];
-    var payload = { t: "vsOver", w: w, host: net.vsWins[0], guest: net.vsWins[1], over: 1, prize: (vsApi() && vsApi().VERSUS_PRIZE) || 40, left: 1 };
+    var names = versusNames();
+    var payload = { t: "vsOver", w: w, host: net.vsWins[0], guest: net.vsWins[1], over: 1, prize: (vsApi() && vsApi().VERSUS_PRIZE) || 40, left: 1, hostName: names.host, guestName: names.guest };
     net.vsSettled = true;
     try {
-      if (stClient() && stClient().reportVersusResult && net.code) stClient().reportVersusResult(net.code, w, net.vsWins[0], net.vsWins[1]);
+      if (stClient() && stClient().reportVersusResult && net.code) stClient().reportVersusResult(versusMatchId(), w, net.vsWins[0], net.vsWins[1]);
     } catch (e) {}
     if (net.role === "host") netSend(payload);
     showVersusOver(payload);
@@ -4083,9 +4185,11 @@
     var myBeat = 0;
     queueRows.forEach(function (r) { if (r.code === mine) myBeat = r.heartbeatMs || 0; });
     var waiters = queueRows.map(function (r) {
-      return { identity: r.hostHex || "", name: r.hostName || "", ship: r.hostShip || "starter", kind: r.kind === "challenge" ? "challenge" : "quick", code: r.code, heartbeatMs: r.heartbeatMs || 0 };
+      return { identity: r.hostHex || "", name: r.hostName || "", ship: r.hostShip || "starter", kind: r.kind === "challenge" ? "challenge" : "quick", code: r.code, heartbeatMs: r.heartbeatMs || 0, rating: r.rating, strength: r.strength, queuedAtMs: r.queuedAtMs };
     });
-    var older = vsApi() && vsApi().pickQuickMatch ? vsApi().pickQuickMatch(waiters, myHex || "", Date.now(), myBeat) : waiters.filter(function (w) { return w.code !== mine && w.kind === "quick" && w.identity !== myHex && (!myBeat || w.heartbeatMs < myBeat); }).sort(function (a, b) { return a.heartbeatMs - b.heartbeatMs; })[0];
+    var older = vsApi() && vsApi().pickQuickMatch
+      ? vsApi().pickQuickMatch(waiters, myHex || "", Date.now(), myBeat, versusMyStrength(), net.vsWaitStart || myBeat)
+      : waiters.filter(function (w) { return w.code !== mine && w.kind === "quick" && w.identity !== myHex && (!myBeat || w.heartbeatMs < myBeat); }).sort(function (a, b) { return a.heartbeatMs - b.heartbeatMs; })[0];
     if (!older || older.code === mine) return;
     try { if (st.closeVersusQueue) st.closeVersusQueue(mine); } catch (e) {}
     try { if (st.closePublicRoom) st.closePublicRoom(mine); } catch (e) {}
@@ -4246,6 +4350,7 @@
   function openOnline() {
     audio(); $("onlineScreen").classList.remove("hidden");
     applyAskToJoin();
+    if (!net.vsWaitStart) net.vsWaitStart = Date.now();
     if (net.role && net.connected) { onShow(net.role === "host" ? "room" : "join"); if (net.role === "guest") { $("onJoinForm").classList.add("hidden"); onStatus("✅ " + tr("tips.connectedAs", { n: net.myPid }), "good"); } else hostStatus(); }
     else { onShow("menu"); onStatus(""); startRoomWatch(); }
     try { if (window.__weltraum && window.__weltraum.ensureCloud) window.__weltraum.ensureCloud(); } catch (e) {}
@@ -4298,7 +4403,7 @@
     var canPub = api && api.shouldPublishListing
       ? api.shouldPublishListing({ isPublic: !!net.isPublic, role: net.role, peerReady: !!net.peerReady, code: net.code, leaving: leaving })
       : (!leaving && net.peerReady);
-    if (versus) pushVersusPrizeRow(!!forceClose || !canPub || !!net.inGame);
+    if (versus) pushVersusPrizeRow(!!forceClose || net.role !== "host" || !net.code);
     if (!canPub) {
       if (leaving || forceClose) {
         try { if (st.closePublicRoom && net.code) st.closePublicRoom(net.code); } catch (e) {}
@@ -4339,6 +4444,9 @@
     var api = roomApi();
     var mine = net.role === "host" ? net.code : "";
     var shown = (rows || []).filter(function (r) { return r && r.code && r.code !== mine && !r.inMatch; });
+    if (net.vsKind !== "challenge" && vsApi() && vsApi().filterVersusByStrength) {
+      shown = vsApi().filterVersusByStrength(shown, versusMyStrength(), versusWaitMs());
+    }
     if (api && api.decorateListedRooms) {
       shown = api.decorateListedRooms(shown.map(function (r) {
         return { code: r.code, hostName: r.hostName || "Pilot", level: 1, players: r.players || 1, inGame: !!r.inMatch, versus: true, heartbeatMs: r.heartbeatMs, joinable: r.joinable, freshness: r.freshness };
@@ -4398,7 +4506,7 @@
       renderRoomRows(split.coop);
       lastPublicDuels = split.versus || [];
       if (lastPublicDuels.length) {
-        renderVersusRows(lastPublicDuels.map(function (r) { return { code: r.code, hostName: r.hostName, kind: "quick", heartbeatMs: r.heartbeatMs, players: r.players, inMatch: !!r.inGame, freshness: r.freshness, joinable: r.joinable }; }));
+        renderVersusRows(lastPublicDuels.map(function (r) { return { code: r.code, hostName: r.hostName, kind: "quick", heartbeatMs: r.heartbeatMs, players: r.players, inMatch: !!r.inGame, freshness: r.freshness, joinable: r.joinable, rating: r.rating, strength: r.strength, queuedAtMs: r.queuedAtMs }; }));
       } else if (lastVersusQueueRows.length) renderVersusRows(lastVersusQueueRows);
     }
     if (st && st.onVersusQueue) {
@@ -4550,7 +4658,11 @@
     try { if (net.versus && net.code && stClient() && stClient().closeVersusQueue) stClient().closeVersusQueue(net.code); } catch (e) {}
     pendingConns = {};
     net.versus = false; net.vsKind = "quick"; net.vsWins = [0, 0]; net.vsRound = 1; net.vsSettled = false; net.vsRematch = false;
+    net.vsRematchMe = false; net.vsRematchThem = false; net.vsMatchN = 1; net.vsHostName = ""; net.vsGuestName = "";
+    net.vsWaitStart = 0;
     var vsHud = $("vsHud"); if (vsHud) vsHud.classList.add("hidden");
+    if ($("vsIntro")) $("vsIntro").classList.add("hidden");
+    if ($("vsScreen")) $("vsScreen").classList.add("hidden");
     try { if (c) c.close(); } catch (e) {}
     gs.forEach(function (g) { try { g.conn.close(); } catch (e) {} });
     try { if (p) p.destroy(); } catch (e) {}
@@ -4597,6 +4709,8 @@
     var keepVersus = !!net.versus, keepKind = net.vsKind || "quick";
     netTeardown(); net.role = "host"; net.lvl = Math.min(progress.unlocked, net.lvl || 1);
     net.versus = keepVersus; net.vsKind = keepKind; net.vsWins = [0, 0]; net.vsRound = 1; net.vsSettled = false;
+    net.vsRematchMe = false; net.vsRematchThem = false; net.vsMatchN = net.vsMatchN || 1;
+    if (keepVersus) net.vsWaitStart = Date.now();
     var coopHost = coopApi();
     if (coopHost && coopHost.setMaxPlayers) coopHost.setMaxPlayers(keepVersus ? 2 : 5);
     applyAskToJoin();
@@ -4789,7 +4903,12 @@
     if (net.role === "host") {
       if (!g) return;
       if (m.t === "bye") { guestLeft(g); return; }
-      if (m.t === "vsRematch") { net.vsRematch = true; if (net.versus && !net.inGame) tryVersusRematch(); return; }
+      if (m.t === "vsRematch") {
+        net.vsRematchThem = true;
+        if (net.versus && net.vsSettled && net.vsRematchMe) startVersusRematch();
+        else paintRematchWait();
+        return;
+      }
       if (m.t === "hello") {
         if (m.v !== NET_VERSION) { connSend(g.conn, { t: "ver" }); setTimeout(function () { guestLeft(g); }, 400); return; }
         var helloPeer = guestPeerId(g);
@@ -4801,6 +4920,8 @@
         var coopH = coopApi();
         if (coopH && coopH.playerJoined) coopH.playerJoined(g.conn && g.conn.peer);
         syncOccupancy();
+        net.vsGuestName = g.name;
+        net.vsHostName = myPilotName();
         connSend(g.conn, { t: "welcome", hs: curShip().id, L: net.lvl, pid: g.pid, name: myPilotName(), hostPid: net.hostPid || 1, gen: net.gen || 0, vs: versusOn() ? 1 : 0 });
         hostRosterSend(); hostStatus(); renderOnLevels(); SFX.power();
         pushRoomListing();
@@ -4826,7 +4947,7 @@
       if (m.t === "back") { net.hostAway = false; return; }
       if (m.t === "pending") { net.handshaking = true; armJoinWait((roomApi() && roomApi().JOIN_APPROVE_WAIT_MS) || 60000); onStatus("⏳ " + tr("tips.joinWaitHost")); }
       else if (m.t === "ready") { sendHello(); }
-      else if (m.t === "welcome") { net.connected = true; net.handshaking = false; net.recovering = false; clearTimeout(net.joinTimer); net.hShip = SHIP_BY[m.hs] ? m.hs : "starter"; net.myPid = Math.max(2, Math.min(MAX_PLAYERS, m.pid | 0 || 2)); net.hostPid = m.hostPid || 1; net.gen = m.gen || net.gen || 0; if (m.vs) net.versus = true; $("onJoinForm").classList.add("hidden"); onShow("join"); onStatus("✅ " + tr("tips.connectedAs", { n: net.myPid }) + (versusOn() ? " — " + tr("versusTitle") : " (Level " + (m.L | 0) + ")"), "good"); SFX.power(); try { if (versusOn() && stClient() && stClient().claimVersusQueue) stClient().claimVersusQueue(net.code, myPilotName(), curShip().id); } catch (e) {} }
+      else if (m.t === "welcome") { net.connected = true; net.handshaking = false; net.recovering = false; clearTimeout(net.joinTimer); net.hShip = SHIP_BY[m.hs] ? m.hs : "starter"; net.myPid = Math.max(2, Math.min(MAX_PLAYERS, m.pid | 0 || 2)); net.hostPid = m.hostPid || 1; net.gen = m.gen || net.gen || 0; if (m.vs) net.versus = true; net.vsHostName = String(m.name || "").slice(0, 16) || tr("versusRival"); net.vsGuestName = myPilotName(); $("onJoinForm").classList.add("hidden"); onShow("join"); onStatus("✅ " + tr("tips.connectedAs", { n: net.myPid }) + (versusOn() ? " — " + tr("versusTitle") : " (Level " + (m.L | 0) + ")"), "good"); SFX.power(); try { if (versusOn() && stClient() && stClient().claimVersusQueue) stClient().claimVersusQueue(net.code, myPilotName(), curShip().id); } catch (e) {} }
       else if (m.t === "roster") { net.roster = (Array.isArray(m.P) ? m.P : []).filter(function (p) { return p && p.pid >= 1 && p.pid <= MAX_PLAYERS; }).map(function (p) { return { pid: p.pid | 0, ship: SHIP_BY[p.ship] ? p.ship : "starter", name: String(p.name || "").slice(0, 16) }; }); renderRoster(); }
       else if (m.t === "lobby") { onStatus("✅ " + tr("tips.hostPicked", { level: (m.L | 0) }), "good"); }
       else if (m.t === "full") netFail("full");
@@ -4835,17 +4956,19 @@
       else if (m.t === "kicked") netFail("kicked");
       else if (m.t === "rate") netFail("rate");
       else if (m.t === "denied") netFail("denied");
-      else if (m.t === "start") { net.hShip = SHIP_BY[m.hs] ? m.hs : net.hShip; net.nPl = Math.max(1, Math.min(MAX_PLAYERS, m.n | 0 || 1)); net.startLooks = m.looks || null; if (m.vs) net.versus = true; runCountdown(m.L | 0); }
+      else if (m.t === "start") { net.hShip = SHIP_BY[m.hs] ? m.hs : net.hShip; net.nPl = Math.max(1, Math.min(MAX_PLAYERS, m.n | 0 || 1)); net.startLooks = m.looks || null; if (m.vs) { net.versus = true; if (net.vsSettled || ((net.vsWins[0] || 0) + (net.vsWins[1] || 0)) > 0) net.vsMatchN = (net.vsMatchN || 1) + 1; net.vsWins = [0, 0]; net.vsRound = 1; net.vsSettled = false; net.vsRematchMe = false; net.vsRematchThem = false; if ($("vsScreen")) $("vsScreen").classList.add("hidden"); if ($("vsIntro")) $("vsIntro").classList.add("hidden"); } runCountdown(m.L | 0); }
       else if (m.t === "s") guestSnap(m);
       else if (m.t === "end") guestEnd(m);
       else if (m.t === "vsOver") showVersusOver(m);
-      else if (m.t === "vsRematch") { net.vsRematch = true; }
+      else if (m.t === "vsRound") { if (m.hostName) net.vsHostName = m.hostName; if (m.guestName) net.vsGuestName = m.guestName; beginNextVersusRound(m); }
+      else if (m.t === "vsRematch") { net.vsRematchThem = true; paintRematchWait(); }
     }
   }
   // ---------- Start (beide gleichzeitig nach 3-2-1) ----------
   function runCountdown(L) {
     L = Math.max(1, Math.min(MAX_LEVEL, L || 1));
     $("winScreen").classList.add("hidden"); $("overScreen").classList.add("hidden"); $("shopScreen").classList.add("hidden"); $("missionScreen").classList.add("hidden");
+    if ($("vsScreen")) $("vsScreen").classList.add("hidden");
     if (state !== "map") goToMap();
     $("onlineScreen").classList.remove("hidden"); onShow(net.role === "host" ? "room" : "join");
     var n = 3; clearInterval(net.countdown);
@@ -4867,7 +4990,10 @@
     ok.sort(function (a, b) { return a.pid - b.pid; }).forEach(function (g, i) { if (g.pid !== i + 2) { g.pid = i + 2; connSend(g.conn, { t: "welcome", hs: curShip().id, L: L, pid: g.pid, hostPid: net.hostPid || 1, gen: net.gen || 0, vs: versusOn() ? 1 : 0 }); } lk[g.pid] = g.ship; });
     net.nPl = 1 + ok.length;
     net.lvl = L; netSend({ t: "start", L: L, hs: curShip().id, n: net.nPl, looks: lk, vs: versusOn() ? 1 : 0 });
-    if (versusOn()) { net.isPublic = visPublic(); pushRoomListing(true); }
+    if (versusOn()) {
+      try { if (stClient() && stClient().closePublicRoom && net.code) stClient().closePublicRoom(net.code); } catch (e) {}
+      net.listed = false;
+    }
     runCountdown(L);
   }
   function netBegin(L) {
@@ -5079,8 +5205,11 @@
     audio(); var code = cleanCode($("onCode").value);
     if (code.length !== CODE_LEN) { onStatus(tr("tips.codeLen", { n: CODE_LEN }), "bad"); return; }
     try { $("onCode").blur(); } catch (e) {}
-    var duel = lastVersusRows.concat(lastVersusQueueRows, lastPublicDuels).some(function (r) { return r && r.code === code; });
-    if (duel) { net.versus = true; net.vsKind = "challenge"; }
+    var listed = lastVersusRows.concat(lastVersusQueueRows, lastPublicDuels).find(function (r) { return r && r.code === code; });
+    if (listed) {
+      net.versus = true;
+      net.vsKind = listed.kind === "challenge" ? "challenge" : "quick";
+    }
     joinRoom(code);
   });
   if ($("onRefreshRooms")) $("onRefreshRooms").addEventListener("click", function () { audio(); refreshRoomList(); });
@@ -8179,9 +8308,23 @@
         versus: !!net.versus, kind: net.vsKind, wins: net.vsWins.slice(), round: net.vsRound, settled: !!net.vsSettled,
         hud: $("vsHud") && $("vsHud").textContent, p1y: ship && Math.round(ship.y), p2y: others[0] && others[0].ship && Math.round(others[0].ship.y),
         hearts: [lives, others[0] && others[0].lives], fair: curStats && { hearts: curStats.hearts, dmg: curStats.dmg, perk: curStats.perk || "" },
-        buttons: !!(!document.getElementById("onVersus") || !document.getElementById("onVersus").classList.contains("hidden"))
+        buttons: !!(!document.getElementById("onVersus") || !document.getElementById("onVersus").classList.contains("hidden")),
+        title: $("vsTitle") && $("vsTitle").textContent,
+        score: $("vsScore") && $("vsScore").textContent,
+        screen: $("vsScreen") && !$("vsScreen").classList.contains("hidden"),
+        intro: $("vsIntro") && $("vsIntro").textContent,
+        rematchMe: !!net.vsRematchMe, rematchThem: !!net.vsRematchThem,
+        inGame: !!net.inGame, matchN: net.vsMatchN || 1,
+        strength: versusMyStrength(), waitMs: versusWaitMs()
       };
     },
+    forceVersusRound: function (pid) {
+      if (net.role === "host") finishVersusRound(pid | 0);
+      return { wins: net.vsWins.slice(), round: net.vsRound, settled: !!net.vsSettled, inGame: !!net.inGame };
+    },
+    setVersusStrength: function (n) { net.vsStrength = Math.max(0, n | 0); return versusMyStrength(); },
+    setVersusWaitMs: function (n) { net.vsWaitMsOverride = Math.max(0, n | 0); return versusWaitMs(); },
+    clickVersusRematch: function () { tryVersusRematch(); return { me: !!net.vsRematchMe, them: !!net.vsRematchThem }; },
     inflateCoop: function (n) {
       var coop = coopApi();
       if (coop && coop.playerJoined) { for (var i = 0; i < n; i++) coop.playerJoined("ghost-" + i); }
@@ -8205,6 +8348,14 @@
     },
     roomListNow: function () { return { public: visPublic(), code: net.code, hostPid: net.hostPid, gen: net.gen, peerReady: !!net.peerReady, listed: !!net.listed, rows: lastRoomRows.slice(), duels: lastVersusRows.slice() }; },
     versusListNow: function () { return lastVersusRows.slice(); },
+    paintVersusListNow: function () {
+      if (lastPublicDuels.length) {
+        renderVersusRows(lastPublicDuels.map(function (r) {
+          return { code: r.code, hostName: r.hostName, kind: "quick", heartbeatMs: r.heartbeatMs, players: r.players, inMatch: !!r.inGame, freshness: r.freshness, joinable: r.joinable, rating: r.rating, strength: r.strength, queuedAtMs: r.queuedAtMs };
+        }));
+      } else renderVersusRows(lastVersusQueueRows);
+      return lastVersusRows.slice();
+    },
     achInfo: function () { return { done: Object.keys(achDone), queue: achQueue.map(function (a) { return a[0]; }), toast: !!($("achToast") && $("achToast").classList.contains("show")), quiet: !!achQuiet }; },
     hostSoloStart: function (L) {
       net.role = "host"; net.inGame = true; net.guests = net.guests || []; net.nPl = liveOccupancy();
@@ -8365,6 +8516,7 @@
     setTxt("onVersus", "⚔️ " + tr("versusPlay"));
     setTxt("onChallenge", "🤝 " + tr("versusChallenge"));
     setTxt("versusFair", tr("versusFair"));
+    setTxt("vsIntro", tr("versusRoundN", { n: 1 }));
     setTxt("vsRematch", tr("versusRematch") + " 🔄");
     setTxt("vsBack", tr("versusBack") + " 🗺️");
     if (versusOn()) {
