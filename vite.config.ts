@@ -132,6 +132,35 @@ function geoApiPlugin() {
   };
 }
 
+function faviconPlugin() {
+  const ico = resolve(__dirname, 'public/favicon.ico');
+  const svg = resolve(__dirname, 'public/favicon.svg');
+  const serve = (file: string, type: string) =>
+    (_req: { url?: string }, res: { setHeader: (k: string, v: string) => void; end: (b?: Buffer) => void }, next: () => void) => {
+      if (!fs.existsSync(file)) { next(); return; }
+      res.setHeader('Content-Type', type);
+      res.end(fs.readFileSync(file));
+    };
+  const copyTo = (outDir: string) => {
+    if (fs.existsSync(ico)) fs.copyFileSync(ico, resolve(outDir, 'favicon.ico'));
+    if (fs.existsSync(svg)) fs.copyFileSync(svg, resolve(outDir, 'favicon.svg'));
+  };
+  return {
+    name: 'favicon-assets',
+    configureServer(server: { middlewares: { use: (path: string, fn: ReturnType<typeof serve>) => void } }) {
+      server.middlewares.use('/favicon.ico', serve(ico, 'image/x-icon'));
+      server.middlewares.use('/favicon.svg', serve(svg, 'image/svg+xml'));
+    },
+    configurePreviewServer(server: { middlewares: { use: (path: string, fn: ReturnType<typeof serve>) => void } }) {
+      server.middlewares.use('/favicon.ico', serve(ico, 'image/x-icon'));
+      server.middlewares.use('/favicon.svg', serve(svg, 'image/svg+xml'));
+    },
+    writeBundle() {
+      copyTo(resolve(__dirname, 'dist'));
+    },
+  };
+}
+
 function roadsterSpritesPlugin() {
   const dir = resolve(__dirname, 'public/ships');
   const serve = (req: { url?: string }, res: { setHeader: (k: string, v: string) => void; end: (b?: Buffer) => void }, next: () => void) => {
@@ -165,7 +194,7 @@ function roadsterSpritesPlugin() {
 export default defineConfig({
   root: '.',
   publicDir: false,
-  plugins: [gameHtmlPlugin(), versionPlugin(), geoApiPlugin(), roadsterSpritesPlugin()],
+  plugins: [gameHtmlPlugin(), versionPlugin(), geoApiPlugin(), faviconPlugin(), roadsterSpritesPlugin()],
   build: {
     outDir: 'dist',
     emptyOutDir: true,
