@@ -22,6 +22,8 @@ export interface PublicRoomRow {
   rating?: number;
   strength?: number;
   queuedAtMs?: number;
+  ship?: string;
+  shipPower?: number;
 }
 
 export type ListingFreshness = 'fresh' | 'stale' | 'dead';
@@ -90,6 +92,8 @@ function normalizeRoomRow(row: PublicRoomRow): PublicRoomRow {
     rating: Math.max(0, Math.floor(Number(row.rating) || 0) || undefined),
     strength: Math.max(0, Math.floor(Number(row.strength) || 0) || undefined),
     queuedAtMs: Math.max(0, Math.floor(Number(row.queuedAtMs) || 0) || undefined),
+    ship: row.ship ? String(row.ship) : undefined,
+    shipPower: Math.max(0, Math.floor(Number(row.shipPower) || 0) || undefined),
   };
 }
 
@@ -151,6 +155,8 @@ export function publicRoomFromServer(row: {
   strength?: number | string;
   queuedAtMs?: number | string;
   queuedAtUs?: number | string;
+  ship?: string;
+  shipPower?: number | string;
 }): PublicRoomRow {
   const versus = !!row.versus;
   const cap = listingPlayerCap(versus);
@@ -167,6 +173,8 @@ export function publicRoomFromServer(row: {
     queuedAtMs: row.queuedAtMs !== undefined
       ? Math.max(0, Math.floor(Number(row.queuedAtMs) || 0)) || undefined
       : (Number(row.queuedAtUs) > 0 ? Math.floor(Number(row.queuedAtUs) / 1000) : undefined),
+    ship: row.ship ? String(row.ship) : undefined,
+    shipPower: Math.max(0, Math.floor(Number(row.shipPower) || 0)) || undefined,
   };
 }
 

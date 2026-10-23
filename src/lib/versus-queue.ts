@@ -19,6 +19,10 @@ export interface VersusQueueRow {
   rating?: number;
   strength?: number;
   queuedAtMs?: number;
+  shipPower?: number;
+  guestShipPower?: number;
+  hostUps?: string;
+  guestUps?: string;
 }
 
 export type VersusQueueEvent =
@@ -47,6 +51,10 @@ export function versusRowFromServer(raw: Record<string, unknown>): VersusQueueRo
     queuedAtMs: raw.queuedAtMs !== undefined
       ? Math.max(0, Math.floor(Number(raw.queuedAtMs) || 0)) || undefined
       : (Number(raw.queuedAtUs) > 0 ? Math.floor(Number(raw.queuedAtUs) / 1000) : undefined),
+    shipPower: Math.max(0, Math.floor(Number(raw.shipPower) || 0)) || undefined,
+    guestShipPower: Math.max(0, Math.floor(Number(raw.guestShipPower) || 0)) || undefined,
+    hostUps: raw.hostUps != null ? String(raw.hostUps) : undefined,
+    guestUps: raw.guestUps != null ? String(raw.guestUps) : undefined,
   };
 }
 

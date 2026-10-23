@@ -10,15 +10,120 @@ export const VERSUS_ELO_MAX = 3000;
 export const VERSUS_BAND_START = 120;
 export const VERSUS_BAND_PER_SEC = 12;
 export const VERSUS_BAND_OPEN_US = 75 * 1_000_000;
+export const VERSUS_ELO_WEIGHT = 0.25;
+export const VERSUS_UP_MAX = { heart: 1, rate: 5, dmg: 5, dur: 3, mag: 3 } as const;
 
-const SHIP_POWER: Record<string, number> = {
-  starter: 0, blitz: 20, komet: 30, doppel: 40, eis: 50, falke: 55, feuer: 65, stern: 75,
-  titan: 90, lanze: 100, koenig: 120, nova: 140, quanten: 160, uni: 180, rochen: 190,
-  phoenix: 200, hammer: 210, zwilling: 220, gravitron: 240, spektral: 250, segler: 270,
-  schatten: 280, drache: 300, omega: 320, frostwal: 200, lindwurm: 220, hydra: 240,
-  regenbogen: 230, kaiserbrecher: 310, beepbuggy: 40, cloudcoupe: 80, shadowspeeder: 150,
-  chromewasp: 200, apexflash: 300,
+export interface VersusUpgrades {
+  heart: number;
+  rate: number;
+  dmg: number;
+  dur: number;
+  mag: number;
+}
+
+interface ShipCombat {
+  hearts: number;
+  speed: number;
+  rate: number;
+  shots: number;
+  dmg: number;
+  regen: number;
+  hitR?: number;
+  perk?: string;
+  perk2?: string;
+  drones?: number;
+}
+
+const SHIP_COMBAT: Record<string, ShipCombat> = {
+  starter: { hearts: 3, speed: 1, rate: 0.25, shots: 1, dmg: 1, regen: 0 },
+  blitz: { hearts: 3, speed: 1.4, rate: 0.2, shots: 1, dmg: 1, regen: 0 },
+  komet: { hearts: 3, speed: 1.6, rate: 0.21, shots: 1, dmg: 1.1, regen: 0, hitR: 13, perk: 'small' },
+  doppel: { hearts: 3, speed: 1.1, rate: 0.32, shots: 2, dmg: 1, regen: 0 },
+  eis: { hearts: 3, speed: 1.15, rate: 0.29, shots: 2, dmg: 1, regen: 0, perk: 'freeze' },
+  falke: { hearts: 3, speed: 1.2, rate: 0.25, shots: 1, dmg: 2, regen: 0 },
+  feuer: { hearts: 3, speed: 1.2, rate: 0.3, shots: 2, dmg: 1.2, regen: 0, perk: 'burn' },
+  stern: { hearts: 3, speed: 1.1, rate: 0.25, shots: 1, dmg: 2.2, regen: 0, perk: 'blast' },
+  titan: { hearts: 4, speed: 1.2, rate: 0.36, shots: 3, dmg: 1.25, regen: 20 },
+  lanze: { hearts: 4, speed: 1.25, rate: 0.25, shots: 1, dmg: 3, regen: 0, perk: 'pierce' },
+  koenig: { hearts: 4, speed: 1.35, rate: 0.28, shots: 2, dmg: 2, regen: 15, perk: 'homing' },
+  nova: { hearts: 4, speed: 1.4, rate: 0.26, shots: 2, dmg: 2.2, regen: 0, perk: 'nova' },
+  quanten: { hearts: 4, speed: 1.5, rate: 0.25, shots: 2, dmg: 2.75, regen: 18, perk: 'phase' },
+  uni: { hearts: 5, speed: 1.45, rate: 0.26, shots: 2, dmg: 2.9, regen: 12, perk: 'orbit', drones: 2 },
+  rochen: { hearts: 5, speed: 1.55, rate: 0.24, shots: 2, dmg: 3.2, regen: 0, perk: 'split' },
+  phoenix: { hearts: 5, speed: 1.5, rate: 0.24, shots: 2, dmg: 3.4, regen: 0, perk: 'burn', perk2: 'rebirth' },
+  hammer: { hearts: 5, speed: 1.4, rate: 0.45, shots: 1, dmg: 14, regen: 0, perk: 'quake' },
+  zwilling: { hearts: 5, speed: 1.55, rate: 0.24, shots: 2, dmg: 3.6, regen: 0, perk: 'homing', perk2: 'wing' },
+  gravitron: { hearts: 6, speed: 1.45, rate: 0.24, shots: 2, dmg: 4.2, regen: 15, perk: 'pierce', perk2: 'gravity' },
+  spektral: { hearts: 6, speed: 1.65, rate: 0.2, shots: 2, dmg: 4, regen: 0, perk: 'phase', perk2: 'timeslow' },
+  segler: { hearts: 6, speed: 1.5, rate: 0.1, shots: 1, dmg: 6, regen: 12, perk: 'beam' },
+  schatten: { hearts: 7, speed: 1.6, rate: 0.2, shots: 2, dmg: 4.6, regen: 0, perk: 'homing', perk2: 'clone' },
+  drache: { hearts: 7, speed: 1.5, rate: 0.22, shots: 3, dmg: 4.6, regen: 12, perk: 'burn', perk2: 'breath' },
+  omega: { hearts: 8, speed: 1.7, rate: 0.2, shots: 3, dmg: 5.4, regen: 10, perk: 'omega', perk2: 'timeslow', drones: 2 },
+  frostwal: { hearts: 6, speed: 1.3, rate: 0.26, shots: 3, dmg: 3.2, regen: 14, perk: 'freeze', perk2: 'frostaura' },
+  lindwurm: { hearts: 6, speed: 1.5, rate: 0.22, shots: 2, dmg: 3.8, regen: 0, perk: 'chain' },
+  hydra: { hearts: 6, speed: 1.5, rate: 0.24, shots: 5, dmg: 3.2, regen: 0, perk: 'homing' },
+  regenbogen: { hearts: 5, speed: 1.75, rate: 0.22, shots: 3, dmg: 3.8, regen: 0, perk: 'prism' },
+  kaiserbrecher: { hearts: 7, speed: 1.55, rate: 0.22, shots: 3, dmg: 5, regen: 10, perk: 'nova', drones: 4 },
+  beepbuggy: { hearts: 3, speed: 1.25, rate: 0.23, shots: 1, dmg: 1.05, regen: 0 },
+  cloudcoupe: { hearts: 3, speed: 1.55, rate: 0.2, shots: 1, dmg: 1.5, regen: 0, perk2: 'dash' },
+  shadowspeeder: { hearts: 4, speed: 1.4, rate: 0.26, shots: 2, dmg: 2.6, regen: 0, perk: 'pierce' },
+  chromewasp: { hearts: 5, speed: 1.5, rate: 0.22, shots: 2, dmg: 3.6, regen: 14, perk: 'homing' },
+  apexflash: { hearts: 7, speed: 1.62, rate: 0.2, shots: 3, dmg: 4.8, regen: 11, perk: 'homing', perk2: 'pulse' },
 };
+
+export function clampUpgrades(raw?: Partial<VersusUpgrades> | null): VersusUpgrades {
+  const src = raw || {};
+  return {
+    heart: Math.max(0, Math.min(VERSUS_UP_MAX.heart, Math.floor(Number(src.heart) || 0))),
+    rate: Math.max(0, Math.min(VERSUS_UP_MAX.rate, Math.floor(Number(src.rate) || 0))),
+    dmg: Math.max(0, Math.min(VERSUS_UP_MAX.dmg, Math.floor(Number(src.dmg) || 0))),
+    dur: Math.max(0, Math.min(VERSUS_UP_MAX.dur, Math.floor(Number(src.dur) || 0))),
+    mag: Math.max(0, Math.min(VERSUS_UP_MAX.mag, Math.floor(Number(src.mag) || 0))),
+  };
+}
+
+export function packUps(raw?: Partial<VersusUpgrades> | null): string {
+  const u = clampUpgrades(raw);
+  return `${u.heart},${u.rate},${u.dmg},${u.dur},${u.mag}`;
+}
+
+export function unpackUps(raw?: string | null): VersusUpgrades {
+  const parts = String(raw || '').split(/[,\s]+/);
+  return clampUpgrades({
+    heart: parseInt(parts[0] || '0', 10),
+    rate: parseInt(parts[1] || '0', 10),
+    dmg: parseInt(parts[2] || '0', 10),
+    dur: parseInt(parts[3] || '0', 10),
+    mag: parseInt(parts[4] || '0', 10),
+  });
+}
+
+export function statsForShip(shipId: string, rawUps?: Partial<VersusUpgrades> | null) {
+  const d = SHIP_COMBAT[String(shipId || 'starter')] || SHIP_COMBAT.starter;
+  const u = clampUpgrades(rawUps);
+  return {
+    hearts: (d.hearts || 3) + Math.min(1, u.heart),
+    speed: d.speed,
+    rate: d.rate * (1 - 0.12 * Math.min(3, u.rate) - 0.06 * Math.max(0, u.rate - 3)),
+    shots: d.shots,
+    dmg: d.dmg * (1 + 0.25 * u.dmg),
+    regen: d.regen,
+    perk: d.perk || '',
+    perk2: d.perk2 || '',
+    drones: d.drones || (d.perk === 'orbit' ? 2 : 0),
+  };
+}
+
+export function shipCombatPower(shipId: string, rawUps?: Partial<VersusUpgrades> | null): number {
+  const st = statsForShip(shipId, rawUps);
+  const fire = 1 / Math.max(0.08, st.rate);
+  const perk = (st.perk ? 35 : 0) + (st.perk2 ? 25 : 0) + (st.regen > 0 ? 20 : 0) + (st.drones || 0) * 12;
+  return Math.max(1, Math.round(st.hearts * 35 + st.dmg * 28 + fire * 8 + st.speed * 40 + st.shots * 22 + perk));
+}
+
+export function pairingScore(power: number, rating: number = VERSUS_ELO_START): number {
+  return Math.max(0, Math.round((power || 0) + VERSUS_ELO_WEIGHT * (clampElo(rating) - VERSUS_ELO_START)));
+}
 
 export function utcDayKeyFromMicros(micros: bigint | number): number {
   const ms = Math.floor(Number(micros) / 1000);
@@ -36,14 +141,12 @@ export function clampElo(n: number): number {
   return Math.max(VERSUS_ELO_MIN, Math.min(VERSUS_ELO_MAX, v));
 }
 
-export function shipPower(shipId: string): number {
-  const id = String(shipId || 'starter');
-  return SHIP_POWER[id] !== undefined ? SHIP_POWER[id] : 20;
+export function shipPower(shipId: string, rawUps?: Partial<VersusUpgrades> | null): number {
+  return shipCombatPower(shipId, rawUps);
 }
 
-export function fallbackStrength(unlockedLevel: number, shipId: string): number {
-  const lvl = Math.max(1, Math.min(100, Math.floor(unlockedLevel) || 1));
-  return clampElo(VERSUS_ELO_START + (lvl - 1) * 30 + shipPower(shipId));
+export function fallbackStrength(_unlockedLevel: number, shipId: string, rawUps?: Partial<VersusUpgrades> | null): number {
+  return pairingScore(shipCombatPower(shipId || 'starter', rawUps), VERSUS_ELO_START);
 }
 
 export function effectiveStrength(opts: {
@@ -51,11 +154,10 @@ export function effectiveStrength(opts: {
   matches?: number;
   unlockedLevel?: number;
   shipId?: string;
+  upgrades?: Partial<VersusUpgrades> | null;
 }): number {
-  const matches = Math.max(0, (opts.matches || 0) | 0);
   const rating = clampElo(opts.rating ?? VERSUS_ELO_START);
-  if (matches > 0) return rating;
-  return fallbackStrength(opts.unlockedLevel || 1, opts.shipId || 'starter');
+  return pairingScore(shipCombatPower(opts.shipId || 'starter', opts.upgrades), rating);
 }
 
 export function expectedScore(ratingA: number, ratingB: number): number {

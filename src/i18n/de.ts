@@ -155,7 +155,7 @@ export const de: Translations = {
   versusBack: 'Zurück',
   versusPrize: 'Der Sieger bekommt {n} Münzen.',
   versusDisconnect: 'Rivale ist weg — du gewinnst!',
-  versusFair: 'Gleiche Herzen für beide. Shop-Boosts pausieren in diesem Duell.',
+  versusFair: 'Dein Schiff, deine Herzen. Extra-Herz und Upgrades bleiben an.',
   versusYouScore: 'Du {you} – {them} {name}',
   versusRoundN: 'Runde {n}/3',
   versusRival: 'Rivale',

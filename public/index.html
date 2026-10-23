@@ -3959,22 +3959,37 @@
   function versusOn() { return !!(typeof net !== "undefined" && net && net.versus); }
   function vsApi() { return window.__weltraum && window.__weltraum.versus; }
   function maxSeats() { return versusOn() ? ((vsApi() && vsApi().VERSUS_MAX_PLAYERS) || 2) : MAX_PLAYERS; }
-  function applyVersusFair() {
-    var fair = vsApi() && vsApi().versusFairStats ? vsApi().versusFairStats() : { hearts: 4, dmg: 2, shots: 1, rate: 0.28, speed: 1, hitR: 22, perk: "", perk2: "", regen: 0, drones: 0, dur: 1, magR: 0 };
-    function apply(st) { return Object.assign({}, st || {}, fair, { perk: "", perk2: "", regen: 0, drones: 0, magR: 0 }); }
-    curStats = apply(curStats);
-    MAXLIVES = fair.hearts;
-    lives = fair.hearts;
-    shield = false;
-    regenT = 0;
-    others.forEach(function (o) {
-      o.stats = apply(o.stats);
-      o.lives = fair.hearts;
-      o.shield = false;
-      o.regenT = 0;
+  function versusUpsNow() {
+    var u = (typeof shop !== "undefined" && shop && shop.up) ? shop.up : {};
+    return vsApi() && vsApi().clampUpgrades ? vsApi().clampUpgrades(u) : { heart: u.heart | 0, rate: u.rate | 0, dmg: u.dmg | 0, dur: u.dur | 0, mag: u.mag | 0 };
+  }
+  function versusStatsFor(shipId, ups, fallback) {
+    var api = vsApi();
+    if (api && api.statsForShip) return api.statsForShip(shipId || "starter", ups || versusUpsNow());
+    if (fallback) return cleanStats(fallback);
+    return (typeof shipStats === "function") ? shipStats() : { hearts: 3, dmg: 1, shots: 1, rate: 0.25, speed: 1, hitR: 22, perk: "", perk2: "", regen: 0, drones: 0, dur: 1, magR: 0 };
+  }
+  function versusMaxLives(st) {
+    return Math.max(1, (st && st.hearts) || 3);
+  }
+  function applyVersusLoadouts() {
+    curStats = versusStatsFor(curShip().id, versusUpsNow(), (typeof shipStats === "function") ? shipStats() : curStats);
+    MAXLIVES = versusMaxLives(curStats);
+    lives = MAXLIVES;
+    shield = curStats.regen > 0;
+    regenT = curStats.regen || 0;
+    others.forEach(function (o, i) {
+      if (!o) return;
+      var g = guestByPid(i + 2);
+      var st = g && g.stats ? g.stats : versusStatsFor(g && g.ship, g && g.ups, o.stats);
+      o.stats = st;
+      o.lives = versusMaxLives(st);
+      o.shield = !!(st && st.regen);
+      o.regenT = (st && st.regen) || 0;
     });
     paintVsHud();
   }
+  function applyVersusFair() { applyVersusLoadouts(); }
   function spawnVersusWave() {
     var side = vsApi() && vsApi().spawnSide ? vsApi().spawnSide(Math.floor(levelTime * 2)) : (Math.random() < 0.5 ? 1 : 2);
     var r = rnd(20, 34);
@@ -4031,9 +4046,13 @@
   function versusMyStrength() {
     if (net.vsStrength) return net.vsStrength;
     var api = vsApi();
-    var unlocked = (typeof progress !== "undefined" && progress && progress.unlocked) || 1;
     var ship = (typeof curShip === "function" && curShip()) ? curShip().id : "starter";
-    return api && api.fallbackStrength ? api.fallbackStrength(unlocked, ship) : (1000 + Math.max(0, unlocked - 1) * 30);
+    var power = api && api.shipCombatPower ? api.shipCombatPower(ship, versusUpsNow()) : 220;
+    return api && api.pairingScore ? api.pairingScore(power, VERSUS_ELO_START_SAFE()) : power;
+  }
+  function VERSUS_ELO_START_SAFE() { return (vsApi() && vsApi().VERSUS_ELO_START) || 1000; }
+  function refreshVersusListing() {
+    if (versusOn() && net.role === "host" && !net.inGame && net.code) pushRoomListing();
   }
   function versusMatchId() {
     var api = vsApi();
@@ -4067,10 +4086,10 @@
       s.y = api && api.versusHomeY ? api.versusHomeY(pid, H, shipBottom()) : (pid === 2 ? shipBottom() : H - shipBottom());
     }
     if (ship) park(1, ship);
-    lives = (vsApi() && vsApi().VERSUS_HEARTS) || 4;
+    lives = versusMaxLives(curStats);
     others.forEach(function (o, i) {
       if (!o) return;
-      o.lives = (vsApi() && vsApi().VERSUS_HEARTS) || 4;
+      o.lives = versusMaxLives(o.stats);
       o.invuln = 0.6;
       park(i + 2, o.ship);
     });
@@ -4288,7 +4307,7 @@
   function cleanStats(s) {
     s = s || {};
     return { hitR: clampNum(s.hitR, 10, 30, 22), perk: ["", "small", "freeze", "burn", "blast", "pierce", "homing", "nova", "phase", "orbit", "split", "quake", "beam", "omega", "chain", "prism"].indexOf(s.perk) >= 0 ? s.perk : "",
-      perk2: ["", "rebirth", "wing", "gravity", "timeslow", "clone", "breath", "frostaura"].indexOf(s.perk2) >= 0 ? s.perk2 : "", drones: Math.round(clampNum(s.drones, 0, 4, 0)),
+      perk2: ["", "rebirth", "wing", "gravity", "timeslow", "clone", "breath", "frostaura", "dash", "pulse"].indexOf(s.perk2) >= 0 ? s.perk2 : "", drones: Math.round(clampNum(s.drones, 0, 4, 0)),
       hearts: Math.round(clampNum(s.hearts, 1, 10, 3)), speed: clampNum(s.speed, 0.5, 2, 1), rate: clampNum(s.rate, 0.05, 1, 0.25), shots: Math.round(clampNum(s.shots, 1, 5, 1)),
       dmg: clampNum(s.dmg, 0.5, 40, 1), dur: clampNum(s.dur, 1, 2, 1), magR: clampNum(s.magR, 0, 240, 0), regen: clampNum(s.regen, 0, 30, 0) };
   }
@@ -4684,7 +4703,7 @@
     return (n && n.name) || ("P" + (net.myPid || 1));
   }
   function sendHello() {
-    netSend({ t: "hello", v: NET_VERSION, ship: curShip().id, stats: curStats || shipStats(), name: myPilotName() });
+    netSend({ t: "hello", v: NET_VERSION, ship: curShip().id, stats: shipStats(), ups: versusUpsNow(), name: myPilotName() });
   }
   function armJoinWait(ms) {
     clearTimeout(net.joinTimer);
@@ -4914,7 +4933,10 @@
         var helloPeer = guestPeerId(g);
         var dup = net.guests.some(function (q) { return q !== g && q.ok && ((helloPeer && guestPeerId(q) === helloPeer) || (m.name && q.name && q.name === String(m.name).slice(0, 16))); });
         if (dup || (net.peer && helloPeer && helloPeer === net.peer.id)) { guestLeft(g); return; }
-        g.ship = SHIP_BY[m.ship] ? m.ship : "starter"; g.stats = cleanStats(m.stats); g.ok = true; net.connected = true;
+        g.ship = SHIP_BY[m.ship] ? m.ship : "starter";
+        g.ups = m.ups || {};
+        g.stats = versusStatsFor(g.ship, g.ups, m.stats);
+        g.ok = true; net.connected = true;
         g.name = String(m.name || "").slice(0, 16) || ("P" + g.pid);
         net.gShip = g.ship; net.gStats = g.stats;
         var coopH = coopApi();
@@ -6359,7 +6381,7 @@
       shopToast("🎁 " + tr("tips.nowYours", { name: shipNameOf(d) }), "good"); celebrate(); renderShop(); achCheck && achCheck();
       flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]')); return;
     }
-    if (owned) { shop.equipped = shopSel; saveShop(); curStats = shipStats(); if (window.__weltraum && window.__weltraum.onEquipShip) window.__weltraum.onEquipShip(shopSel); shopToast("✅ " + tr("tips.nowEquipped", { name: shipNameOf(d) }), "good"); SFX.level(); renderShop(); flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]')); return; }
+    if (owned) { shop.equipped = shopSel; saveShop(); curStats = shipStats(); if (window.__weltraum && window.__weltraum.onEquipShip) window.__weltraum.onEquipShip(shopSel); refreshVersusListing(); shopToast("✅ " + tr("tips.nowEquipped", { name: shipNameOf(d) }), "good"); SFX.level(); renderShop(); flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]')); return; }
     if (shop.coins < d.price) { notEnough(d.price); return; }
     shop.coins -= d.price; shop.owned.push(shopSel); saveShop();
     shop.equipped = shopSel; saveShop(); curStats = shipStats();
@@ -8307,7 +8329,10 @@
       return {
         versus: !!net.versus, kind: net.vsKind, wins: net.vsWins.slice(), round: net.vsRound, settled: !!net.vsSettled,
         hud: $("vsHud") && $("vsHud").textContent, p1y: ship && Math.round(ship.y), p2y: others[0] && others[0].ship && Math.round(others[0].ship.y),
-        hearts: [lives, others[0] && others[0].lives], fair: curStats && { hearts: curStats.hearts, dmg: curStats.dmg, perk: curStats.perk || "" },
+        hearts: [lives, others[0] && others[0].lives],
+        looks: [net.looks[1] || (curShip() && curShip().id), net.looks[2] || (others[0] && others[0].stats && others[0].stats.sid) || null],
+        ships: [net.looks[1] || (curShip() && curShip().id), net.looks[2] || null],
+        fair: curStats && { hearts: curStats.hearts, dmg: curStats.dmg, perk: curStats.perk || "", speed: curStats.speed, rate: curStats.rate },
         buttons: !!(!document.getElementById("onVersus") || !document.getElementById("onVersus").classList.contains("hidden")),
         title: $("vsTitle") && $("vsTitle").textContent,
         score: $("vsScore") && $("vsScore").textContent,
@@ -8389,7 +8414,7 @@
     fingers: function () { return [Object.keys(fireFingers).length, !!kb.fire, fireCooldown, state]; },
     resetPerkStats: function () { shotsFired = 0; perkCount = { chill: 0, burn: 0, blast: 0, pierce: 0 }; hits = 0; },
     missionAdd: function (st, n) { missionAdd(st, n); },
-    setShip: function (id) { if (shop.owned.indexOf(id) < 0) shop.owned.push(id); shop.equipped = id; saveShop(); curStats = shipStats(); if (shopOpen) { shopSel = id; renderShop(); } },
+    setShip: function (id) { if (shop.owned.indexOf(id) < 0) shop.owned.push(id); shop.equipped = id; saveShop(); curStats = shipStats(); if (window.__weltraum && window.__weltraum.onEquipShip) window.__weltraum.onEquipShip(id); if (shopOpen) { shopSel = id; renderShop(); } refreshVersusListing(); },
     roadsterBoost: function (flip) { return requestRoadsterBoost(!!flip); },
     roadsterBoostState: function () {
       var s = myRoadsterShip();

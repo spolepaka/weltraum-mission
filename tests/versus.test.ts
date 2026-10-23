@@ -14,7 +14,6 @@ import {
   utcDayKey,
   validateVersusReport,
   versusAimSign,
-  versusFairStats,
   versusHomeY,
   youThemScore,
   iWonMatch,
@@ -24,8 +23,10 @@ import {
   filterVersusByStrength,
   matchBand,
   withinBand,
+  pairingScore,
+  shipCombatPower,
+  statsForShip,
   VERSUS_ELO_START,
-  VERSUS_HEARTS,
   VERSUS_PRIZE,
 } from '../src/lib/versus';
 import {
@@ -39,13 +40,18 @@ import {
 } from '../src/lib/versus-queue';
 
 describe('versus pairing and fairness', () => {
-  it('normalizes both sides to the same hearts and no shop perks', () => {
-    const fair = versusFairStats();
-    expect(fair.hearts).toBe(VERSUS_HEARTS);
-    expect(fair.perk).toBe('');
-    expect(fair.perk2).toBe('');
-    expect(fair.regen).toBe(0);
-    expect(fair.dmg).toBe(2);
+  it('keeps each ship\'s real hearts, damage, and upgrades', () => {
+    const starter = statsForShip('starter');
+    const titan = statsForShip('titan', { heart: 1, dmg: 2 });
+    expect(starter.hearts).toBe(3);
+    expect(starter.dmg).toBe(1);
+    expect(titan.hearts).toBe(5);
+    expect(titan.dmg).toBeCloseTo(1.25 * 1.5);
+    expect(titan.perk).toBe('');
+    expect(statsForShip('phoenix').perk2).toBe('rebirth');
+    expect(statsForShip('cloudcoupe').perk2).toBe('dash');
+    expect(shipCombatPower('omega')).toBeGreaterThan(shipCombatPower('starter') + 200);
+    expect(pairingScore(800, 1400) - pairingScore(800, 1000)).toBeLessThan(shipCombatPower('omega') - shipCombatPower('starter'));
   });
 
   it('pairs the two oldest fresh quick waiters', () => {
@@ -151,7 +157,8 @@ describe('versus score and prize', () => {
     expect(withinBand(1000, 1800, 0)).toBe(false);
     expect(withinBand(1000, 1800, 80_000)).toBe(true);
     expect(matchBand(0)).toBeLessThan(200);
-    expect(fallbackStrength(1, 'starter')).toBe(VERSUS_ELO_START);
+    expect(fallbackStrength(1, 'starter')).toBe(pairingScore(shipCombatPower('starter'), VERSUS_ELO_START));
+    expect(shipCombatPower('starter', { heart: 1 })).toBeGreaterThan(shipCombatPower('starter'));
     const elo = eloUpdate(1000, 1000, true);
     expect(elo.a).toBeGreaterThan(1000);
     expect(elo.b).toBeLessThan(1000);

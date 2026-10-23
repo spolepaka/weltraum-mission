@@ -41,8 +41,12 @@ type GameWin = Window & {
       inGame?: boolean;
       rematchMe?: boolean;
       rematchThem?: boolean;
+      ships?: Array<string | null>;
+      looks?: Array<string | null>;
+      hearts?: Array<number | null | undefined>;
     };
     forceVersusRound?: (pid: number) => { wins: number[]; settled: boolean; inGame: boolean };
+    setShip?: (id: string) => void;
     setVersusStrength?: (n: number) => number;
     setVersusWaitMs?: (n: number) => number;
     clickVersusRematch?: () => { me: boolean; them: boolean };
@@ -305,25 +309,51 @@ describe('versus join → approve → match (two browsers)', { timeout: 240000 }
     await guest.context.close();
   });
 
+  it('uses each player\'s real ship and hearts in the arena', async () => {
+    const host = await openGame(true);
+    const guest = await openGame(false);
+    await host.page.evaluate(() => (window as GameWin).__spaceGame?.setShip?.('starter'));
+    await guest.page.evaluate(() => (window as GameWin).__spaceGame?.setShip?.('titan'));
+    await joinApprovedMatch(host, guest);
+    await host.page.waitForTimeout(800);
+    const hostInfo = await host.page.evaluate(() => (window as GameWin).__spaceGame?.versusInfo?.());
+    const guestInfo = await guest.page.evaluate(() => (window as GameWin).__spaceGame?.versusInfo?.());
+    const hostNet = await host.page.evaluate(() => (window as GameWin).__spaceGame?.net?.());
+    expect(hostNet?.lookP1 || hostInfo?.ships?.[0]).toBe('starter');
+    expect(hostNet?.lookP2 || hostInfo?.ships?.[1]).toBe('titan');
+    expect(hostInfo?.hearts?.[0]).toBe(3);
+    expect(hostInfo?.hearts?.[1]).toBe(4);
+    expect((guestInfo?.hearts?.[0] || 0)).toBeGreaterThanOrEqual(3);
+    await host.page.screenshot({ path: join(SHOT_DIR, 'versus_real_ship_host_1024x768.png') });
+    await guest.page.screenshot({ path: join(SHOT_DIR, 'versus_real_ship_guest_1024x768.png') });
+    await host.context.close();
+    await guest.context.close();
+  });
+
   it('hides far-apart public rivals until wait expands, but shows similar ones', async () => {
     const host = await openGame(true);
     const guest = await openGame(false);
     const code = await hostPublicDuel(host.page);
+    const band = await guest.page.evaluate(() => {
+      const api = (window as Window & { __weltraum?: { versus?: { pairingScore: (p: number, r: number) => number; shipCombatPower: (id: string) => number } } }).__weltraum?.versus;
+      const near = api ? api.pairingScore(api.shipCombatPower('starter'), 1000) : 230;
+      return { near, far: near + 700 };
+    });
     await guest.page.click('#onlineBtn');
     await guest.page.waitForSelector('#onDuelRows', { timeout: 10000 });
-    await guest.page.evaluate(() => (window as GameWin).__spaceGame?.setVersusStrength?.(1800));
+    await guest.page.evaluate((n) => (window as GameWin).__spaceGame?.setVersusStrength?.(n), band.far);
     await guest.page.evaluate(() => (window as GameWin).__spaceGame?.setVersusWaitMs?.(0));
     const far = await guest.page.evaluate(() => (window as GameWin).__spaceGame?.paintVersusListNow?.() || []);
     expect(far.some((r) => r.code === code)).toBe(false);
 
-    await guest.page.evaluate(() => (window as GameWin).__spaceGame?.setVersusStrength?.(1020));
+    await guest.page.evaluate((n) => (window as GameWin).__spaceGame?.setVersusStrength?.(n), band.near);
     const near = await guest.page.evaluate(() => (window as GameWin).__spaceGame?.paintVersusListNow?.() || []);
     expect(near.some((r) => r.code === code)).toBe(true);
 
-    await guest.page.evaluate(() => {
-      (window as GameWin).__spaceGame?.setVersusStrength?.(1800);
+    await guest.page.evaluate((n) => {
+      (window as GameWin).__spaceGame?.setVersusStrength?.(n);
       (window as GameWin).__spaceGame?.setVersusWaitMs?.(80_000);
-    });
+    }, band.far);
     const later = await guest.page.evaluate(() => (window as GameWin).__spaceGame?.paintVersusListNow?.() || []);
     expect(later.some((r) => r.code === code)).toBe(true);
 

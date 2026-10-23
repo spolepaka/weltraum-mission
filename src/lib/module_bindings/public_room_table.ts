@@ -22,4 +22,6 @@ export default __t.row({
   rating: __t.u32(),
   strength: __t.u32(),
   queuedAtUs: __t.u64().name("queued_at_us"),
+  ship: __t.string(),
+  shipPower: __t.u32().name("ship_power"),
 });

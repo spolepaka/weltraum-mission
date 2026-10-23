@@ -13,10 +13,14 @@ import {
   cleanVersusMatchId,
   effectiveStrength,
   eloUpdate,
+  packUps,
   prizeToAward,
+  shipCombatPower,
+  unpackUps,
   validateVersusReport,
   VERSUS_ELO_START,
   VERSUS_QUEUE_TTL_US,
+  type VersusUpgrades,
   withinBand,
 } from './versus';
 import {
@@ -382,6 +386,8 @@ const spacetimedb = schema({
       rating: t.u32().default(1000),
       strength: t.u32().default(0),
       queuedAtUs: t.u64().default(0n),
+      ship: t.string().default('starter'),
+      shipPower: t.u32().default(0),
     }
   ),
 
@@ -403,6 +409,10 @@ const spacetimedb = schema({
       rating: t.u32().default(1000),
       strength: t.u32().default(0),
       queuedAtUs: t.u64().default(0n),
+      shipPower: t.u32().default(0),
+      guestShipPower: t.u32().default(0),
+      hostUps: t.string().default(''),
+      guestUps: t.string().default(''),
     }
   ),
 
@@ -2794,18 +2804,59 @@ function timestampMicros(ts: { microsSinceUnixEpoch?: bigint; __timestamp_micros
   return Number.isFinite(n) ? n : 0;
 }
 
-function senderVersusMeta(ctx: AnyCtx): { rating: number; strength: number } {
-  const row = ctx.db.versusRating.identity.find(ctx.sender);
-  const prog = ctx.db.playerProgress.identity.find(ctx.sender);
+function senderOwnedShips(ctx: AnyCtx): Set<string> {
+  const owned = new Set<string>(['starter']);
+  for (const row of ctx.db.ownedShip.identity.filter(ctx.sender)) {
+    if (row.shipId) owned.add(row.shipId);
+  }
+  return owned;
+}
+
+function senderUpgrades(ctx: AnyCtx): VersusUpgrades {
+  const ups: VersusUpgrades = { heart: 0, rate: 0, dmg: 0, dur: 0, mag: 0 };
+  for (const row of ctx.db.playerUpgrades.identity.filter(ctx.sender)) {
+    const id = String(row.upgradeId || '');
+    const level = Math.max(0, Math.floor(Number(row.level) || 0));
+    if (id === 'heart') ups.heart = level;
+    else if (id === 'rate') ups.rate = level;
+    else if (id === 'dmg') ups.dmg = level;
+    else if (id === 'dur') ups.dur = level;
+    else if (id === 'mag') ups.mag = level;
+  }
+  return ups;
+}
+
+function senderResolvedShip(ctx: AnyCtx, claimed?: string): string {
   const shop = ctx.db.playerShop.identity.find(ctx.sender);
+  const equipped = validateShip(shop?.equippedShip || '') ? shop!.equippedShip : 'starter';
+  const owned = senderOwnedShips(ctx);
+  const want = claimed && validateShip(claimed) ? claimed : equipped;
+  if (owned.has(want)) return want;
+  if (owned.has(equipped)) return equipped;
+  return 'starter';
+}
+
+function senderVersusMeta(ctx: AnyCtx, claimedShip?: string): {
+  rating: number;
+  strength: number;
+  ship: string;
+  shipPower: number;
+  ups: VersusUpgrades;
+  upsPacked: string;
+} {
+  const row = ctx.db.versusRating.identity.find(ctx.sender);
+  const ship = senderResolvedShip(ctx, claimedShip);
+  const ups = senderUpgrades(ctx);
   const rating = row?.rating || VERSUS_ELO_START;
-  const strength = effectiveStrength({
+  const power = shipCombatPower(ship, ups);
+  return {
     rating,
-    matches: row?.matches || 0,
-    unlockedLevel: prog?.unlockedLevel || 1,
-    shipId: shop?.equippedShip || 'starter',
-  });
-  return { rating, strength };
+    ship,
+    shipPower: power,
+    ups,
+    upsPacked: packUps(ups),
+    strength: effectiveStrength({ rating, shipId: ship, upgrades: ups }),
+  };
 }
 
 function sweepStalePublicRooms(ctx: AnyCtx): void {
@@ -2826,7 +2877,7 @@ function upsertPublicRoom(ctx: AnyCtx, code: string, hostName: string, level: nu
   const isVersus = !!versus;
   const cap = isVersus ? 2 : 5;
   const nowUs = timestampMicros(ctx.timestamp as { microsSinceUnixEpoch?: bigint });
-  const meta = isVersus ? senderVersusMeta(ctx) : { rating: VERSUS_ELO_START, strength: 0 };
+  const meta = isVersus ? senderVersusMeta(ctx) : { rating: VERSUS_ELO_START, strength: 0, ship: 'starter', shipPower: 0 };
   const queuedAtUs = existing && Number(existing.queuedAtUs || 0) > 0
     ? existing.queuedAtUs
     : BigInt(nowUs || 0);
@@ -2842,6 +2893,8 @@ function upsertPublicRoom(ctx: AnyCtx, code: string, hostName: string, level: nu
     rating: meta.rating,
     strength: meta.strength,
     queuedAtUs,
+    ship: meta.ship || 'starter',
+    shipPower: meta.shipPower || 0,
   };
   if (existing) {
     if (identityKey(existing.hostIdentity) !== identityKey(ctx.sender)) throw new Error('Not your room');
@@ -2904,7 +2957,7 @@ export const listPublicRooms = spacetimedb.procedure(
   (ctx) => {
     return ctx.withTx(txCtx => {
       const now = timestampMicros(txCtx.timestamp as { microsSinceUnixEpoch?: bigint });
-      const rooms: Array<{ code: string; hostName: string; level: number; players: number; versus: boolean; heartbeatMs: number; rating: number; strength: number; queuedAtMs: number }> = [];
+      const rooms: Array<{ code: string; hostName: string; level: number; players: number; versus: boolean; heartbeatMs: number; rating: number; strength: number; queuedAtMs: number; ship: string; shipPower: number }> = [];
       for (const row of [...txCtx.db.publicRoom.iter()]) {
         const beat = timestampMicros(row.heartbeat as { microsSinceUnixEpoch?: bigint; __timestamp_micros_since_unix_epoch__?: bigint });
         if (now && beat && now - beat > ROOM_TTL_US) {
@@ -2924,6 +2977,8 @@ export const listPublicRooms = spacetimedb.procedure(
           rating: row.rating || VERSUS_ELO_START,
           strength: row.strength || 0,
           queuedAtMs: queued > 0 ? Math.floor(queued / 1000) : 0,
+          ship: row.ship || 'starter',
+          shipPower: row.shipPower || 0,
         });
       }
       rooms.sort((a, b) => a.level - b.level || a.hostName.localeCompare(b.hostName));
@@ -2953,11 +3008,10 @@ function upsertVersusQueue(
 ): void {
   sweepStaleVersusQueue(ctx);
   const hex = identityKey(ctx.sender);
-  const ship = validateShip(hostShip) ? hostShip : 'starter';
   const k = kind === 'challenge' ? 'challenge' : 'quick';
   const existing = ctx.db.versusQueue.code.find(code);
   const nowUs = timestampMicros(ctx.timestamp as { microsSinceUnixEpoch?: bigint });
-  const meta = senderVersusMeta(ctx);
+  const meta = senderVersusMeta(ctx, hostShip);
   const queuedAtUs = existing && Number(existing.queuedAtUs || 0) > 0
     ? existing.queuedAtUs
     : BigInt(nowUs || 0);
@@ -2969,7 +3023,7 @@ function upsertVersusQueue(
     guestHex: existing?.guestHex || '',
     hostName: safeRoomName(hostName),
     guestName: existing?.guestName || '',
-    hostShip: ship,
+    hostShip: meta.ship,
     guestShip: existing?.guestShip || '',
     kind: k,
     inMatch: existing ? !!existing.inMatch : false,
@@ -2977,6 +3031,10 @@ function upsertVersusQueue(
     rating: meta.rating,
     strength: meta.strength,
     queuedAtUs,
+    shipPower: meta.shipPower,
+    guestShipPower: existing?.guestShipPower || 0,
+    hostUps: meta.upsPacked,
+    guestUps: existing?.guestUps || '',
   };
   if (existing) {
     if (identityKey(existing.hostIdentity) !== hex) throw new Error('Not your versus room');
@@ -3041,9 +3099,8 @@ export const claimVersusQueue = spacetimedb.reducer(
     const me = identityKey(ctx.sender);
     if (identityKey(row.hostIdentity) === me) return;
     if (row.guestHex && row.guestHex !== me) throw new Error('Versus room taken');
-    const ship = validateShip(guestShip) ? guestShip : 'starter';
+    const guest = senderVersusMeta(ctx, guestShip);
     if (row.kind !== 'challenge') {
-      const guest = senderVersusMeta(ctx);
       const hostStr = row.strength || row.rating || VERSUS_ELO_START;
       const now = timestampMicros(ctx.timestamp as { microsSinceUnixEpoch?: bigint });
       const queued = Number(row.queuedAtUs || 0);
@@ -3063,9 +3120,11 @@ export const claimVersusQueue = spacetimedb.reducer(
       guestIdentity: ctx.sender,
       guestHex: me,
       guestName: safeRoomName(guestName),
-      guestShip: ship,
+      guestShip: guest.ship,
       inMatch: true,
       heartbeat: ctx.timestamp,
+      guestShipPower: guest.shipPower,
+      guestUps: guest.upsPacked,
     });
     console.info(`versus_queue claim ${clean} guest=${me.slice(0, 8)}`);
   }
@@ -3131,8 +3190,16 @@ export const reportVersusResult = spacetimedb.reducer(
     const hostElo = ctx.db.versusRating.identity.find(row.hostIdentity)?.rating || VERSUS_ELO_START;
     const guestElo = ctx.db.versusRating.identity.find(row.guestIdentity)?.rating || VERSUS_ELO_START;
     const next = eloUpdate(hostElo, guestElo, (winnerPid | 0) === 1);
-    writeVersusRating(ctx, row.hostIdentity, next.a, next.a);
-    if (guestHex) writeVersusRating(ctx, row.guestIdentity, next.b, next.b);
+    writeVersusRating(ctx, row.hostIdentity, next.a, effectiveStrength({
+      rating: next.a,
+      shipId: row.hostShip,
+      upgrades: unpackUps(row.hostUps),
+    }));
+    if (guestHex) writeVersusRating(ctx, row.guestIdentity, next.b, effectiveStrength({
+      rating: next.b,
+      shipId: row.guestShip,
+      upgrades: unpackUps(row.guestUps),
+    }));
     console.info(`versus_settle ${id} winner=${winnerHex.slice(0, 8)} prize=${prize}`);
   }
 );
