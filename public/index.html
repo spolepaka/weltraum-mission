@@ -6742,6 +6742,7 @@
   }
   function finishWelcome() {
     $("welcomeScreen").classList.add("hidden");
+    if ($("namePickScreen")) $("namePickScreen").classList.add("hidden");
     var api = onboardApi();
     if (api) api.markWelcome(api.loadOnboard());
     persistOnboard();
@@ -7066,9 +7067,17 @@
     persistOnboard();
     if (window.__weltraum && window.__weltraum.ensureCloud) window.__weltraum.ensureCloud();
   }
+  function namePickBlocked() {
+    if (trainOn || mapTourOn) return true;
+    if (state === "play" || state === "dying" || state === "sucked") return true;
+    if ($("welcomeScreen") && !$("welcomeScreen").classList.contains("hidden")) return true;
+    if ($("onboardScreen") && !$("onboardScreen").classList.contains("hidden")) return true;
+    return false;
+  }
   function maybePickName() {
     var names = window.__weltraum && window.__weltraum.names;
     if (!names) return;
+    if (namePickBlocked()) return;
     if (names.current() && !(names.needsPick && names.needsPick())) return;
     $("namePickTitle").textContent = tr("tips.pickName");
     $("namePickReroll").textContent = tr("account.reroll");
