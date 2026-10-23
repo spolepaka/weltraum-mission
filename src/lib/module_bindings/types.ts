@@ -315,8 +315,8 @@ export const PublicRoom = __t.object("PublicRoom", {
   level: __t.u32(),
   players: __t.u32(),
   inGame: __t.bool(),
-  versus: __t.bool(),
   heartbeat: __t.timestamp(),
+  versus: __t.bool(),
 });
 export type PublicRoom = __Infer<typeof PublicRoom>;
 
