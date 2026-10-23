@@ -368,8 +368,8 @@ const spacetimedb = schema({
       level: t.u32(),
       players: t.u32(),
       inGame: t.bool(),
-      versus: t.bool(),
       heartbeat: t.timestamp(),
+      versus: t.bool().default(false),
     }
   ),
 
@@ -2793,8 +2793,8 @@ function upsertPublicRoom(ctx: AnyCtx, code: string, hostName: string, level: nu
     level: Math.max(1, Math.min(MAX_LEVEL, Math.floor(level) || 1)),
     players: Math.max(1, Math.min(cap, Math.floor(players) || 1)),
     inGame: !!inGame,
-    versus: isVersus,
     heartbeat: ctx.timestamp,
+    versus: isVersus,
   };
   if (existing) {
     if (identityKey(existing.hostIdentity) !== identityKey(ctx.sender)) throw new Error('Not your room');

@@ -48,7 +48,7 @@ describe('versus HTML and module wiring', () => {
     expect(server).toMatch(/versusQueue:\s*table\(\s*\{\s*public:\s*true/);
     expect(server).toContain('versusSettled');
     expect(server).toContain('versusPrizeDay');
-    expect(server).toContain('versus: t.bool()');
+    expect(server).toMatch(/heartbeat:\s*t\.timestamp\(\),\s*versus:\s*t\.bool\(\)\.default\(false\)/);
     expect(server).toContain('export const publishPublicRoom');
     expect(server).toContain('export const publishVersusQueue');
     expect(server).toContain('export const claimVersusQueue');
