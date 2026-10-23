@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GUEST_READY_RETRY_MS,
+  JOIN_APPROVE_WAIT_MS,
   JOIN_RETRY_DELAYS_MS,
   coopShipCount,
   dedupeGuestsByIdentity,
@@ -8,6 +10,7 @@ import {
   nextJoinDelay,
   nextListJoinGen,
   occupancyFromGuests,
+  shouldAbandonQuickHost,
   shouldApplyLocalInput,
   shouldRetryJoin,
 } from '../src/lib/room-join';
@@ -49,6 +52,17 @@ describe('solo host ships', () => {
     ];
     expect(dedupeGuestsByIdentity(guests, 'host-peer')).toEqual([{ ok: true, pid: 2, peerId: 'abc', name: 'Ada' }]);
     expect(occupancyFromGuests(guests, 'host-peer')).toBe(2);
+  });
+
+  it('does not steal a 1 vs 1 host who already has a pending or seated guest', () => {
+    const idle = { versus: true, vsKind: 'quick', role: 'host' as const, connected: false, inGame: false, pendingCount: 0, guestCount: 0, occupancy: 1 };
+    expect(shouldAbandonQuickHost(idle)).toBe(true);
+    expect(shouldAbandonQuickHost({ ...idle, pendingCount: 1 })).toBe(false);
+    expect(shouldAbandonQuickHost({ ...idle, guestCount: 1 })).toBe(false);
+    expect(shouldAbandonQuickHost({ ...idle, occupancy: 2 })).toBe(false);
+    expect(shouldAbandonQuickHost({ ...idle, vsKind: 'challenge' })).toBe(false);
+    expect(GUEST_READY_RETRY_MS[0]).toBe(0);
+    expect(JOIN_APPROVE_WAIT_MS).toBeGreaterThan(15000);
   });
 
   it('does not apply host input to an empty extra seat', () => {

@@ -16,4 +16,5 @@ export default {
   level: __t.u32(),
   players: __t.u32(),
   inGame: __t.bool(),
+  versus: __t.bool(),
 };

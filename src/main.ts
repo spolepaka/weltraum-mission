@@ -887,6 +887,7 @@ function attachCoopStandIn(): void {
       checkJoinAllowed: (id: string) => coop.checkJoinAllowed(id),
       reset: () => coop.resetCoopSecurity(),
       setAsk: (on: boolean) => coop.setHostApprovalRequired(on),
+      setMaxPlayers: (n: number) => coop.setMaxPlayers(n),
       playerJoined: (id?: string) => coop.playerJoined(id),
       playerLeft: (id: string) => coop.playerLeft(id),
       setOccupancy: (n: number) => coop.setOccupancy(n),

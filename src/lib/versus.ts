@@ -119,9 +119,10 @@ export function listingFreshness(heartbeatMs: number | undefined, nowMs = Date.n
   return 'fresh';
 }
 
-export function pickQuickMatch(waiters: VersusWaiter[], myHex: string, nowMs = Date.now()): VersusWaiter | null {
+export function pickQuickMatch(waiters: VersusWaiter[], myHex: string, nowMs = Date.now(), myHeartbeatMs?: number): VersusWaiter | null {
   const ready = waiters
     .filter((w) => w.kind === 'quick' && w.identity !== myHex && listingFreshness(w.heartbeatMs, nowMs) === 'fresh')
+    .filter((w) => !myHeartbeatMs || w.heartbeatMs < myHeartbeatMs)
     .sort((a, b) => a.heartbeatMs - b.heartbeatMs);
   return ready[0] || null;
 }
