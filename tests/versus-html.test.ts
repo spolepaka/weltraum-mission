@@ -17,6 +17,15 @@ describe('versus HTML and module wiring', () => {
     expect(html).toContain('shouldPublishListing');
     expect(html).toContain('id="vsHud"');
     expect(html).toContain('id="vsScreen"');
+    expect(html).toContain('id="vsStats"');
+    expect(html).toContain('id="vsRankBadge"');
+    expect(html).toContain('id="vsEmotes"');
+    expect(html).toContain('id="vsSudden"');
+    expect(html).toContain('function spawnVersusPickup');
+    expect(html).toContain('function sendVersusEmote');
+    expect(html).toContain('function paintVsRank');
+    expect(html).toContain('function paintVsStats');
+    expect(html).toContain('function maybeFinishSuddenDeath');
     expect(html).toContain('function versusOn()');
     expect(html).toContain('function applyVersusLoadouts()');
     expect(html).toContain('function applyVersusFair()');
@@ -75,8 +84,12 @@ describe('versus HTML and module wiring', () => {
     expect(server).toContain('export const claimVersusQueue');
     expect(server).toContain('export const reportVersusResult');
     expect(client).toContain('SELECT * FROM versus_queue');
+    expect(client).toContain('SELECT * FROM versus_rating');
+    expect(client).toContain('getMyVersusRating');
     expect(client).toContain('publishVersusQueue');
     expect(client).toContain('reportVersusResult');
+    expect(server).toMatch(/wins:\s*t\.u32\(\)\.default\(0\)/);
+    expect(html).toContain('t: "em"');
     expect(bindings).toContain("name: 'versus_queue'");
     expect(bindings).toContain("name: 'versus_rating'");
     expect(bindings).toContain('publish_versus_queue');

@@ -318,7 +318,15 @@
   #onVersus { background: rgba(140,40,80,.9); border-color: #ff9ae0; }
   #vsHud { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 6; font-size: 20px; font-weight: bold; background: rgba(20,20,50,.75); border: 2px solid #ff9ae0; border-radius: 14px; padding: 6px 16px; pointer-events: none; }
   #vsIntro { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); z-index: 8; font-size: 42px; font-weight: bold; background: rgba(20,20,60,.88); border: 3px solid #ffd54a; border-radius: 22px; padding: 16px 36px; pointer-events: none; }
+  #vsSudden { position: absolute; left: 50%; top: 32%; transform: translate(-50%, -50%); z-index: 9; font-size: 36px; font-weight: bold; background: rgba(70,10,30,.92); border: 3px solid #ff6a6a; border-radius: 22px; padding: 14px 28px; pointer-events: none; color: #ffe9a8; text-align: center; }
+  #vsEmotes { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 8; display: flex; gap: 8px; }
+  #vsEmotes.hidden { display: none; }
+  #vsEmotes button { min-width: 56px; min-height: 56px; font-size: 28px; border: 2px solid #ffd54a; border-radius: 16px; background: rgba(20,20,50,.82); color: #fff; cursor: pointer; font-family: inherit; }
   #vsScreen .panel { max-width: 520px; }
+  #vsStats { text-align: left; background: rgba(20,20,60,.72); border: 2px solid #7dc8ff; border-radius: 16px; padding: 10px 14px; margin: 10px 0; font-size: 18px; }
+  #vsRankBadge { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 6px 0 10px; font-size: 20px; font-weight: bold; background: rgba(20,20,50,.7); border: 2px solid #ffd54a; border-radius: 18px; padding: 8px 14px; min-height: 48px; }
+  #vsRankBadge .rankHint { font-size: 13px; font-weight: normal; color: #aab4e8; }
+  .rankChip { display: inline-block; margin-right: 6px; }
   #onlineScreen .panel { max-width: 600px; max-height: 92vh; overflow-y: auto; }
   #onCodeShow { font-size: 54px; font-weight: bold; letter-spacing: 10px; color: #ffd54a; text-shadow: 0 0 18px rgba(255,213,74,.6); margin: 4px 0; font-family: "Courier New", monospace; }
   #onCode { font-size: 36px; width: 220px; text-align: center; letter-spacing: 8px; text-transform: uppercase; border-radius: 14px; border: 3px solid #7dc8ff; background: #0b1238; color: #ffd54a; padding: 6px; font-family: "Courier New", monospace; }
@@ -376,6 +384,13 @@
 
 <div id="vsHud" class="hidden">1 vs 1</div>
 <div id="vsIntro" class="hidden">Round 1/3</div>
+<div id="vsSudden" class="hidden">SUDDEN DEATH!</div>
+<div id="vsEmotes" class="hidden">
+  <button type="button" data-em="wave" aria-label="wave">😄</button>
+  <button type="button" data-em="cool" aria-label="cool">😎</button>
+  <button type="button" data-em="wow" aria-label="wow">😱</button>
+  <button type="button" data-em="yay" aria-label="yay">🎉</button>
+</div>
 <div id="hud" class="hidden">
   <div class="box" id="hearts">❤️❤️❤️</div>
   <div class="box" id="coinBox">🪙 <b id="coins">0</b></div>
@@ -503,6 +518,7 @@
       <div id="onRoomList"><div id="onRoomRows"></div>
       <div class="btnRow"><button class="alt" id="onRefreshRooms">Refresh</button></div></div>
       <p id="openDuelsLabel">Public 1 vs 1</p>
+      <div id="vsRankBadge"><span id="vsRankLabel">🤍 New pilot</span></div>
       <div id="onDuelList"><div id="onDuelRows"></div></div>
       <div id="onMenuVisRow" class="small">
         <label><input type="radio" name="onMenuVis" id="onMenuVisPublic" value="public" checked> <span id="onMenuVisPublicLbl">Public</span></label>
@@ -686,10 +702,11 @@
 
 <div id="vsScreen" class="screen hidden">
   <div class="panel">
-    <h1 id="vsTitle">Round over!</h1>
-    <p id="vsScore" style="font-size:28px;font-weight:bold"></p>
-    <p id="vsPrize" style="color:#ffd54a"></p>
-    <div class="btnRow"><button class="big" id="vsRematch">Rematch 🔄</button><button class="big alt" id="vsBack">Back 🗺️</button></div>
+        <h1 id="vsTitle">Round over!</h1>
+        <p id="vsScore" style="font-size:28px;font-weight:bold"></p>
+        <p id="vsPrize" style="color:#ffd54a"></p>
+        <div id="vsStats"></div>
+        <div class="btnRow"><button class="big" id="vsRematch">Rematch 🔄</button><button class="big alt" id="vsBack">Back 🗺️</button></div>
   </div>
 </div>
 
@@ -934,7 +951,9 @@
   var trainOn = false, trainStep = "", trainT = 0, trainMovedL = false, trainMovedR = false, mapTourStep = "", mapTourOn = false, trainStartedAt = 0, lastTrainMs = 0, coachSessionShown = false, justReturnedFromPlay = false;
   var ship = null, bullets = [], rocks = [], ufos = [], bombs = [], stars = [], powers = [], particles = [], boss = null;
   var score = 0, lives = 3, MAXLIVES = 5, time = 0, level = 1, hits = 0, collected = 0, bossesBeaten = 0, lastBossLevel = 0;
-  var spawnTimer = 0, starTimer = 0, ufoTimer = 0, powerTimer = 0, fireCooldown = 0, invuln = 0, shake = 0, msgTimer = 0;
+  var spawnTimer = 0, starTimer = 0, ufoTimer = 0, powerTimer = 0, vsPickupTimer = 0, fireCooldown = 0, invuln = 0, shake = 0, msgTimer = 0;
+  var vsFun = { hits: [0, 0], pickups: [0, 0], bombs: [0, 0], timeSec: 0 };
+  var vsEmotes = [];
   var shield = false, triple = 0, TRIPLE_TIME = 10, laser = 0, LASER_TIME = 6, magnet = 0, MAGNET_TIME = 10;
   var swallows = [], holeWobble = 0, ufoSwallowMsg = 0;
   var holes = [], comets = [], beams = [], holeTimer = 0, cometTimer = 0, holeTipShown = false, holeShootHint = false;
@@ -1027,12 +1046,18 @@
       ship.x = W / (nP + 1);
       for (var pid = 2; pid <= nP; pid++) { var gq = net.role === "host" ? guestByPid(pid) : null; others.push(mkPlayer(pid, gq ? gq.stats : null, nP)); }
     }
-    if (versusOn()) applyVersusFair();
+    if (versusOn()) {
+      applyVersusFair();
+      vsPickupTimer = (vsApi() && vsApi().VERSUS_PICKUP_FIRST) || 5.5;
+      net.vsRoundTime = 0;
+      net.vsSudden = !!(vsApi() && vsApi().isSuddenDeathRound && vsApi().isSuddenDeathRound(net.vsWins[0] || 0, net.vsWins[1] || 0));
+    }
     setupControls();
     ghostStart(L);
     if (typeof resetInput === "function") resetInput();
     state = "play";
     ["overScreen", "winScreen", "helpScreen", "mapHud", "vsScreen"].forEach(function (id) { if ($(id)) $(id).classList.add("hidden"); });
+    if (versusOn()) { paintVsHud(); paintSuddenBanner(!!net.vsSudden); }
     ["hud", "wordBox", "controls", "power"].forEach(function (id) { $(id).classList.remove("hidden"); });
     hideMsg(); updateHud(); updatePower(); updateLevelInfo();
     var shipLine = "<br><span style='font-size:17px;color:#7dffea'>🚀 " + shipNameOf(curShip()) + ": " + (shipPerkOf(curShip()) || "") + "</span>";
@@ -2514,8 +2539,10 @@
         if (!p.dead && hit(p.x, p.y, 22, ship.x, ship.y, sr + 4)) {
           p.dead = true; missionAdd("powers", 1); SFX.power(); explode(p.x, p.y, 24, CYAN);
           if (trainOn && trainStep === "grabPower") trainAdvance();
+          if (versusOn()) noteVersusPickup(curPid, p.type);
           if (p.type === "shield") { shield = true; showMsg("🛡️ " + tr("tips.pwrShield"), "good", 1.2); }
-          else if (p.type === "triple") { triple = TRIPLE_TIME; showMsg("🔱 " + tr("tips.pwrTriple"), "good", 1.2); }
+          else if (p.type === "triple") { triple = TRIPLE_TIME; showMsg("🔱 " + (versusOn() ? tr("versusRapid") : tr("tips.pwrTriple")), "good", 1.2); }
+          else if (p.type === "bomb") { versusPopBomb(ship.x, ship.y, curPid); showMsg("💣 " + tr("versusBomb"), "good", 1.2); }
           else if (p.type === "laser") { laser = LASER_TIME; showMsg("⚡ " + tr("tips.pwrLaser"), "good", 1.2); }
           else if (p.type === "magnet") { magnet = MAGNET_TIME; showMsg("🧲 " + tr("tips.pwrMagnet"), "good", 1.2); }
           else { if (lives < MAXLIVES) lives++; showMsg("❤️ " + tr("tips.pwrHeart"), "good", 1.2); updateHud(); }
@@ -2581,7 +2608,10 @@
     // Spawnen (während des Bosskampfs weniger Asteroiden)
     if (state === "play" && !trainOn && versusOn()) {
       spawnTimer -= dt;
-      if (spawnTimer <= 0) { spawnVersusWave(); spawnTimer = 1.05; }
+      if (spawnTimer <= 0) { spawnVersusWave(); spawnTimer = net.vsSudden && suddenDeathTimedOutNow() ? 0.48 : 1.05; }
+      vsPickupTimer -= dt;
+      if (vsPickupTimer <= 0 && powers.length < 2) { spawnVersusPickup(); vsPickupTimer = (vsApi() && vsApi().VERSUS_PICKUP_EVERY) || 8; }
+      tickVersusFun(dt);
       starTimer = 999; ufoTimer = 999; powerTimer = 999; holeTimer = 999; cometTimer = 999;
     } else if (state === "play" && !trainOn) {
       spawnTimer -= dt * modeTune().spawnRate;
@@ -2881,6 +2911,7 @@
     });
     drawGhost();
     if (ship) { drawPlayerShip(); forOthers(drawPlayerShip); }
+    drawVersusEmotes();
     ctx.restore();
     if (holeFlash > 0) {
       var fg2 = ctx.createRadialGradient(W / 2, H / 2, 10, W / 2, H / 2, Math.max(W, H) * 0.75);
@@ -3497,8 +3528,8 @@
   }
 
   function drawPower(p) {
-    var col = { shield: "#4ec3ff", triple: "#ffd54a", heart: "#ff5a7a", laser: "#d08cff", magnet: "#ff6a6a" }[p.type];
-    var icon = { shield: "🛡️", triple: "🔱", heart: "❤️", laser: "⚡", magnet: "🧲" }[p.type];
+    var col = { shield: "#4ec3ff", triple: "#ffd54a", heart: "#ff5a7a", laser: "#d08cff", magnet: "#ff6a6a", bomb: "#ff9a3a" }[p.type];
+    var icon = { shield: "🛡️", triple: "🔱", heart: "❤️", laser: "⚡", magnet: "🧲", bomb: "💣" }[p.type];
     ctx.save(); ctx.translate(p.x, p.y);
     var s = 1 + Math.sin(p.t * 6) * 0.08; ctx.scale(s, s);
     ctx.shadowColor = col; ctx.shadowBlur = 18;
@@ -4012,6 +4043,7 @@
       function applyHit() {
         if (roadsterSafe()) return;
         if (!b.pierce) b.dead = true;
+        noteVersusHit(shooter);
         hurt(t.x, t.y);
       }
       if (t.pid === 1) { if (curPid === 1) applyHit(); }
@@ -4063,20 +4095,175 @@
     var el = $("vsHud"); if (!el) return;
     if (!versusOn()) { el.classList.add("hidden"); return; }
     el.classList.remove("hidden");
-    el.textContent = versusScoreText(net.vsWins[0] || 0, net.vsWins[1] || 0);
+    var text = versusScoreText(net.vsWins[0] || 0, net.vsWins[1] || 0);
+    if (net.vsSudden) {
+      var left = vsApi() && vsApi().suddenDeathLeft ? vsApi().suddenDeathLeft(net.vsRoundTime || 0) : Math.max(0, 28 - Math.ceil(net.vsRoundTime || 0));
+      text += "  ·  ⚡ " + left + "s";
+    }
+    el.textContent = text;
+    paintVersusEmotesBar();
   }
   function showVersusRoundIntro(n) {
     var el = $("vsIntro"); if (!el) return;
-    el.textContent = tr("versusRoundN", { n: n || 1 });
+    var sudden = vsApi() && vsApi().isSuddenDeathRound ? vsApi().isSuddenDeathRound(net.vsWins[0] || 0, net.vsWins[1] || 0) : ((net.vsWins[0] || 0) === 1 && (net.vsWins[1] || 0) === 1);
+    el.textContent = sudden ? tr("versusSudden") : tr("versusRoundN", { n: n || 1 });
     el.classList.remove("hidden");
     setTimeout(function () { if (el) el.classList.add("hidden"); }, 1600);
-    showMsg("⚔️ " + tr("versusRoundN", { n: n || 1 }), "new", 1.6);
+    showMsg("⚔️ " + (sudden ? tr("versusSudden") : tr("versusRoundN", { n: n || 1 })), sudden ? "bad" : "new", 1.6);
+    paintSuddenBanner(sudden);
+  }
+  function resetVersusFun() {
+    vsFun = { hits: [0, 0], pickups: [0, 0], bombs: [0, 0], timeSec: 0 };
+    vsEmotes = [];
+    net.vsPickupN = 0;
+    net.vsRoundTime = 0;
+    net.vsSudden = false;
+    net.vsFun = vsFun;
+  }
+  function noteVersusHit(pid) {
+    if (!versusOn() || !vsFun) return;
+    if (pid === 2) vsFun.hits[1]++; else vsFun.hits[0]++;
+  }
+  function noteVersusPickup(pid, type) {
+    if (!versusOn() || !vsFun) return;
+    if (pid === 2) vsFun.pickups[1]++; else vsFun.pickups[0]++;
+    if (type === "bomb") { if (pid === 2) vsFun.bombs[1]++; else vsFun.bombs[0]++; }
+  }
+  function tickVersusFun(dt) {
+    if (!versusOn() || state !== "play") return;
+    vsFun.timeSec += dt;
+    net.vsRoundTime = (net.vsRoundTime || 0) + dt;
+    if (vsEmotes.length) {
+      vsEmotes = vsEmotes.filter(function (e) { e.t -= dt; return e.t > 0; });
+    }
+    var leftNow = net.vsSudden ? (vsApi() && vsApi().suddenDeathLeft ? vsApi().suddenDeathLeft(net.vsRoundTime || 0) : Math.max(0, 28 - Math.ceil(net.vsRoundTime || 0))) : -1;
+    if (leftNow !== net.vsHudLeft) { net.vsHudLeft = leftNow; paintVsHud(); }
+    if (net.role === "host" && net.vsSudden) maybeFinishSuddenDeath();
+  }
+  function suddenDeathTimedOutNow() {
+    return vsApi() && vsApi().suddenDeathTimedOut ? vsApi().suddenDeathTimedOut(net.vsRoundTime || 0) : ((net.vsRoundTime || 0) >= 28);
+  }
+  function maybeFinishSuddenDeath() {
+    if (!versusOn() || net.vsSettled || net.role !== "host") return;
+    var lv = allLives();
+    var w = vsApi() && vsApi().suddenDeathWinner ? vsApi().suddenDeathWinner({
+      hostLives: lv[0] || 0, guestLives: lv[1] || 0,
+      hostHits: vsFun.hits[0], guestHits: vsFun.hits[1],
+      timedOut: suddenDeathTimedOutNow()
+    }) : 0;
+    if (w) finishVersusRound(w);
+  }
+  function paintSuddenBanner(on) {
+    var el = $("vsSudden"); if (!el) return;
+    if (!on) { el.classList.add("hidden"); return; }
+    el.innerHTML = tr("versusSudden") + "<div style='font-size:16px;margin-top:6px'>" + tr("versusSuddenHint", { n: (vsApi() && vsApi().VERSUS_SUDDEN_SEC) || 28 }) + "</div>";
+    el.classList.remove("hidden");
+    setTimeout(function () { if (el) el.classList.add("hidden"); }, 1800);
+  }
+  function spawnVersusPickup() {
+    var api = vsApi();
+    var seq = net.vsPickupN = (net.vsPickupN || 0) + 1;
+    var kind = api && api.nextVersusPickup ? api.nextVersusPickup(seq) : (["shield", "rapid", "bomb"][(seq - 1) % 3]);
+    var type = api && api.versusPickupType ? api.versusPickupType(kind) : (kind === "rapid" ? "triple" : kind);
+    var x = api && api.versusPickupLaneX ? api.versusPickupLaneX(seq, W) : Math.round(W * [0.28, 0.5, 0.72][(seq - 1) % 3]);
+    powers.push({ x: x, y: H / 2, type: type, vy: 0, t: 0, vs: 1 });
+  }
+  function versusPopBomb(x, y, ownerPid) {
+    explode(x, y, 28, ["#ff9a3a", "#ffe066", "#ffffff"], 280);
+    if (typeof SFX !== "undefined" && SFX.bigBoom) SFX.bigBoom();
+    shake = 0.28;
+    var R = (vsApi() && vsApi().VERSUS_BOMB_R) || 86;
+    rocks.forEach(function (r) { if (!r.dead && hit(x, y, R, r.x, r.y, r.r)) killRock(r, 4); });
+    livingAimShips().forEach(function (t) {
+      if (t.pid === ownerPid || t.lives <= 0) return;
+      if (!hit(x, y, R, t.x, t.y, 22)) return;
+      function boom() { if (!roadsterSafe()) { noteVersusHit(ownerPid); hurt(t.x, t.y); } }
+      if (t.pid === 1) { if (curPid === 1) boom(); }
+      else asPid(t.pid, boom);
+    });
+  }
+  function sendVersusEmote(id) {
+    if (!versusOn() || !net.inGame) return;
+    var e = vsApi() && vsApi().validVersusEmote ? vsApi().validVersusEmote(id) : id;
+    if (!e) return;
+    if (net.vsEmoteCd && net.vsEmoteCd > (net.vsRoundTime || 0)) return;
+    net.vsEmoteCd = (net.vsRoundTime || 0) + 1.1;
+    var pid = net.role === "guest" ? (net.myPid || 2) : 1;
+    showVersusEmote(pid, e);
+    netSend({ t: "em", e: e, pid: pid });
+  }
+  function showVersusEmote(pid, raw) {
+    var e = vsApi() && vsApi().validVersusEmote ? vsApi().validVersusEmote(raw) : raw;
+    if (!e) return;
+    vsEmotes = vsEmotes.filter(function (x) { return x.pid !== pid; });
+    vsEmotes.push({ pid: pid, e: e, t: (vsApi() && vsApi().VERSUS_EMOTE_SEC) || 2.4 });
+  }
+  function drawVersusEmotes() {
+    if (!versusOn() || !vsEmotes.length) return;
+    var icons = (vsApi() && vsApi().VERSUS_EMOTE_ICON) || { wave: "😄", cool: "😎", wow: "😱", yay: "🎉" };
+    vsEmotes.forEach(function (em) {
+      var pos = null;
+      if (em.pid === 1 && ship) pos = { x: ship.x, y: ship.y };
+      else if (others[em.pid - 2] && others[em.pid - 2].ship) pos = { x: others[em.pid - 2].ship.x, y: others[em.pid - 2].ship.y };
+      if (!pos) return;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, em.t);
+      ctx.font = "32px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(icons[em.e] || "😄", pos.x, pos.y - 46);
+      ctx.restore();
+    });
+  }
+  function paintVersusEmotesBar() {
+    var bar = $("vsEmotes"); if (!bar) return;
+    var show = versusOn() && !!net.inGame && state === "play";
+    bar.classList.toggle("hidden", !show);
+  }
+  function paintVsStats(m) {
+    var box = $("vsStats"); if (!box) return;
+    var fun = (m && m.fun) || vsFun || { hits: [0, 0], pickups: [0, 0], bombs: [0, 0], timeSec: 0 };
+    var iAmHost = net.role === "host";
+    var mine = iAmHost ? 0 : 1;
+    var n = function (arr) { return (arr && arr[mine]) | 0; };
+    box.innerHTML = "<b>" + tr("versusStatsTitle") + "</b><br>" +
+      tr("versusStatsHits", { n: n(fun.hits) }) + "<br>" +
+      tr("versusStatsPickups", { n: n(fun.pickups) }) + "<br>" +
+      tr("versusStatsBombs", { n: n(fun.bombs) }) + "<br>" +
+      tr("versusStatsTime", { n: Math.round(fun.timeSec || 0) });
+  }
+  function versusRankName(rank) {
+    if (rank === "gold") return tr("versusRankGold");
+    if (rank === "silver") return tr("versusRankSilver");
+    if (rank === "bronze") return tr("versusRankBronze");
+    return tr("versusRankUnranked");
+  }
+  function paintVsRank() {
+    var el = $("vsRankBadge"); if (!el) return;
+    var st = stClient();
+    var row = st && st.getMyVersusRating ? st.getMyVersusRating() : null;
+    var rating = row ? row.rating : ((vsApi() && vsApi().VERSUS_ELO_START) || 1000);
+    var matches = row ? row.matches : 0;
+    var wins = row ? row.wins : 0;
+    var rank = vsApi() && vsApi().versusRank ? vsApi().versusRank(rating, matches) : (matches <= 0 ? "unranked" : "bronze");
+    var icon = vsApi() && vsApi().versusRankIcon ? vsApi().versusRankIcon(rank) : "🤍";
+    el.innerHTML = "<span>" + icon + " " + versusRankName(rank) + (matches ? " · " + rating : "") + (wins ? " · " + wins + "W" : "") + "</span>" +
+      "<span class='rankHint'>" + tr("versusRankHint") + "</span>";
+  }
+  function rankChipForRating(rating) {
+    var rank = vsApi() && vsApi().versusRankFromRating ? vsApi().versusRankFromRating(rating || 1000) : "bronze";
+    var icon = vsApi() && vsApi().versusRankIcon ? vsApi().versusRankIcon(rank) : "🥉";
+    return "<span class='rankChip'>" + icon + "</span>";
   }
   function resetVersusArena() {
     applyVersusFair();
     bullets = []; rocks = []; ufos = []; bombs = []; stars = []; powers = []; particles = []; coinsArr = [];
     holes = []; comets = []; beams = []; swallows = []; drones = []; mines = [];
     boss = null; invuln = 0.6;
+    net.vsRoundTime = 0;
+    net.vsSudden = !!(vsApi() && vsApi().isSuddenDeathRound && vsApi().isSuddenDeathRound(net.vsWins[0] || 0, net.vsWins[1] || 0));
+    vsPickupTimer = (vsApi() && vsApi().VERSUS_PICKUP_FIRST) || 5.5;
+    net.vsPickupN = 0;
     state = "play";
     var api = vsApi();
     function park(pid, s) {
@@ -4115,7 +4302,7 @@
     net.vsHostName = names.host; net.vsGuestName = names.guest;
     var over = vsApi() && vsApi().matchOver ? vsApi().matchOver(net.vsWins[0], net.vsWins[1]) : (net.vsWins[0] >= 2 || net.vsWins[1] >= 2);
     var next = vsApi() && vsApi().nextRoundNumber ? vsApi().nextRoundNumber(net.vsWins[0], net.vsWins[1]) : (net.vsWins[0] + net.vsWins[1] + 1);
-    var payload = { t: over ? "vsOver" : "vsRound", w: w, host: net.vsWins[0], guest: net.vsWins[1], over: over ? 1 : 0, next: next, prize: 0, hostName: names.host, guestName: names.guest };
+    var payload = { t: over ? "vsOver" : "vsRound", w: w, host: net.vsWins[0], guest: net.vsWins[1], over: over ? 1 : 0, next: next, prize: 0, hostName: names.host, guestName: names.guest, fun: { hits: vsFun.hits.slice(), pickups: vsFun.pickups.slice(), bombs: vsFun.bombs.slice(), timeSec: vsFun.timeSec } };
     if (over) {
       net.vsSettled = true;
       net.inGame = false;
@@ -4146,6 +4333,9 @@
     $("vsTitle").textContent = m.over ? (iWon ? tr("versusMatchWin") : (m.left ? tr("versusDisconnect") : tr("versusMatchLose"))) : tr("versusRoundOver");
     $("vsScore").textContent = versusScoreText(m.host | 0, m.guest | 0);
     $("vsPrize").textContent = m.over ? tr("versusPrize", { n: (vsApi() && vsApi().VERSUS_PRIZE) || 40 }) : "";
+    paintVsStats(m);
+    if ($("vsEmotes")) $("vsEmotes").classList.add("hidden");
+    if ($("vsSudden")) $("vsSudden").classList.add("hidden");
     $("vsRematch").classList.toggle("hidden", !m.over);
     $("vsRematch").textContent = tr("versusRematch") + " 🔄";
     paintVsHud();
@@ -4158,6 +4348,7 @@
     net.vsWins = [0, 0]; net.vsRound = 1; net.vsSettled = false;
     net.vsRematch = false; net.vsRematchMe = false; net.vsRematchThem = false;
     net.vsMatchN = (net.vsMatchN || 1) + 1;
+    resetVersusFun();
     $("vsScreen").classList.add("hidden");
     if (liveOccupancy() >= 2) hostStart(1);
   }
@@ -4174,7 +4365,7 @@
     var w = vsApi() && vsApi().disconnectWinner ? vsApi().disconnectWinner(leftPid) : (leftPid === 1 ? 2 : 1);
     net.vsWins = w === 1 ? [2, net.vsWins[1] || 0] : [net.vsWins[0] || 0, 2];
     var names = versusNames();
-    var payload = { t: "vsOver", w: w, host: net.vsWins[0], guest: net.vsWins[1], over: 1, prize: (vsApi() && vsApi().VERSUS_PRIZE) || 40, left: 1, hostName: names.host, guestName: names.guest };
+    var payload = { t: "vsOver", w: w, host: net.vsWins[0], guest: net.vsWins[1], over: 1, prize: (vsApi() && vsApi().VERSUS_PRIZE) || 40, left: 1, hostName: names.host, guestName: names.guest, fun: { hits: vsFun.hits.slice(), pickups: vsFun.pickups.slice(), bombs: vsFun.bombs.slice(), timeSec: vsFun.timeSec } };
     net.vsSettled = true;
     try {
       if (stClient() && stClient().reportVersusResult && net.code) stClient().reportVersusResult(versusMatchId(), w, net.vsWins[0], net.vsWins[1]);
@@ -4373,6 +4564,8 @@
     if (net.role && net.connected) { onShow(net.role === "host" ? "room" : "join"); if (net.role === "guest") { $("onJoinForm").classList.add("hidden"); onStatus("✅ " + tr("tips.connectedAs", { n: net.myPid }), "good"); } else hostStatus(); }
     else { onShow("menu"); onStatus(""); startRoomWatch(); }
     try { if (window.__weltraum && window.__weltraum.ensureCloud) window.__weltraum.ensureCloud(); } catch (e) {}
+    paintVsRank();
+    try { if (stClient() && stClient().onVersusRating && !net.vsRankWatch) { net.vsRankWatch = true; stClient().onVersusRating(function () { paintVsRank(); }); } } catch (e) {}
   }
   function closeOnline() { netLeave(); $("onlineScreen").classList.add("hidden"); refreshMapToggles(); }
 
@@ -4468,7 +4661,7 @@
     }
     if (api && api.decorateListedRooms) {
       shown = api.decorateListedRooms(shown.map(function (r) {
-        return { code: r.code, hostName: r.hostName || "Pilot", level: 1, players: r.players || 1, inGame: !!r.inMatch, versus: true, heartbeatMs: r.heartbeatMs, joinable: r.joinable, freshness: r.freshness };
+        return { code: r.code, hostName: r.hostName || "Pilot", level: 1, players: r.players || 1, inGame: !!r.inMatch, versus: true, heartbeatMs: r.heartbeatMs, joinable: r.joinable, freshness: r.freshness, rating: r.rating, strength: r.strength, kind: r.kind };
       }));
     }
     lastVersusRows = shown;
@@ -4481,7 +4674,7 @@
       var btn = stale
         ? "<button disabled>" + tr("roomStale") + "</button>"
         : "<button data-vsjoin='" + r.code + "' data-vskind='" + (r.kind || "quick") + "'>" + tr("joinOpen") + "</button>";
-      return "<div class='roomRow duel" + (stale ? " stale" : "") + "' data-code='" + r.code + "'><div class='meta'><b>" + String(r.hostName || "Pilot").slice(0, 16) + "</b><br>" +
+      return "<div class='roomRow duel" + (stale ? " stale" : "") + "' data-code='" + r.code + "'><div class='meta'><b>" + rankChipForRating(r.rating) + String(r.hostName || "Pilot").slice(0, 16) + "</b><br>" +
         "⚔️ " + tr("versusTitle") + "</div>" + btn + "</div>";
     }).join("");
     Array.prototype.forEach.call(box.querySelectorAll("[data-vsjoin]"), function (btn) {
@@ -4682,6 +4875,9 @@
     var vsHud = $("vsHud"); if (vsHud) vsHud.classList.add("hidden");
     if ($("vsIntro")) $("vsIntro").classList.add("hidden");
     if ($("vsScreen")) $("vsScreen").classList.add("hidden");
+    if ($("vsEmotes")) $("vsEmotes").classList.add("hidden");
+    if ($("vsSudden")) $("vsSudden").classList.add("hidden");
+    resetVersusFun();
     try { if (c) c.close(); } catch (e) {}
     gs.forEach(function (g) { try { g.conn.close(); } catch (e) {} });
     try { if (p) p.destroy(); } catch (e) {}
@@ -4928,6 +5124,11 @@
         else paintRematchWait();
         return;
       }
+      if (m.t === "em") {
+        showVersusEmote(g.pid || 2, m.e);
+        netSend({ t: "em", e: m.e, pid: g.pid || 2 });
+        return;
+      }
       if (m.t === "hello") {
         if (m.v !== NET_VERSION) { connSend(g.conn, { t: "ver" }); setTimeout(function () { guestLeft(g); }, 400); return; }
         var helloPeer = guestPeerId(g);
@@ -4978,12 +5179,13 @@
       else if (m.t === "kicked") netFail("kicked");
       else if (m.t === "rate") netFail("rate");
       else if (m.t === "denied") netFail("denied");
-      else if (m.t === "start") { net.hShip = SHIP_BY[m.hs] ? m.hs : net.hShip; net.nPl = Math.max(1, Math.min(MAX_PLAYERS, m.n | 0 || 1)); net.startLooks = m.looks || null; if (m.vs) { net.versus = true; if (net.vsSettled || ((net.vsWins[0] || 0) + (net.vsWins[1] || 0)) > 0) net.vsMatchN = (net.vsMatchN || 1) + 1; net.vsWins = [0, 0]; net.vsRound = 1; net.vsSettled = false; net.vsRematchMe = false; net.vsRematchThem = false; if ($("vsScreen")) $("vsScreen").classList.add("hidden"); if ($("vsIntro")) $("vsIntro").classList.add("hidden"); } runCountdown(m.L | 0); }
+      else if (m.t === "start") { net.hShip = SHIP_BY[m.hs] ? m.hs : net.hShip; net.nPl = Math.max(1, Math.min(MAX_PLAYERS, m.n | 0 || 1)); net.startLooks = m.looks || null; if (m.vs) { net.versus = true; if (net.vsSettled || ((net.vsWins[0] || 0) + (net.vsWins[1] || 0)) > 0) net.vsMatchN = (net.vsMatchN || 1) + 1; net.vsWins = [0, 0]; net.vsRound = 1; net.vsSettled = false; net.vsRematchMe = false; net.vsRematchThem = false; resetVersusFun(); if ($("vsScreen")) $("vsScreen").classList.add("hidden"); if ($("vsIntro")) $("vsIntro").classList.add("hidden"); } runCountdown(m.L | 0); }
       else if (m.t === "s") guestSnap(m);
       else if (m.t === "end") guestEnd(m);
       else if (m.t === "vsOver") showVersusOver(m);
-      else if (m.t === "vsRound") { if (m.hostName) net.vsHostName = m.hostName; if (m.guestName) net.vsGuestName = m.guestName; beginNextVersusRound(m); }
+      else if (m.t === "vsRound") { if (m.hostName) net.vsHostName = m.hostName; if (m.guestName) net.vsGuestName = m.guestName; if (m.fun) vsFun = m.fun; beginNextVersusRound(m); }
       else if (m.t === "vsRematch") { net.vsRematchThem = true; paintRematchWait(); }
+      else if (m.t === "em") { showVersusEmote(m.pid || 1, m.e); }
     }
   }
   // ---------- Start (beide gleichzeitig nach 3-2-1) ----------
@@ -5015,6 +5217,7 @@
     if (versusOn()) {
       try { if (stClient() && stClient().closePublicRoom && net.code) stClient().closePublicRoom(net.code); } catch (e) {}
       net.listed = false;
+      resetVersusFun();
     }
     runCountdown(L);
   }
@@ -5211,6 +5414,9 @@
   $("onChallenge").addEventListener("click", function () { audio(); net.versus = true; net.vsKind = "challenge"; applyAskToJoin(); hostRoom(0); });
   $("vsRematch").addEventListener("click", function () { audio(); tryVersusRematch(); });
   $("vsBack").addEventListener("click", function () { audio(); $("vsScreen").classList.add("hidden"); closeOnline(); if (typeof goToMap === "function") goToMap(); });
+  if ($("vsEmotes")) Array.prototype.forEach.call($("vsEmotes").querySelectorAll("[data-em]"), function (btn) {
+    btn.addEventListener("click", function (e) { e.stopPropagation(); audio(); sendVersusEmote(btn.getAttribute("data-em")); });
+  });
   $("onJoin").addEventListener("click", function () { audio(); onStatus(""); $("onCode").value = ""; setTimeout(function () { try { $("onCode").focus(); } catch (e) {} }, 50); });
   $("onAskJoin").addEventListener("change", function () {
     save("spaceMissionAskToJoin", $("onAskJoin").checked ? "1" : "0");
@@ -8340,8 +8546,51 @@
         intro: $("vsIntro") && $("vsIntro").textContent,
         rematchMe: !!net.vsRematchMe, rematchThem: !!net.vsRematchThem,
         inGame: !!net.inGame, matchN: net.vsMatchN || 1,
-        strength: versusMyStrength(), waitMs: versusWaitMs()
+        strength: versusMyStrength(), waitMs: versusWaitMs(),
+        sudden: !!net.vsSudden, pickups: powers.filter(function (p) { return p && !p.dead; }).length,
+        fun: { hits: vsFun.hits.slice(), pickups: vsFun.pickups.slice(), bombs: vsFun.bombs.slice(), timeSec: vsFun.timeSec },
+        rank: $("vsRankLabel") ? $("vsRankBadge").innerText : "",
+        stats: $("vsStats") ? $("vsStats").innerText : "",
+        emotes: !($("vsEmotes") && $("vsEmotes").classList.contains("hidden"))
       };
+    },
+    sendVersusEmote: function (id) { sendVersusEmote(id); return vsEmotes.slice(); },
+    spawnVersusPickupNow: function () { spawnVersusPickup(); return powers.map(function (p) { return p.type; }); },
+    forceSuddenDeath: function () { net.vsSudden = true; net.vsRoundTime = (vsApi() && vsApi().VERSUS_SUDDEN_SEC) || 28; paintVsHud(); maybeFinishSuddenDeath(); return { sudden: true, wins: net.vsWins.slice() }; },
+    setVersusFun: function (fun) { vsFun = fun || vsFun; return vsFun; },
+    showVersusFunDemo: function (kind) {
+      net.versus = true; net.inGame = true; net.role = net.role || "host";
+      if (kind === "rank") {
+        $("vsScreen").classList.add("hidden");
+        $("onlineScreen").classList.remove("hidden");
+        if (typeof onShow === "function") onShow("menu");
+        $("vsRankBadge").innerHTML = "<span>🥇 " + versusRankName("gold") + " · 1280 · 11W</span><span class='rankHint'>" + tr("versusRankHint") + "</span>";
+        var keepKind = net.vsKind;
+        net.vsKind = "challenge";
+        renderVersusRows([
+          { code: "HACK3", hostName: "Luna", kind: "challenge", heartbeatMs: Date.now(), rating: 1280, players: 1, freshness: "fresh" },
+          { code: "TREK4", hostName: "Komet", kind: "challenge", heartbeatMs: Date.now(), rating: 1000, players: 1, freshness: "fresh" },
+        ]);
+        net.vsKind = keepKind;
+        return { screen: "online", rank: $("vsRankBadge") && $("vsRankBadge").innerText, duels: $("onDuelRows") && $("onDuelRows").innerText };
+      }
+      if (kind === "sudden") {
+        $("onlineScreen").classList.add("hidden");
+        $("vsScreen").classList.add("hidden");
+        if ($("mapHud")) $("mapHud").classList.add("hidden");
+        net.vsSudden = true; net.vsWins = [1, 1]; net.vsRoundTime = 12;
+        paintVsHud(); paintSuddenBanner(true);
+        spawnVersusPickup();
+        $("vsEmotes").classList.remove("hidden");
+        showVersusEmote(1, "yay");
+        return { screen: "sudden", hud: $("vsHud") && $("vsHud").textContent, pickups: powers.map(function (p) { return p.type; }) };
+      }
+      $("onlineScreen").classList.add("hidden");
+      vsFun = { hits: [7, 4], pickups: [3, 2], bombs: [1, 0], timeSec: 84 };
+      $("vsScreen").classList.remove("hidden");
+      showVersusOver({ host: 2, guest: 1, over: 1, fun: vsFun });
+      paintVsStats({ fun: vsFun, over: 1 });
+      return { screen: "stats", stats: $("vsStats") && $("vsStats").innerText, title: $("vsTitle") && $("vsTitle").textContent };
     },
     forceVersusRound: function (pid) {
       if (net.role === "host") finishVersusRound(pid | 0);
@@ -8541,6 +8790,7 @@
     setTxt("onVersus", "⚔️ " + tr("versusPlay"));
     setTxt("onChallenge", "🤝 " + tr("versusChallenge"));
     setTxt("versusFair", tr("versusFair"));
+    paintVsRank();
     setTxt("vsIntro", tr("versusRoundN", { n: 1 }));
     setTxt("vsRematch", tr("versusRematch") + " 🔄");
     setTxt("vsBack", tr("versusBack") + " 🗺️");

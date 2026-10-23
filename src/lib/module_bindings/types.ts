@@ -377,6 +377,7 @@ export const VersusRating = __t.object("VersusRating", {
   rating: __t.u32(),
   matches: __t.u32(),
   strength: __t.u32(),
+  wins: __t.u32(),
 });
 export type VersusRating = __Infer<typeof VersusRating>;
 
