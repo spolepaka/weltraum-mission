@@ -320,6 +320,8 @@ export const PublicRoom = __t.object("PublicRoom", {
   rating: __t.u32(),
   strength: __t.u32(),
   queuedAtUs: __t.u64(),
+  ship: __t.string(),
+  shipPower: __t.u32(),
 });
 export type PublicRoom = __Infer<typeof PublicRoom>;
 
@@ -363,6 +365,10 @@ export const VersusQueue = __t.object("VersusQueue", {
   rating: __t.u32(),
   strength: __t.u32(),
   queuedAtUs: __t.u64(),
+  shipPower: __t.u32(),
+  guestShipPower: __t.u32(),
+  hostUps: __t.string(),
+  guestUps: __t.string(),
 });
 export type VersusQueue = __Infer<typeof VersusQueue>;
 

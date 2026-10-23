@@ -18,7 +18,10 @@ describe('versus HTML and module wiring', () => {
     expect(html).toContain('id="vsHud"');
     expect(html).toContain('id="vsScreen"');
     expect(html).toContain('function versusOn()');
+    expect(html).toContain('function applyVersusLoadouts()');
     expect(html).toContain('function applyVersusFair()');
+    expect(html).toContain('function versusStatsFor(');
+    expect(html).toContain('function versusMaxLives(');
     expect(html).toContain('function spawnVersusWave()');
     expect(html).toContain('function versusBulletHitPlayer(');
     expect(html).toContain('function flipVersusView()');
@@ -60,6 +63,13 @@ describe('versus HTML and module wiring', () => {
     expect(html).toContain('versusYouScore');
     expect(html).toContain('forceVersusRound');
     expect(html).toContain('filterVersusByStrength');
+    expect(html).toContain('refreshVersusListing');
+    expect(html).toContain('shipCombatPower');
+    expect(server).toMatch(/ship:\s*t\.string\(\)\.default\('starter'\)/);
+    expect(server).toMatch(/shipPower:\s*t\.u32\(\)\.default\(0\)/);
+    expect(server).toMatch(/guestShipPower:\s*t\.u32\(\)\.default\(0\)/);
+    expect(server).toMatch(/hostUps:\s*t\.string\(\)\.default\(''\)/);
+    expect(html).not.toContain('VERSUS_HEARTS) || 4');
     expect(server).toContain('export const publishPublicRoom');
     expect(server).toContain('export const publishVersusQueue');
     expect(server).toContain('export const claimVersusQueue');
