@@ -3236,20 +3236,73 @@
     ctx.fillStyle = "#4ec3ff"; ctx.beginPath(); ctx.arc(-26, 4, 4, 0, 7); ctx.arc(26, 4, 4, 0, 7); ctx.fill();
     ctx.restore();
     if (b.prime) {
-      ctx.save(); ctx.globalAlpha = 0.9;
-      var pg = ctx.createRadialGradient(0, -10, 20, 0, -10, 210); pg.addColorStop(0, "rgba(255,213,74,.22)"); pg.addColorStop(1, "rgba(255,213,74,0)");
-      ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(0, -10, 210, 0, 7); ctx.fill();
-      ctx.strokeStyle = "#ffd54a"; ctx.lineWidth = 3; ctx.setLineDash([12, 10]); ctx.lineDashOffset = -t * 40;
-      ctx.beginPath(); ctx.ellipse(0, -8, 168, 128, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+      ctx.save();
+      var pulse = 0.5 + 0.5 * Math.sin(t * 5);
+      var bloom = ctx.createRadialGradient(0, -10, 30, 0, -10, 248);
+      bloom.addColorStop(0, "rgba(255,40,60,.18)"); bloom.addColorStop(0.4, "rgba(255,213,74,.22)"); bloom.addColorStop(1, "rgba(40,0,40,0)");
+      ctx.fillStyle = bloom; ctx.beginPath(); ctx.arc(0, -10, 248, 0, 7); ctx.fill();
+      ctx.globalAlpha = 0.55;
       [-1, 1].forEach(function (sd) {
-        ctx.fillStyle = metal(-40, 40, "#fff0b0");
-        ctx.beginPath(); ctx.moveTo(sd * 118, -88); ctx.lineTo(sd * 168, -70); ctx.lineTo(sd * 158, -28); ctx.lineTo(sd * 112, -40); ctx.closePath(); ctx.fill(); ctx.stroke();
-        glowDot(sd * 160, -48, 6 + Math.sin(t * 8) * 2, "#ffd54a", 16);
+        ctx.fillStyle = "rgba(80,0,36,.5)";
+        ctx.beginPath(); ctx.moveTo(sd * 90, -20);
+        ctx.quadraticCurveTo(sd * (172 + Math.sin(t * 2) * 12), 24, sd * 154, 136);
+        ctx.quadraticCurveTo(sd * 80, 92, sd * 60, 70); ctx.closePath(); ctx.fill();
       });
-      ctx.save(); ctx.translate(0, -148); ctx.rotate(t * 0.4);
-      ctx.strokeStyle = "#ffe066"; ctx.lineWidth = 2; ctx.shadowColor = "#ffd54a"; ctx.shadowBlur = 14;
-      for (var pr = 0; pr < 8; pr++) { var pa = pr * Math.PI / 4; ctx.beginPath(); ctx.moveTo(Math.cos(pa) * 18, Math.sin(pa) * 18); ctx.lineTo(Math.cos(pa) * 38, Math.sin(pa) * 38); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+      [-1, 1].forEach(function (sd) {
+        ctx.fillStyle = metal(-90, -20, "#fff3c0"); ctx.strokeStyle = "#b8901a"; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(sd * 88, -96); ctx.lineTo(sd * 178, -78); ctx.lineTo(sd * 186, -40); ctx.lineTo(sd * 150, -18); ctx.lineTo(sd * 100, -36); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = metal(-70, 10, "#e8c060");
+        ctx.beginPath(); ctx.moveTo(sd * 108, -70); ctx.lineTo(sd * 168, -58); ctx.lineTo(sd * 160, -28); ctx.lineTo(sd * 112, -40); ctx.closePath(); ctx.fill(); ctx.stroke();
+        glowDot(sd * 156, -52, 6 + pulse * 2, "#ffd54a", 16);
+        ctx.save(); ctx.translate(sd * 172, -36); ctx.rotate(sd * 0.15);
+        ctx.fillStyle = metal(-10, 40, "#dfe6f0"); ctx.fillRect(-8, 0, 16, 46); ctx.strokeRect(-8, 0, 16, 46);
+        glowDot(0, 48, 7 + pulse * 2, "#ff3a3a", 18); ctx.restore();
+        ctx.save(); ctx.translate(sd * 78, 70);
+        ctx.fillStyle = metal(0, 40, "#c8d0dc");
+        ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(12, 0); ctx.lineTo(10, 36); ctx.lineTo(-10, 36); ctx.closePath(); ctx.fill(); ctx.stroke();
+        glowDot(0, 38, 6, "#ff6a2a", 14); ctx.restore();
+      });
+      ctx.fillStyle = metal(-20, 50, "#fff0b0"); ctx.strokeStyle = "#b8901a"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-48, -20); ctx.lineTo(48, -20); ctx.lineTo(40, 36); ctx.lineTo(-40, 36); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-28, 40); ctx.lineTo(28, 40); ctx.lineTo(22, 68); ctx.lineTo(-22, 68); ctx.closePath(); ctx.fill(); ctx.stroke();
+      var coreR = 34 + pulse * 8;
+      var cg2 = ctx.createRadialGradient(0, 8, 2, 0, 8, coreR);
+      cg2.addColorStop(0, "#ffffff"); cg2.addColorStop(0.25, "rgba(255,213,74,1)"); cg2.addColorStop(0.55, "rgba(255,60,80,.85)"); cg2.addColorStop(1, "rgba(80,0,40,0)");
+      ctx.fillStyle = cg2; ctx.beginPath(); ctx.arc(0, 8, coreR, 0, 7); ctx.fill();
+      ctx.save(); ctx.strokeStyle = "#ffd54a"; ctx.lineWidth = 2; ctx.shadowColor = "#ffd54a"; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.arc(0, 8, 22 + pulse * 4, 0, 7); ctx.stroke();
+      ctx.strokeStyle = "#ff3a5a"; ctx.beginPath(); ctx.arc(0, 8, 30 + pulse * 3, 0, 7); ctx.stroke();
       ctx.restore();
+      var lx2 = ship ? Math.max(-8, Math.min(8, (ship.x - b.x) / 40)) : 0;
+      ctx.save(); ctx.globalAlpha = 0.55 + pulse * 0.35; ctx.strokeStyle = "#ff2a3a"; ctx.shadowColor = "#ff2a3a"; ctx.shadowBlur = 20; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(-18 + lx2, -96); ctx.lineTo(-18 + lx2, -164); ctx.moveTo(18 + lx2, -96); ctx.lineTo(18 + lx2, -164); ctx.stroke();
+      ctx.restore();
+      glowDot(-18 + lx2, -95, 5 + pulse * 2, "#ff4a4a", 20);
+      glowDot(18 + lx2, -95, 5 + pulse * 2, "#ff4a4a", 20);
+      ctx.save(); ctx.translate(0, -148); ctx.rotate(t * 0.55);
+      for (var pr = 0; pr < 12; pr++) {
+        ctx.save(); ctx.rotate(pr * Math.PI / 6);
+        var blade = ctx.createLinearGradient(0, -22, 0, -82);
+        blade.addColorStop(0, "rgba(255,255,255,.95)"); blade.addColorStop(0.4, "#ffd54a"); blade.addColorStop(1, "rgba(255,40,60,0)");
+        ctx.fillStyle = blade; ctx.shadowColor = "#ffd54a"; ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.moveTo(-5, -24); ctx.lineTo(0, -84); ctx.lineTo(5, -24); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+      ctx.restore();
+      ctx.save(); ctx.translate(0, -148); ctx.rotate(-t * 0.8);
+      ctx.strokeStyle = "#ffe066"; ctx.lineWidth = 3; ctx.shadowColor = "#ffd54a"; ctx.shadowBlur = 16;
+      ctx.setLineDash([8, 10]); ctx.lineDashOffset = -t * 30;
+      ctx.beginPath(); ctx.arc(0, 0, 48, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+      for (var ir = 0; ir < 6; ir++) { var ia = ir * Math.PI / 3; glowDot(Math.cos(ia) * 48, Math.sin(ia) * 48, 3.5, "#fff27a", 12); }
+      ctx.restore();
+      for (var or = 0; or < 5; or++) {
+        var oa = t * 1.1 + or * 1.256;
+        ctx.save(); ctx.translate(Math.cos(oa) * 190, Math.sin(oa) * 70 - 10); ctx.rotate(oa);
+        ctx.fillStyle = "#ffd54a"; ctx.globalAlpha = 0.85;
+        ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(5, 6); ctx.lineTo(-5, 6); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
       ctx.restore();
     }
     // Risse bei Schaden
@@ -6087,11 +6140,277 @@
   }
   function softAura(r, c1, c2) { var g = ctx.createRadialGradient(0, 0, 4, 0, 0, r); g.addColorStop(0, c1); g.addColorStop(1, c2); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill(); }
 
+  // Unique Outer Fleet silhouettes (art only). Old delta/swept/wide/forward/box stay on the generic path.
+  function drawFleetHull(t, o, p, c) {
+    var sh = o.shape, edge = o.edge, acc = o.acc, glass = o.glass;
+    function paint(fill) { ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 1.9; ctx.lineJoin = "round"; ctx.stroke(); }
+    function canopy(x, y, rx, ry) { ctx.fillStyle = lgV(y - ry, y + ry, ["#ffffff", glass]); ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.fill(); }
+    function gun(x, y, h) { ctx.fillStyle = "#1a2030"; ctx.fillRect(x - 2.2, y, 4.4, h); ctx.fillStyle = acc; ctx.fillRect(x - 1.4, y - 4, 2.8, 5); }
+    if (sh === "kite") {
+      poly([0, -42, 22, 2, 10, 8, 16, 28, 0, 18, -16, 28, -10, 8, -22, 2]);
+      paint(lgV(-42, 28, [c[0], c[1], c[2]]));
+      ctx.strokeStyle = acc; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, -36); ctx.lineTo(0, 16); ctx.moveTo(-16, 4); ctx.lineTo(16, 4); ctx.stroke();
+      canopy(0, -14, 4.5, 8); glowDot(-18, 4, 2, acc, 8); glowDot(18, 4, 2, acc, 8); return true;
+    }
+    if (sh === "gantry") {
+      poly([-38, -36, 38, -36, 38, -24, 10, -24, 10, 22, -10, 22, -10, -24, -38, -24]);
+      paint(lgV(-36, 22, [c[0], c[1], c[2]]));
+      poly([-44, -42, -20, -42, -16, -26, -44, -26]); paint(c[1]);
+      poly([44, -42, 20, -42, 16, -26, 44, -26]); paint(c[1]);
+      ctx.fillStyle = acc; ctx.fillRect(-38, -40, 10, 4); ctx.fillRect(28, -40, 10, 4);
+      canopy(0, -8, 6, 9); gun(-30, -22, 20); gun(30, -22, 20);
+      glowDot(-32, -34, 2.4, acc, 9); glowDot(32, -34, 2.4, acc, 9); return true;
+    }
+    if (sh === "torch") {
+      ctx.beginPath(); ctx.moveTo(0, -46); ctx.lineTo(8, -28); ctx.lineTo(10, 16); ctx.quadraticCurveTo(10, 28, 0, 32); ctx.quadraticCurveTo(-10, 28, -10, 16); ctx.lineTo(-8, -28); ctx.closePath();
+      paint(lgH(-10, 10, [c[2], c[0], c[2]]));
+      ctx.beginPath(); ctx.moveTo(-8, -30); ctx.lineTo(0, -50); ctx.lineTo(8, -30); ctx.closePath(); paint(acc);
+      mirror(function (sd) { ctx.beginPath(); ctx.ellipse(sd * 16, 4, 7, 14, 0, 0, 7); paint(lgH(sd * 8, sd * 22, [c[1], c[2]])); glowDot(sd * 16, 16, 2, acc, 8); });
+      canopy(0, -12, 4, 7); return true;
+    }
+    if (sh === "needle") {
+      poly([0, -54, 5, -20, 4, 26, 0, 36, -4, 26, -5, -20]);
+      paint(lgH(-5, 5, [c[2], c[0], c[2]]));
+      mirror(function (sd) { poly([sd * 4, -6, sd * 24, 2, sd * 20, 10, sd * 4, 6]); paint(c[1]); });
+      canopy(0, -24, 2.5, 6); glowDot(0, -50, 2.2, acc, 10); return true;
+    }
+    if (sh === "bolt") {
+      poly([6, -44, 18, -20, 4, -16, 22, 8, 6, 12, 16, 32, -10, 10, 4, 6, -18, -18, 0, -22, -12, -44]);
+      paint(lgV(-44, 32, [c[0], c[1], c[2]]));
+      canopy(2, -8, 4, 6); glowDot(14, 8, 2.4, acc, 9); return true;
+    }
+    if (sh === "beetle") {
+      ctx.beginPath(); ctx.ellipse(0, -2, 22, 30, 0, 0, 7); paint(lgV(-32, 28, [c[0], c[1], c[2]]));
+      ctx.beginPath(); ctx.ellipse(0, -6, 14, 18, 0, 0, 7); ctx.fillStyle = c[2]; ctx.fill();
+      poly([0, -36, 7, -28, 0, -22, -7, -28]); paint(acc);
+      mirror(function (sd) {
+        [[sd * 20, -12], [sd * 24, 4], [sd * 18, 18]].forEach(function (pt) {
+          ctx.strokeStyle = edge; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(sd * 14, pt[1]); ctx.lineTo(pt[0], pt[1] + 6); ctx.stroke();
+          ctx.fillStyle = c[1]; ctx.beginPath(); ctx.arc(pt[0], pt[1] + 6, 3, 0, 7); ctx.fill();
+        });
+      });
+      canopy(0, -10, 5, 7); return true;
+    }
+    if (sh === "hopper") {
+      ctx.beginPath(); ctx.moveTo(0, -28); ctx.quadraticCurveTo(24, -8, 22, 12); ctx.quadraticCurveTo(16, 26, 0, 22); ctx.quadraticCurveTo(-16, 26, -22, 12); ctx.quadraticCurveTo(-24, -8, 0, -28); ctx.closePath();
+      paint(lgV(-28, 26, [c[0], c[1], c[2]]));
+      mirror(function (sd) { poly([sd * 8, 8, sd * 30, 36, sd * 14, 26, sd * 6, 16]); paint(c[1]); });
+      canopy(0, -8, 6, 8); glowDot(-10, 8, 2, acc, 8); glowDot(10, 8, 2, acc, 8); return true;
+    }
+    if (sh === "pike") {
+      poly([0, -56, 8, -18, 7, 18, 14, 32, 0, 24, -14, 32, -7, 18, -8, -18]);
+      paint(lgH(-8, 8, [c[2], c[0], c[2]]));
+      mirror(function (sd) { poly([sd * 6, -8, sd * 18, -2, sd * 16, 8, sd * 6, 4]); paint(c[1]); });
+      ctx.strokeStyle = acc; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -52); ctx.lineTo(0, 20); ctx.stroke();
+      canopy(0, -16, 3.4, 7); return true;
+    }
+    if (sh === "manta") {
+      ctx.beginPath(); ctx.moveTo(0, -18);
+      ctx.quadraticCurveTo(36, -30, 56, 2); ctx.quadraticCurveTo(40, 8, 18, 16); ctx.lineTo(8, 24);
+      ctx.lineTo(-8, 24); ctx.quadraticCurveTo(-40, 8, -56, 2); ctx.quadraticCurveTo(-36, -30, 0, -18); ctx.closePath();
+      paint(lgV(-30, 24, [c[0], c[1], c[2]]));
+      ctx.beginPath(); ctx.ellipse(0, 0, 8, 18, 0, 0, 7); paint(lgH(-8, 8, [c[2], c[0], c[2]]));
+      canopy(0, -6, 4, 6); glowDot(-42, -4, 2.2, acc, 8); glowDot(42, -4, 2.2, acc, 8); return true;
+    }
+    if (sh === "hulk") {
+      poly([-26, -28, 26, -28, 30, -16, 28, 26, -28, 26, -30, -16]);
+      paint(lgV(-28, 26, [c[0], c[1], c[2]]));
+      mirror(function (sd) { poly([sd * 28, -12, sd * 44, -6, sd * 44, 18, sd * 28, 22]); paint(c[1]); gun(sd * 36, -8, 18); });
+      ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = 1;
+      for (var hk = 0; hk < 4; hk++) { ctx.beginPath(); ctx.moveTo(-24, -8 + hk * 8); ctx.lineTo(24, -8 + hk * 8); ctx.stroke(); }
+      canopy(0, -16, 7, 6); return true;
+    }
+    if (sh === "crucible") {
+      ctx.beginPath(); ctx.moveTo(-28, -18); ctx.lineTo(28, -18); ctx.quadraticCurveTo(32, 8, 22, 26); ctx.lineTo(-22, 26); ctx.quadraticCurveTo(-32, 8, -28, -18); ctx.closePath();
+      paint(lgV(-18, 26, [c[0], c[1], c[2]]));
+      ctx.beginPath(); ctx.ellipse(0, -16, 26, 8, 0, 0, 7); paint(c[1]);
+      var cg = ctx.createRadialGradient(0, 2, 2, 0, 6, 16); cg.addColorStop(0, "#fff"); cg.addColorStop(0.4, acc); cg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = cg; ctx.beginPath(); ctx.ellipse(0, 6, 14, 10, 0, 0, 7); ctx.fill();
+      canopy(0, -20, 5, 5); return true;
+    }
+    if (sh === "anvil") {
+      poly([-36, -32, 36, -32, 32, -18, 14, -12, 16, 18, 26, 28, -26, 28, -16, 18, -14, -12, -32, -18]);
+      paint(lgV(-32, 28, [c[0], c[1], c[2]]));
+      ctx.fillStyle = c[2]; ctx.fillRect(-32, -30, 64, 6);
+      canopy(0, -4, 5, 8); glowDot(-28, -24, 2.4, acc, 8); glowDot(28, -24, 2.4, acc, 8); return true;
+    }
+    if (sh === "shard") {
+      poly([0, -46, 18, -16, 12, 4, 22, 24, 0, 16, -10, 28, -16, 2, -20, -20]);
+      paint(lgV(-46, 28, [c[0], c[1], c[2]]));
+      ctx.strokeStyle = acc; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, -40); ctx.lineTo(8, 8); ctx.moveTo(-8, -12); ctx.lineTo(14, 18); ctx.stroke();
+      canopy(0, -8, 3.5, 6); glowDot(16, -12, 2, acc, 10); return true;
+    }
+    if (sh === "auger") {
+      for (var au = 0; au < 5; au++) {
+        var ay = -36 + au * 14, aw = 8 + (au % 2 ? 14 : 6);
+        ctx.beginPath(); ctx.ellipse(0, ay, aw, 7, 0.35, 0, 7); paint(au % 2 ? c[0] : c[1]);
+      }
+      poly([0, -48, 5, -40, 4, 28, 0, 36, -4, 28, -5, -40]); paint(lgH(-5, 5, [c[2], c[0], c[2]]));
+      canopy(0, -20, 3, 5); return true;
+    }
+    if (sh === "crescent") {
+      ctx.beginPath(); ctx.arc(0, 0, 34, 0.7, 5.6); ctx.arc(4, 2, 20, 5.4, 0.9, true); ctx.closePath();
+      paint(lgV(-34, 34, [c[0], c[1], c[2]]));
+      canopy(-6, -4, 5, 7); glowDot(8, -26, 2.6, acc, 10); glowDot(18, 8, 2.2, acc, 8); return true;
+    }
+    if (sh === "vault") {
+      poly([0, -36, 22, -18, 22, 16, 0, 32, -22, 16, -22, -18]);
+      paint(lgV(-36, 32, [c[0], c[1], c[2]]));
+      ctx.strokeStyle = acc; ctx.lineWidth = 2; ctx.strokeRect(-10, -8, 20, 18);
+      ctx.fillStyle = c[2]; [-16, 16].forEach(function (x) { [-12, 8].forEach(function (y) { ctx.beginPath(); ctx.arc(x, y, 2.4, 0, 7); ctx.fill(); }); });
+      glowDot(0, 0, 3 + p, acc, 12); canopy(0, -22, 5, 5); return true;
+    }
+    if (sh === "fish") {
+      ctx.beginPath(); ctx.moveTo(0, -36); ctx.quadraticCurveTo(16, -20, 14, 4); ctx.quadraticCurveTo(12, 22, 0, 20); ctx.quadraticCurveTo(-12, 22, -14, 4); ctx.quadraticCurveTo(-16, -20, 0, -36); ctx.closePath();
+      paint(lgH(-14, 14, [c[2], c[0], c[2]]));
+      poly([0, 18, 16, 34, 0, 26, -16, 34]); paint(c[1]);
+      poly([0, -8, 10, 2, 0, 6, -10, 2]); ctx.fillStyle = c[2]; ctx.fill();
+      canopy(0, -18, 5, 7); glowDot(-8, 2, 2, acc, 8); glowDot(8, 2, 2, acc, 8); return true;
+    }
+    if (sh === "ring") {
+      ctx.lineWidth = 11; ctx.strokeStyle = lgH(-32, 32, [c[2], c[0], c[1], c[2]]);
+      ctx.beginPath(); ctx.ellipse(0, 0, 30, 30, 0, 0, 7); ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = edge; ctx.beginPath(); ctx.ellipse(0, 0, 30, 30, 0, 0, 7); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, 0, 19, 19, 0, 0, 7); ctx.stroke();
+      poly([-8, 4, 8, 4, 7, 28, -7, 28]); paint(c[1]);
+      for (var ri = 0; ri < 8; ri++) { var ra = t * 1.4 + ri * Math.PI / 4; glowDot(Math.cos(ra) * 30, Math.sin(ra) * 30, 2, acc, 8); }
+      canopy(0, -4, 5, 6); return true;
+    }
+    if (sh === "spoke") {
+      ctx.save(); ctx.rotate(t * 0.25);
+      for (var spk = 0; spk < 6; spk++) {
+        ctx.save(); ctx.rotate(spk * Math.PI / 3);
+        poly([0, -8, 8, -36, 0, -46, -8, -36]); paint(lgV(-46, -8, [c[0], c[1]]));
+        ctx.restore();
+      }
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(0, 0, 14, 0, 7); paint(lgV(-14, 14, [c[0], c[2]]));
+      canopy(0, -2, 5, 5); glowDot(0, 0, 3 + p, acc, 12); return true;
+    }
+    if (sh === "crook") {
+      ctx.lineWidth = 9; ctx.strokeStyle = c[1]; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(8, 28); ctx.quadraticCurveTo(-4, 4, 0, -16); ctx.quadraticCurveTo(6, -40, 28, -36); ctx.stroke();
+      ctx.lineWidth = 3; ctx.strokeStyle = edge; ctx.beginPath(); ctx.moveTo(8, 28); ctx.quadraticCurveTo(-4, 4, 0, -16); ctx.quadraticCurveTo(6, -40, 28, -36); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(-2, 8, 10, 14, 0.2, 0, 7); paint(lgV(-6, 22, [c[0], c[2]]));
+      canopy(-2, 6, 4.5, 6); glowDot(28, -36, 3, acc, 12); ctx.lineCap = "butt"; return true;
+    }
+    if (sh === "hexsail") {
+      poly([0, -40, 8, -8, 6, 26, -6, 26, -8, -8]); paint(lgH(-8, 8, [c[2], c[0], c[2]]));
+      mirror(function (sd) {
+        ctx.beginPath(); ctx.moveTo(sd * 6, -16); ctx.lineTo(sd * 40, -30); ctx.lineTo(sd * 48, 0); ctx.lineTo(sd * 36, 22); ctx.lineTo(sd * 6, 10); ctx.closePath();
+        paint(lgH(sd * 6, sd * 48, ["rgba(255,250,220,.92)", c[0], c[1]]));
+        ctx.strokeStyle = acc; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(sd * 16, -20); ctx.lineTo(sd * 16, 12); ctx.moveTo(sd * 28, -24); ctx.lineTo(sd * 28, 14); ctx.stroke();
+      });
+      canopy(0, -18, 4, 7); glowDot(0, 4, 4 + p, acc, 14); return true;
+    }
+    if (sh === "scythe") {
+      ctx.beginPath(); ctx.moveTo(-8, 26); ctx.lineTo(-4, -20); ctx.quadraticCurveTo(8, -50, 42, -28); ctx.quadraticCurveTo(28, -16, 8, -10); ctx.lineTo(4, 28); ctx.closePath();
+      paint(lgV(-50, 28, [c[0], c[1], c[2]]));
+      poly([-10, 8, 12, 4, 10, 22, -8, 24]); paint(c[1]);
+      canopy(-2, 6, 4, 6); glowDot(36, -26, 3 + p, acc, 12); return true;
+    }
+    if (sh === "coil") {
+      for (var co = 0; co < 4; co++) {
+        ctx.save(); ctx.translate(0, -24 + co * 16); ctx.rotate(0.4 + co * 0.15);
+        ctx.lineWidth = 7; ctx.strokeStyle = co % 2 ? c[0] : c[1];
+        ctx.beginPath(); ctx.ellipse(0, 0, 20 - co, 10, 0, 0, 7); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.beginPath(); ctx.arc(0, 0, 8, 0, 7); paint(c[2]);
+      canopy(0, -4, 4, 5); glowDot(0, 2, 3 + p * 2, acc, 14); return true;
+    }
+    if (sh === "tilt") {
+      ctx.save(); ctx.rotate(-0.35);
+      poly([0, -40, 36, -8, 28, 8, 8, 6, 10, 26, 0, 20, -6, 28, -8, 6, -22, 16, -32, 0]);
+      paint(lgV(-40, 28, [c[0], c[1], c[2]]));
+      poly([8, -6, 46, -24, 40, -8, 14, 4]); paint(c[1]);
+      canopy(0, -12, 4.5, 7); ctx.restore();
+      glowDot(18, -20, 2.4, acc, 10); return true;
+    }
+    if (sh === "saucer") {
+      ctx.beginPath(); ctx.ellipse(0, 6, 44, 12, 0, 0, 7); paint(lgV(-6, 18, [c[1], c[2]]));
+      ctx.beginPath(); ctx.ellipse(0, 2, 36, 9, 0, 0, 7); paint(lgH(-36, 36, [c[2], c[0], c[1], c[2]]));
+      ctx.beginPath(); ctx.ellipse(0, -8, 16, 14, 0, 0, 7); paint(lgV(-22, 6, [c[0], c[1]]));
+      canopy(0, -10, 8, 7);
+      for (var su = 0; su < 8; su++) { var sa = t * 2 + su * Math.PI / 4; glowDot(Math.cos(sa) * 32, 4 + Math.sin(sa) * 6, 2.2, acc, 8); }
+      return true;
+    }
+    if (sh === "ribbon") {
+      mirror(function (sd) {
+        ctx.beginPath(); ctx.moveTo(sd * 4, -28);
+        ctx.bezierCurveTo(sd * 28, -38, sd * 42, -4, sd * 24, 12);
+        ctx.bezierCurveTo(sd * 50, 20, sd * 20, 38, sd * 6, 22);
+        ctx.lineTo(sd * 4, 8); ctx.closePath();
+        paint(lgH(sd * 4, sd * 42, [c[0], acc, c[1]]));
+      });
+      poly([0, -38, 7, -8, 6, 24, 0, 30, -6, 24, -7, -8]); paint(lgH(-7, 7, [c[2], c[0], c[2]]));
+      canopy(0, -14, 4, 7); glowDot(-22, 4, 2.4, acc, 10); glowDot(22, 4, 2.4, acc, 10); return true;
+    }
+    if (sh === "spine") {
+      for (var sv = 0; sv < 6; sv++) {
+        var sy = -34 + sv * 12, sw = 10 + (sv % 2 ? 8 : 2);
+        poly([-sw, sy, sw, sy, sw + 4, sy + 10, -sw - 4, sy + 10]); paint(sv % 2 ? c[0] : c[1]);
+      }
+      mirror(function (sd) {
+        for (var rb = 0; rb < 4; rb++) {
+          ctx.strokeStyle = edge; ctx.lineWidth = 2.4;
+          ctx.beginPath(); ctx.moveTo(sd * 8, -20 + rb * 12); ctx.quadraticCurveTo(sd * 28, -16 + rb * 12, sd * 34, -6 + rb * 12); ctx.stroke();
+        }
+      });
+      canopy(0, -22, 4, 6); glowDot(0, 4, 3 + p, acc, 12); return true;
+    }
+    if (sh === "spire") {
+      poly([0, -54, 10, -20, 8, 18, 16, 32, 0, 24, -16, 32, -8, 18, -10, -20]);
+      paint(lgH(-10, 10, [c[2], c[0], c[2]]));
+      mirror(function (sd) {
+        poly([sd * 8, -16, sd * 30, 4, sd * 22, 14, sd * 8, 6]); paint(c[1]);
+        poly([sd * 6, -38, sd * 20, -28, sd * 8, -22]); paint(acc);
+      });
+      ctx.strokeStyle = acc; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, -52); ctx.lineTo(0, 20); ctx.stroke();
+      canopy(0, -18, 4, 7); glowDot(0, -50, 3 + p, acc, 14); return true;
+    }
+    if (sh === "gate") {
+      poly([-34, -36, -18, -36, -16, 24, -32, 30]); paint(lgH(-34, -16, [c[2], c[0]]));
+      poly([34, -36, 18, -36, 16, 24, 32, 30]); paint(lgH(16, 34, [c[0], c[2]]));
+      ctx.beginPath(); ctx.moveTo(-20, -34); ctx.quadraticCurveTo(0, -56, 20, -34); ctx.lineTo(16, -24); ctx.quadraticCurveTo(0, -42, -16, -24); ctx.closePath();
+      paint(lgV(-56, -24, [c[0], c[1]]));
+      ctx.beginPath(); ctx.ellipse(0, -6, 10, 14, 0, 0, 7); paint(c[1]);
+      canopy(0, -8, 5, 7); glowDot(-24, -28, 2.6, acc, 10); glowDot(24, -28, 2.6, acc, 10);
+      ctx.save(); ctx.globalAlpha = 0.45 + p * 0.3; ctx.strokeStyle = acc; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(0, -6, 12 + p * 3, 16 + p * 3, 0, 0, 7); ctx.stroke(); ctx.restore();
+      return true;
+    }
+    if (sh === "crown") {
+      poly([-8, 8, -28, 4, -34, 22, -10, 32, 10, 32, 34, 22, 28, 4, 8, 8, 6, 24, -6, 24]);
+      paint(lgV(4, 32, [c[0], c[1], c[2]]));
+      poly([-32, -4, -18, -38, -8, -10, 0, -50, 8, -10, 18, -38, 32, -4, 16, 6, -16, 6]);
+      paint(lgV(-50, 6, [c[0], c[1], c[2]]));
+      ctx.fillStyle = acc;
+      [[0, -42], [-20, -28], [20, -28], [-28, 0], [28, 0]].forEach(function (pt) {
+        ctx.beginPath(); ctx.arc(pt[0], pt[1], 3.2, 0, 7); ctx.fill();
+      });
+      for (var cj = 0; cj < 5; cj++) {
+        var ca = t * 1.6 + cj * 1.256;
+        glowDot(Math.cos(ca) * 26, Math.sin(ca) * 18 - 4, 2.4, acc, 10);
+      }
+      canopy(0, -6, 6, 8); glowDot(0, 10, 5 + p * 2, acc, 18);
+      ctx.save(); ctx.strokeStyle = "#ffd54a"; ctx.lineWidth = 1.6; ctx.shadowColor = "#ffd54a"; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.arc(0, -2, 20 + p * 3, 0, 7); ctx.stroke(); ctx.restore();
+      return true;
+    }
+    return false;
+  }
+
   // Baukasten für klare Raumschiff-Formen (ersetzt frühere Tier-/Fantasy-Designs)
   function shipKit(t, d, fx, o) {
     var p = 0.5 + 0.5 * Math.sin(t * 3), c = o.c;
     if (fx && o.aura) softAura(o.aura[0], o.aura[1], o.aura[2]);
     (o.eng || [[0, 30, 20, 7]]).forEach(function (e, i) { flameAt(e[0], e[1], e[2], e[3], d.flame, t, i * 1.3); });
+    if (drawFleetHull(t, o, p, c)) {
+      if (o.core) glowDot(0, 6, 3.6 + p * 1.8, o.core, 13);
+      if (o.extra) o.extra(t, p);
+      return;
+    }
     mirror(function (sd) {
       var w = o.wing;
       ctx.fillStyle = lgH(sd * 6, sd * w[0], [c[2], c[1], c[0]]); ctx.strokeStyle = o.edge; ctx.lineWidth = 1.8;
@@ -6492,7 +6811,8 @@
   DESIGNS.shadowspeeder = function (t, d, fx) { drawTeslaRoadster("shadowspeeder", t, d, fx); };
   DESIGNS.chromewasp = function (t, d, fx) { drawTeslaRoadster("chromewasp", t, d, fx); };
   DESIGNS.apexflash = function (t, d, fx) { drawTeslaRoadster("apexflash", t, d, fx); };
-  var OUTER_KITS = {"rivet":{"shape":"delta","wing":[36,14],"c":["hsl(12,80%,68%)","hsl(40,70%,42%)","hsl(62,55%,18%)"],"edge":"hsl(12,40%,88%)","acc":"hsl(192,90%,72%)","glass":"hsl(212,70%,55%)","guns":[12],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(192,90%,72%)","len":38,"bw":10,"aura":[54,"hsla(12,80%,60%,.22)","hsla(12,80%,40%,0)"]},"crane":{"shape":"swept","wing":[39,-4],"c":["hsl(53,80%,68%)","hsl(81,70%,42%)","hsl(103,55%,18%)"],"edge":"hsl(53,40%,88%)","acc":"hsl(233,90%,72%)","glass":"hsl(253,70%,55%)","guns":[10,22],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(233,90%,72%)","len":40,"bw":11,"aura":[55,"hsla(53,80%,60%,.22)","hsla(53,80%,40%,0)"]},"welder":{"shape":"wide","wing":[42,8],"c":["hsl(94,80%,68%)","hsl(122,70%,42%)","hsl(144,55%,18%)"],"edge":"hsl(94,40%,88%)","acc":"hsl(274,90%,72%)","glass":"hsl(294,70%,55%)","guns":[12,24,34],"pods":30,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(274,90%,72%)","len":42,"bw":12,"aura":[56,"hsla(94,80%,60%,.22)","hsla(94,80%,40%,0)"]},"dockn":{"shape":"forward","wing":[45,10],"c":["hsl(135,80%,68%)","hsl(163,70%,42%)","hsl(185,55%,18%)"],"edge":"hsl(135,40%,88%)","acc":"hsl(315,90%,72%)","glass":"hsl(335,70%,55%)","guns":[12],"fins":true,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(315,90%,72%)","len":44,"bw":13,"aura":[57,"hsla(135,80%,60%,.22)","hsla(135,80%,40%,0)"]},"boltfin":{"shape":"box","wing":[48,2],"c":["hsl(176,80%,68%)","hsl(204,70%,42%)","hsl(226,55%,18%)"],"edge":"hsl(176,40%,88%)","acc":"hsl(356,90%,72%)","glass":"hsl(16,70%,55%)","guns":[10,22],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(356,90%,72%)","len":46,"bw":14,"aura":[58,"hsla(176,80%,60%,.22)","hsla(176,80%,40%,0)"]},"hullmite":{"shape":"delta","wing":[51,14],"c":["hsl(217,80%,68%)","hsl(245,70%,42%)","hsl(267,55%,18%)"],"edge":"hsl(217,40%,88%)","acc":"hsl(37,90%,72%)","glass":"hsl(57,70%,55%)","guns":[12,24,34],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(37,90%,72%)","len":48,"bw":10,"aura":[59,"hsla(217,80%,60%,.22)","hsla(217,80%,40%,0)"]},"slagskip":{"shape":"swept","wing":[54,-4],"c":["hsl(258,80%,68%)","hsl(286,70%,42%)","hsl(308,55%,18%)"],"edge":"hsl(258,40%,88%)","acc":"hsl(78,90%,72%)","glass":"hsl(98,70%,55%)","guns":[12],"pods":29,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(78,90%,72%)","len":38,"bw":11,"aura":[60,"hsla(258,80%,60%,.22)","hsla(258,80%,40%,0)"]},"magmapike":{"shape":"wide","wing":[36,8],"c":["hsl(299,80%,68%)","hsl(327,70%,42%)","hsl(349,55%,18%)"],"edge":"hsl(299,40%,88%)","acc":"hsl(119,90%,72%)","glass":"hsl(139,70%,55%)","guns":[10,22],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(119,90%,72%)","len":40,"bw":12,"aura":[61,"hsla(299,80%,60%,.22)","hsla(299,80%,40%,0)"]},"smeltwing":{"shape":"forward","wing":[39,10],"c":["hsl(340,80%,68%)","hsl(8,70%,42%)","hsl(30,55%,18%)"],"edge":"hsl(340,40%,88%)","acc":"hsl(160,90%,72%)","glass":"hsl(180,70%,55%)","guns":[12,24,34],"fins":true,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(160,90%,72%)","len":42,"bw":13,"aura":[54,"hsla(340,80%,60%,.22)","hsla(340,80%,40%,0)"]},"ingothulk":{"shape":"box","wing":[42,2],"c":["hsl(21,80%,68%)","hsl(49,70%,42%)","hsl(71,55%,18%)"],"edge":"hsl(21,40%,88%)","acc":"hsl(201,90%,72%)","glass":"hsl(221,70%,55%)","guns":[12],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(201,90%,72%)","len":44,"bw":14,"aura":[55,"hsla(21,80%,60%,.22)","hsla(21,80%,40%,0)"]},"crucibit":{"shape":"delta","wing":[45,14],"c":["hsl(62,80%,68%)","hsl(90,70%,42%)","hsl(112,55%,18%)"],"edge":"hsl(62,40%,88%)","acc":"hsl(242,90%,72%)","glass":"hsl(262,70%,55%)","guns":[10,22],"pods":28,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(242,90%,72%)","len":46,"bw":10,"aura":[56,"hsla(62,80%,60%,.22)","hsla(62,80%,40%,0)"]},"forgefin":{"shape":"swept","wing":[48,-4],"c":["hsl(103,80%,68%)","hsl(131,70%,42%)","hsl(153,55%,18%)"],"edge":"hsl(103,40%,88%)","acc":"hsl(283,90%,72%)","glass":"hsl(303,70%,55%)","guns":[12,24,34],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(283,90%,72%)","len":48,"bw":11,"aura":[57,"hsla(103,80%,60%,.22)","hsla(103,80%,40%,0)"]},"frostbit":{"shape":"wide","wing":[51,8],"c":["hsl(144,80%,68%)","hsl(172,70%,42%)","hsl(194,55%,18%)"],"edge":"hsl(144,40%,88%)","acc":"hsl(324,90%,72%)","glass":"hsl(344,70%,55%)","guns":[12],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(324,90%,72%)","len":38,"bw":12,"aura":[58,"hsla(144,80%,60%,.22)","hsla(144,80%,40%,0)"]},"iceauger":{"shape":"forward","wing":[54,10],"c":["hsl(185,80%,68%)","hsl(213,70%,42%)","hsl(235,55%,18%)"],"edge":"hsl(185,40%,88%)","acc":"hsl(5,90%,72%)","glass":"hsl(25,70%,55%)","guns":[10,22],"fins":true,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(5,90%,72%)","len":40,"bw":13,"aura":[59,"hsla(185,80%,60%,.22)","hsla(185,80%,40%,0)"]},"cryowing":{"shape":"box","wing":[36,2],"c":["hsl(226,80%,68%)","hsl(254,70%,42%)","hsl(276,55%,18%)"],"edge":"hsl(226,40%,88%)","acc":"hsl(46,90%,72%)","glass":"hsl(66,70%,55%)","guns":[12,24,34],"pods":32,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(46,90%,72%)","len":42,"bw":14,"aura":[60,"hsla(226,80%,60%,.22)","hsla(226,80%,40%,0)"]},"vaultskip":{"shape":"delta","wing":[39,14],"c":["hsl(267,80%,68%)","hsl(295,70%,42%)","hsl(317,55%,18%)"],"edge":"hsl(267,40%,88%)","acc":"hsl(87,90%,72%)","glass":"hsl(107,70%,55%)","guns":[12],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(87,90%,72%)","len":44,"bw":10,"aura":[61,"hsla(267,80%,60%,.22)","hsla(267,80%,40%,0)"]},"brinefin":{"shape":"swept","wing":[42,-4],"c":["hsl(308,80%,68%)","hsl(336,70%,42%)","hsl(358,55%,18%)"],"edge":"hsl(308,40%,88%)","acc":"hsl(128,90%,72%)","glass":"hsl(148,70%,55%)","guns":[10,22],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(128,90%,72%)","len":46,"bw":11,"aura":[54,"hsla(308,80%,60%,.22)","hsla(308,80%,40%,0)"]},"ringshear":{"shape":"wide","wing":[45,8],"c":["hsl(349,80%,68%)","hsl(17,70%,42%)","hsl(39,55%,18%)"],"edge":"hsl(349,40%,88%)","acc":"hsl(169,90%,72%)","glass":"hsl(189,70%,55%)","guns":[12,24,34],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(169,90%,72%)","len":48,"bw":12,"aura":[55,"hsla(349,80%,60%,.22)","hsla(349,80%,40%,0)"]},"spokejet":{"shape":"forward","wing":[48,10],"c":["hsl(30,80%,68%)","hsl(58,70%,42%)","hsl(80,55%,18%)"],"edge":"hsl(30,40%,88%)","acc":"hsl(210,90%,72%)","glass":"hsl(230,70%,55%)","guns":[12],"pods":31,"fins":true,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(210,90%,72%)","len":38,"bw":13,"aura":[56,"hsla(30,80%,60%,.22)","hsla(30,80%,40%,0)"]},"shepwing":{"shape":"box","wing":[51,2],"c":["hsl(71,80%,68%)","hsl(99,70%,42%)","hsl(121,55%,18%)"],"edge":"hsl(71,40%,88%)","acc":"hsl(251,90%,72%)","glass":"hsl(271,70%,55%)","guns":[10,22],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(251,90%,72%)","len":40,"bw":14,"aura":[57,"hsla(71,80%,60%,.22)","hsla(71,80%,40%,0)"]},"hexsail":{"shape":"delta","wing":[54,14],"c":["hsl(112,80%,68%)","hsl(140,70%,42%)","hsl(162,55%,18%)"],"edge":"hsl(112,40%,88%)","acc":"hsl(292,90%,72%)","glass":"hsl(312,70%,55%)","guns":[12,24,34],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(292,90%,72%)","len":42,"bw":10,"aura":[58,"hsla(112,80%,60%,.22)","hsla(112,80%,40%,0)"]},"scythesk":{"shape":"swept","wing":[36,-4],"c":["hsl(153,80%,68%)","hsl(181,70%,42%)","hsl(203,55%,18%)"],"edge":"hsl(153,40%,88%)","acc":"hsl(333,90%,72%)","glass":"hsl(353,70%,55%)","guns":[12],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(333,90%,72%)","len":44,"bw":11,"aura":[59,"hsla(153,80%,60%,.22)","hsla(153,80%,40%,0)"]},"stormcoil":{"shape":"wide","wing":[39,8],"c":["hsl(194,80%,68%)","hsl(222,70%,42%)","hsl(244,55%,18%)"],"edge":"hsl(194,40%,88%)","acc":"hsl(14,90%,72%)","glass":"hsl(34,70%,55%)","guns":[10,22],"pods":30,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(14,90%,72%)","len":46,"bw":12,"aura":[60,"hsla(194,80%,60%,.22)","hsla(194,80%,40%,0)"]},"tiltwing":{"shape":"forward","wing":[42,10],"c":["hsl(235,80%,68%)","hsl(263,70%,42%)","hsl(285,55%,18%)"],"edge":"hsl(235,40%,88%)","acc":"hsl(55,90%,72%)","glass":"hsl(75,70%,55%)","guns":[12,24,34],"fins":true,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(55,90%,72%)","len":48,"bw":13,"aura":[61,"hsla(235,80%,60%,.22)","hsla(235,80%,40%,0)"]},"methanray":{"shape":"box","wing":[45,2],"c":["hsl(276,80%,68%)","hsl(304,70%,42%)","hsl(326,55%,18%)"],"edge":"hsl(276,40%,88%)","acc":"hsl(96,90%,72%)","glass":"hsl(116,70%,55%)","guns":[12],"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(96,90%,72%)","len":38,"bw":14,"aura":[54,"hsla(276,80%,60%,.22)","hsla(276,80%,40%,0)"]},"aurorafin":{"shape":"delta","wing":[48,14],"c":["hsl(317,80%,68%)","hsl(345,70%,42%)","hsl(7,55%,18%)"],"edge":"hsl(317,40%,88%)","acc":"hsl(137,90%,72%)","glass":"hsl(157,70%,55%)","guns":[10,22],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(137,90%,72%)","len":40,"bw":10,"aura":[55,"hsla(317,80%,60%,.22)","hsla(317,80%,40%,0)"]},"oortneedle":{"shape":"swept","wing":[51,-4],"c":["hsl(358,80%,68%)","hsl(26,70%,42%)","hsl(48,55%,18%)"],"edge":"hsl(358,40%,88%)","acc":"hsl(178,90%,72%)","glass":"hsl(198,70%,55%)","guns":[12,24,34],"pods":29,"fins":false,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(178,90%,72%)","len":42,"bw":11,"aura":[56,"hsla(358,80%,60%,.22)","hsla(358,80%,40%,0)"]},"plutospire":{"shape":"wide","wing":[54,8],"c":["hsl(39,80%,68%)","hsl(67,70%,42%)","hsl(89,55%,18%)"],"edge":"hsl(39,40%,88%)","acc":"hsl(219,90%,72%)","glass":"hsl(239,70%,55%)","guns":[12],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(219,90%,72%)","len":44,"bw":12,"aura":[57,"hsla(39,80%,60%,.22)","hsla(39,80%,40%,0)"]},"charongate":{"shape":"forward","wing":[36,10],"c":["hsl(80,80%,68%)","hsl(108,70%,42%)","hsl(130,55%,18%)"],"edge":"hsl(80,40%,88%)","acc":"hsl(260,90%,72%)","glass":"hsl(280,70%,55%)","guns":[10,22],"fins":true,"eng":[[-8,28,16,6],[8,28,16,6]],"core":"hsl(260,90%,72%)","len":46,"bw":13,"aura":[58,"hsla(80,80%,60%,.22)","hsla(80,80%,40%,0)"]},"starcrown":{"shape":"box","wing":[39,2],"c":["hsl(121,80%,68%)","hsl(149,70%,42%)","hsl(171,55%,18%)"],"edge":"hsl(121,40%,88%)","acc":"hsl(301,90%,72%)","glass":"hsl(321,70%,55%)","guns":[12,24,34],"fins":false,"eng":[[0,30,22,7],[-12,26,12,5],[12,26,12,5]],"core":"hsl(301,90%,72%)","len":48,"bw":14,"aura":[59,"hsla(121,80%,60%,.22)","hsla(121,80%,40%,0)"]}};
+  var OUTER_KITS = {"rivet":{"shape":"kite","wing":[36,8],"c":["#f0c8a8","#b06a3a","#3a1a10"],"edge":"#ffd0a0","acc":"#7dffea","glass":"#4ec3ff","eng":[[0,30,20,7]],"core":"#7dffea","len":40,"bw":10,"aura":[48,"#7dffea38","#3a1a1000"]},"crane":{"shape":"gantry","wing":[38,8],"c":["#ffe066","#c0a020","#3a2a08"],"edge":"#fff6c8","acc":"#2330ff","glass":"#8090ff","eng":[[0,30,20,7]],"core":"#2330ff","len":40,"bw":10,"aura":[48,"#2330ff38","#3a2a0800"]},"welder":{"shape":"torch","wing":[40,8],"c":["#ffb060","#d05010","#3a1008"],"edge":"#ffe0a0","acc":"#ff6a1a","glass":"#ffd54a","eng":[[0,30,20,7]],"core":"#ff6a1a","len":40,"bw":10,"aura":[48,"#ff6a1a38","#3a100800"]},"dockn":{"shape":"needle","wing":[42,8],"c":["#d8e0f0","#6a7890","#1a2030"],"edge":"#ffffff","acc":"#7dffff","glass":"#4ec3ff","eng":[[0,30,20,7]],"core":"#7dffff","len":41,"bw":10,"aura":[48,"#7dffff38","#1a203000"]},"boltfin":{"shape":"bolt","wing":[44,8],"c":["#c8c8d8","#5a5a6a","#1a1a24"],"edge":"#ff9a3a","acc":"#ff6a1a","glass":"#ffe0a0","eng":[[0,30,20,7]],"core":"#ff6a1a","len":41,"bw":10,"aura":[48,"#ff6a1a38","#1a1a2400"]},"hullmite":{"shape":"beetle","wing":[36,8],"c":["#c09070","#6a3a28","#201008"],"edge":"#ffc090","acc":"#ff7a40","glass":"#3a2010","eng":[[0,30,20,7]],"core":"#ff7a40","len":41,"bw":10,"aura":[54,"#ff7a4038","#20100800"]},"slagskip":{"shape":"hopper","wing":[38,8],"c":["#8a8a6a","#4a3a20","#1a140c"],"edge":"#c8b080","acc":"#ff9a3a","glass":"#6a4a20","eng":[[0,30,20,7]],"core":"#ff9a3a","len":42,"bw":11,"aura":[54,"#ff9a3a38","#1a140c00"]},"magmapike":{"shape":"pike","wing":[40,8],"c":["#ff6a2a","#8a1a0a","#2a0808"],"edge":"#ffd0a0","acc":"#ff3a1a","glass":"#ffe066","eng":[[0,30,20,7]],"core":"#ff3a1a","len":42,"bw":11,"aura":[54,"#ff3a1a38","#2a080800"]},"smeltwing":{"shape":"manta","wing":[42,8],"c":["#ff8a40","#a03010","#2a0c08"],"edge":"#ffd0a8","acc":"#ff5020","glass":"#fff0c0","eng":[[0,30,20,7]],"core":"#ff5020","len":42,"bw":11,"aura":[54,"#ff502038","#2a0c0800"]},"ingothulk":{"shape":"hulk","wing":[44,8],"c":["#b0b0c0","#4a4a58","#14141c"],"edge":"#e0e0f0","acc":"#7dffe0","glass":"#3a3a4a","eng":[[0,30,20,7]],"core":"#7dffe0","len":43,"bw":11,"aura":[54,"#7dffe038","#14141c00"]},"crucibit":{"shape":"crucible","wing":[36,8],"c":["#ff7040","#7a2010","#220808"],"edge":"#ffc090","acc":"#ff5020","glass":"#ffd54a","eng":[[0,30,20,7]],"core":"#ff5020","len":43,"bw":11,"aura":[60,"#ff502038","#22080800"]},"forgefin":{"shape":"anvil","wing":[38,8],"c":["#d0a060","#6a4018","#241408"],"edge":"#ffe0b0","acc":"#ffb02a","glass":"#4a2a10","eng":[[0,30,20,7]],"core":"#ffb02a","len":43,"bw":11,"aura":[60,"#ffb02a38","#24140800"]},"frostbit":{"shape":"shard","wing":[40,8],"c":["#c8f0ff","#3a7aa0","#0a2030"],"edge":"#ffffff","acc":"#7dffff","glass":"#bff4ff","eng":[[0,30,20,7]],"core":"#7dffff","len":44,"bw":12,"aura":[60,"#7dffff38","#0a203000"]},"iceauger":{"shape":"auger","wing":[42,8],"c":["#a0d8f0","#2a5a80","#081828"],"edge":"#e8fbff","acc":"#4ec3ff","glass":"#ffffff","eng":[[0,30,20,7]],"core":"#4ec3ff","len":44,"bw":12,"aura":[60,"#4ec3ff38","#08182800"]},"cryowing":{"shape":"crescent","wing":[44,8],"c":["#e0f4ff","#4080b0","#0c2438"],"edge":"#ffffff","acc":"#7dffff","glass":"#c8f6ff","eng":[[0,30,20,7]],"core":"#7dffff","len":44,"bw":12,"aura":[60,"#7dffff38","#0c243800"]},"vaultskip":{"shape":"vault","wing":[36,8],"c":["#c0a870","#4a3820","#181008"],"edge":"#ffe8b0","acc":"#ffd54a","glass":"#7dffe0","eng":[[0,30,20,7]],"core":"#ffd54a","len":45,"bw":12,"aura":[66,"#ffd54a38","#18100800"]},"brinefin":{"shape":"fish","wing":[38,8],"c":["#70c8c0","#1a4a4a","#081818"],"edge":"#c8fff4","acc":"#7dffea","glass":"#3affd0","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#7dffea","len":45,"bw":12,"aura":[66,"#7dffea38","#08181800"]},"ringshear":{"shape":"ring","wing":[40,8],"c":["#e0c8ff","#5a3a9a","#1a0a30"],"edge":"#ffffff","acc":"#c08cff","glass":"#ffe066","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#c08cff","len":45,"bw":12,"aura":[66,"#c08cff38","#1a0a3000"]},"spokejet":{"shape":"spoke","wing":[42,8],"c":["#f0d080","#6a4a18","#201408"],"edge":"#fff4c8","acc":"#ffd54a","glass":"#ffffff","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#ffd54a","len":46,"bw":13,"aura":[66,"#ffd54a38","#20140800"]},"shepwing":{"shape":"crook","wing":[44,8],"c":["#b8d0ff","#304878","#0c1428"],"edge":"#e8f0ff","acc":"#7dffff","glass":"#c08cff","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#7dffff","len":46,"bw":13,"aura":[66,"#7dffff38","#0c142800"]},"hexsail":{"shape":"hexsail","wing":[36,8],"c":["#ffe9a0","#a07018","#2a1c08"],"edge":"#fffbe0","acc":"#ffd54a","glass":"#ffffff","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#ffd54a","len":46,"bw":13,"aura":[72,"#ffd54a38","#2a1c0800"]},"scythesk":{"shape":"scythe","wing":[38,8],"c":["#d0e8ff","#305080","#0a1830"],"edge":"#ffffff","acc":"#7dffff","glass":"#c08cff","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#7dffff","len":47,"bw":13,"aura":[72,"#7dffff38","#0a183000"]},"stormcoil":{"shape":"coil","wing":[40,8],"c":["#b0e0ff","#2050a0","#081830"],"edge":"#ffffff","acc":"#7dffff","glass":"#fff27a","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#7dffff","len":47,"bw":13,"aura":[72,"#7dffff38","#08183000"]},"tiltwing":{"shape":"tilt","wing":[42,8],"c":["#c8b8ff","#3a2a70","#120828"],"edge":"#f0e8ff","acc":"#c08cff","glass":"#7dffff","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#c08cff","len":47,"bw":13,"aura":[72,"#c08cff38","#12082800"]},"methanray":{"shape":"saucer","wing":[44,8],"c":["#7dffff","#1a6a6a","#082028"],"edge":"#e8fffb","acc":"#4ec3ff","glass":"#ffffff","eng":[[-14,30,16,6],[14,30,16,6],[0,34,22,8]],"core":"#4ec3ff","len":48,"bw":14,"aura":[72,"#4ec3ff38","#08202800"]},"aurorafin":{"shape":"ribbon","wing":[36,8],"c":["#ffb0e0","#6a2080","#200828"],"edge":"#ffe0f4","acc":"#ff8ae0","glass":"#7dffff","eng":[[-14,30,16,6],[14,30,16,6],[0,34,22,8]],"core":"#ff8ae0","len":48,"bw":14,"aura":[78,"#ff8ae038","#20082800"]},"oortneedle":{"shape":"spine","wing":[38,8],"c":["#e8f0ff","#506080","#101828"],"edge":"#ffffff","acc":"#c8f6ff","glass":"#7dffff","eng":[[-14,30,16,6],[14,30,16,6],[0,34,22,8]],"core":"#c8f6ff","len":48,"bw":14,"aura":[78,"#c8f6ff38","#10182800"]},"plutospire":{"shape":"spire","wing":[40,8],"c":["#c0c8e0","#2a3050","#0a0c18"],"edge":"#ffffff","acc":"#7dffff","glass":"#c08cff","eng":[[-14,30,16,6],[14,30,16,6],[0,34,22,8]],"core":"#7dffff","len":49,"bw":14,"aura":[78,"#7dffff38","#0a0c1800"]},"charongate":{"shape":"gate","wing":[42,8],"c":["#e0d0ff","#3a2060","#140828"],"edge":"#ffffff","acc":"#c08cff","glass":"#ffd54a","eng":[[-14,30,16,6],[14,30,16,6],[0,34,22,8]],"core":"#c08cff","len":49,"bw":14,"aura":[78,"#c08cff38","#14082800"]},"starcrown":{"shape":"crown","wing":[44,8],"c":["#fff6c8","#c09020","#2a1c08"],"edge":"#ffffff","acc":"#ffd54a","glass":"#7dffff","eng":[[-14,30,16,6],[14,30,16,6],[0,34,22,8]],"core":"#ffd54a","len":49,"bw":14,"aura":[78,"#ffd54a38","#2a1c0800"]}};
+  var OUTER_NAMES = {"rivet":"Rivet Kite","crane":"Crane Wing","welder":"Welder Skip","dockn":"Drydock Needle","boltfin":"Bolt Fin","hullmite":"Hull Mite","slagskip":"Slag Skip","magmapike":"Magma Pike","smeltwing":"Smelter Wing","ingothulk":"Ingot Hulk","crucibit":"Crucible Bit","forgefin":"Forge Fin","frostbit":"Frost Bit","iceauger":"Ice Auger","cryowing":"Cryo Wing","vaultskip":"Vault Skip","brinefin":"Brine Fin","ringshear":"Ring Shear","spokejet":"Spoke Jet","shepwing":"Shepherd Wing","hexsail":"Hex Sail","scythesk":"Orbital Scythe","stormcoil":"Storm Coil","tiltwing":"Tilt Wing","methanray":"Methane Ray","aurorafin":"Aurora Fin","oortneedle":"Oort Needle","plutospire":"Pluto Spire","charongate":"Charon Gate","starcrown":"Star Crown"};
   Object.keys(OUTER_KITS).forEach(function (id) {
     DESIGNS[id] = function (t, d, fx) { shipKit(t, d, fx, OUTER_KITS[id]); };
   });
@@ -8423,32 +8743,32 @@
     mapInfo: function () { var a = []; for (var i = worldBase(); i < SECTORS[mapWorld].to; i++) { var p = planetPos(i); a.push({ L: i + 1, x: Math.round(p.x * S), y: Math.round(p.y * S), r: Math.round(planetR(i) * S) }); } return { planets: a, anim: mapAnim ? mapAnim.type : null, rocketS: rocketS, scroll: mapScroll, state: state, world: mapWorld }; },
     setMapWorld: function (i) { setMapWorld(i); return mapWorld; },
     drawOuterSheet: function () {
-      var ids = Object.keys(OUTER_KITS), cols = 6, rows = 5, cell = 180, pad = 16;
-      var cv = document.createElement("canvas"); cv.width = cols * cell + pad * 2; cv.height = rows * cell + pad * 2 + 36;
+      var ids = Object.keys(OUTER_KITS), cols = 6, rows = 5, cell = 210, pad = 18;
+      var cv = document.createElement("canvas"); cv.width = cols * cell + pad * 2; cv.height = rows * cell + pad * 2 + 40;
       var main = ctx; ctx = cv.getContext("2d");
-      ctx.fillStyle = "#0a1028"; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.fillStyle = "#ffd54a"; ctx.font = "bold 22px Trebuchet MS, sans-serif"; ctx.textAlign = "center";
-      ctx.fillText("Outer Fleet — 30 ships (levels 105–250)", cv.width / 2, 28);
+      ctx.fillStyle = "#070b1c"; ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.fillStyle = "#ffd54a"; ctx.font = "bold 24px Trebuchet MS, sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("Outer Fleet — 30 ships (levels 105–250)", cv.width / 2, 30);
       ids.forEach(function (id, i) {
-        var x = pad + (i % cols) * cell + cell / 2, y = 48 + Math.floor(i / cols) * cell + 70;
-        ctx.save(); ctx.translate(x, y); ctx.scale(1.15, 1.15);
-        try { drawShipModel(id, 0, 0, 1.2, true); } catch (e) { DESIGNS.starter(1.2, SHIP_BY.starter, true); }
+        var x = pad + (i % cols) * cell + cell / 2, y = 54 + Math.floor(i / cols) * cell + 78;
+        ctx.save(); ctx.translate(x, y); ctx.scale(1.28, 1.28);
+        try { drawShipModel(id, 0, 0, 1.35, true); } catch (e) { DESIGNS.starter(1.2, SHIP_BY.starter, true); }
         ctx.restore();
-        ctx.fillStyle = "#e8f0ff"; ctx.font = "bold 13px Trebuchet MS, sans-serif";
-        ctx.fillText((SHIP_BY[id] && shipNameOf(SHIP_BY[id])) || id, x, y + 62);
-        ctx.fillStyle = "#7dffea"; ctx.font = "11px Trebuchet MS, sans-serif";
-        ctx.fillText("L" + (SHIP_BY[id] && SHIP_BY[id].unlock ? SHIP_BY[id].unlock.L : "?"), x, y + 78);
+        ctx.fillStyle = "#e8f0ff"; ctx.font = "bold 14px Trebuchet MS, sans-serif";
+        ctx.fillText((OUTER_NAMES && OUTER_NAMES[id]) || (SHIP_BY[id] && shipNameOf(SHIP_BY[id])) || id, x, y + 72);
+        ctx.fillStyle = "#7dffea"; ctx.font = "12px Trebuchet MS, sans-serif";
+        ctx.fillText("L" + (SHIP_BY[id] && SHIP_BY[id].unlock ? SHIP_BY[id].unlock.L : "?"), x, y + 90);
       });
       ctx = main;
       return cv.toDataURL("image/png");
     },
     drawKaiserCompare: function () {
-      var cv = document.createElement("canvas"); cv.width = 1280; cv.height = 640;
+      var cv = document.createElement("canvas"); cv.width = 1280; cv.height = 720;
       var main = ctx, sb = boss, sl = level; ctx = cv.getContext("2d");
-      ctx.fillStyle = "#050816"; ctx.fillRect(0, 0, 1280, 640);
+      ctx.fillStyle = "#050816"; ctx.fillRect(0, 0, 1280, 720);
       function paint(x, L, prime, label) {
-        ctx.save(); ctx.translate(x, 340);
-        boss = { x: 0, y: 0, t: 1.2, flash: 0, hp: 1, maxHp: 1, k: prime ? 1.15 : 0.78, phase: 1, wind: 0, type: "emperor", final: !prime, prime: !!prime, mods: [] };
+        ctx.save(); ctx.translate(x, 380);
+        boss = { x: 0, y: 0, t: 1.2, flash: 0, hp: 1, maxHp: 1, k: prime ? 1.22 : 0.78, phase: 1, wind: 0, type: "emperor", final: !prime, prime: !!prime, mods: [] };
         level = L; drawEmperor(boss);
         ctx.restore();
         ctx.fillStyle = "#ffd54a"; ctx.font = "bold 22px Trebuchet MS, sans-serif"; ctx.textAlign = "center";

@@ -6,7 +6,11 @@
 export const OUTER_TAB = 6;
 export const OUTER_TAB_KEY = 'tabOuter' as const;
 
-export type OuterShape = 'delta' | 'swept' | 'wide' | 'forward' | 'box';
+export type OuterShape =
+  | 'kite' | 'gantry' | 'torch' | 'needle' | 'bolt' | 'beetle' | 'hopper' | 'pike'
+  | 'manta' | 'hulk' | 'crucible' | 'anvil' | 'shard' | 'auger' | 'crescent'
+  | 'vault' | 'fish' | 'ring' | 'spoke' | 'crook' | 'hexsail' | 'scythe'
+  | 'coil' | 'tilt' | 'saucer' | 'ribbon' | 'spine' | 'spire' | 'gate' | 'crown';
 
 export type OuterShip = {
   id: string;
@@ -47,44 +51,69 @@ export type OuterShip = {
   };
 };
 
-const SHAPES: OuterShape[] = ['delta', 'swept', 'wide', 'forward', 'box'];
+const SHAPES: OuterShape[] = [
+  'kite', 'gantry', 'torch', 'needle', 'bolt', 'beetle', 'hopper', 'pike',
+  'manta', 'hulk', 'crucible', 'anvil', 'shard', 'auger', 'crescent',
+  'vault', 'fish', 'ring', 'spoke', 'crook', 'hexsail', 'scythe',
+  'coil', 'tilt', 'saucer', 'ribbon', 'spine', 'spire', 'gate', 'crown',
+];
 
 function flame(a: string, b: string, c: string): [string, string, string] {
   return [a, b, c];
 }
 
-function kitFor(i: number, hue: number): OuterShip['kit'] {
-  const h = hue % 360;
-  const c1 = `hsl(${h},80%,68%)`;
-  const c2 = `hsl(${(h + 28) % 360},70%,42%)`;
-  const c3 = `hsl(${(h + 50) % 360},55%,18%)`;
-  const acc = `hsl(${(h + 180) % 360},90%,72%)`;
-  const edge = `hsl(${h},40%,88%)`;
-  const glass = `hsl(${(h + 200) % 360},70%,55%)`;
-  const shape = SHAPES[i % 5];
-  const wingW = 36 + (i % 7) * 3;
-  const wingY = [14, -4, 8, 10, 2][i % 5];
-  const guns = i % 3 === 0 ? [12] : i % 3 === 1 ? [10, 22] : [12, 24, 34];
-  const pods = i % 4 === 2 ? 28 + (i % 5) : undefined;
-  const fins = i % 5 === 3;
-  const eng = i % 2 === 0
-    ? [[-8, 28, 16, 6], [8, 28, 16, 6]]
-    : [[0, 30, 22, 7], [-12, 26, 12, 5], [12, 26, 12, 5]];
+const PALETTES: Array<[string, string, string, string, string, string]> = [
+  ['#f0c8a8', '#b06a3a', '#3a1a10', '#ffd0a0', '#7dffea', '#4ec3ff'],
+  ['#ffe066', '#c0a020', '#3a2a08', '#fff6c8', '#2330ff', '#8090ff'],
+  ['#ffb060', '#d05010', '#3a1008', '#ffe0a0', '#ff6a1a', '#ffd54a'],
+  ['#d8e0f0', '#6a7890', '#1a2030', '#ffffff', '#7dffff', '#4ec3ff'],
+  ['#c8c8d8', '#5a5a6a', '#1a1a24', '#ff9a3a', '#ff6a1a', '#ffe0a0'],
+  ['#c09070', '#6a3a28', '#201008', '#ffc090', '#ff7a40', '#3a2010'],
+  ['#8a8a6a', '#4a3a20', '#1a140c', '#c8b080', '#ff9a3a', '#6a4a20'],
+  ['#ff6a2a', '#8a1a0a', '#2a0808', '#ffd0a0', '#ff3a1a', '#ffe066'],
+  ['#ff8a40', '#a03010', '#2a0c08', '#ffd0a8', '#ff5020', '#fff0c0'],
+  ['#b0b0c0', '#4a4a58', '#14141c', '#e0e0f0', '#7dffe0', '#3a3a4a'],
+  ['#ff7040', '#7a2010', '#220808', '#ffc090', '#ff5020', '#ffd54a'],
+  ['#d0a060', '#6a4018', '#241408', '#ffe0b0', '#ffb02a', '#4a2a10'],
+  ['#c8f0ff', '#3a7aa0', '#0a2030', '#ffffff', '#7dffff', '#bff4ff'],
+  ['#a0d8f0', '#2a5a80', '#081828', '#e8fbff', '#4ec3ff', '#ffffff'],
+  ['#e0f4ff', '#4080b0', '#0c2438', '#ffffff', '#7dffff', '#c8f6ff'],
+  ['#c0a870', '#4a3820', '#181008', '#ffe8b0', '#ffd54a', '#7dffe0'],
+  ['#70c8c0', '#1a4a4a', '#081818', '#c8fff4', '#7dffea', '#3affd0'],
+  ['#e0c8ff', '#5a3a9a', '#1a0a30', '#ffffff', '#c08cff', '#ffe066'],
+  ['#f0d080', '#6a4a18', '#201408', '#fff4c8', '#ffd54a', '#ffffff'],
+  ['#b8d0ff', '#304878', '#0c1428', '#e8f0ff', '#7dffff', '#c08cff'],
+  ['#ffe9a0', '#a07018', '#2a1c08', '#fffbe0', '#ffd54a', '#ffffff'],
+  ['#d0e8ff', '#305080', '#0a1830', '#ffffff', '#7dffff', '#c08cff'],
+  ['#b0e0ff', '#2050a0', '#081830', '#ffffff', '#7dffff', '#fff27a'],
+  ['#c8b8ff', '#3a2a70', '#120828', '#f0e8ff', '#c08cff', '#7dffff'],
+  ['#7dffff', '#1a6a6a', '#082028', '#e8fffb', '#4ec3ff', '#ffffff'],
+  ['#ffb0e0', '#6a2080', '#200828', '#ffe0f4', '#ff8ae0', '#7dffff'],
+  ['#e8f0ff', '#506080', '#101828', '#ffffff', '#c8f6ff', '#7dffff'],
+  ['#c0c8e0', '#2a3050', '#0a0c18', '#ffffff', '#7dffff', '#c08cff'],
+  ['#e0d0ff', '#3a2060', '#140828', '#ffffff', '#c08cff', '#ffd54a'],
+  ['#fff6c8', '#c09020', '#2a1c08', '#ffffff', '#ffd54a', '#7dffff'],
+];
+
+function kitFor(i: number): OuterShip['kit'] {
+  const [c1, c2, c3, edge, acc, glass] = PALETTES[i];
+  const auraR = 48 + Math.floor(i / 5) * 6;
   return {
-    shape,
-    wing: [wingW, wingY],
+    shape: SHAPES[i],
+    wing: [36 + (i % 5) * 2, 8],
     c: [c1, c2, c3],
     edge,
     acc,
     glass,
-    guns,
-    pods,
-    fins,
-    eng,
+    eng: i >= 24
+      ? [[-14, 30, 16, 6], [14, 30, 16, 6], [0, 34, 22, 8]]
+      : i >= 16
+        ? [[-10, 30, 16, 6], [10, 30, 16, 6]]
+        : [[0, 30, 20, 7]],
     core: acc,
-    len: 38 + (i % 6) * 2,
-    bw: 10 + (i % 5),
-    aura: [54 + (i % 8), `hsla(${h},80%,60%,.22)`, `hsla(${h},80%,40%,0)`],
+    len: 40 + Math.min(12, Math.floor(i / 3)),
+    bw: 10 + Math.floor(i / 6),
+    aura: [auraR, `${acc}38`, `${c3}00`],
   };
 }
 
@@ -186,7 +215,7 @@ export const OUTER_SHIPS: OuterShip[] = NAMES.map((row, i) => {
     hitR: perk === 'small' ? 13 : undefined,
     bullet: `hsl(${bulletHue},85%,70%)`,
     flame: flame('255,255,255', `${80 + (i % 8) * 12},${160 + (i % 5) * 10},255`, `${30 + i},${70},200`),
-    kit: kitFor(i, hue),
+    kit: kitFor(i),
   };
 });
 

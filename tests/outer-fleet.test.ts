@@ -69,4 +69,38 @@ describe('250-level bosses and Kaiser split', () => {
     expect(HTML).toContain('spec.prime');
     expect(HTML).toContain('if (b.prime)');
   });
+
+  it('keeps the L100 Kaiser draw path, art, and size formula exactly as they are now', () => {
+    const start = HTML.indexOf('  function drawEmperor(b) {');
+    const prime = HTML.indexOf('    if (b.prime) {', start);
+    expect(start).toBeGreaterThan(0);
+    expect(prime).toBeGreaterThan(start);
+    const body = HTML.slice(start, prime);
+    expect(body).toContain('// Triebwerk-Glühen hinter dem Rücken');
+    expect(body).toContain('// Mechanische Arme');
+    expect(body).toContain('// Torso (Panzer)');
+    expect(body).toContain('// Schulter-Kanonen');
+    expect(body).toContain('// Energie-Kern in der Brust (pulsiert)');
+    expect(body).toContain('// Hals + Kopf');
+    expect(body).toContain('// Visier mit roten Augen');
+    expect(body).toContain('// Leuchtende Krone');
+    expect(body).toContain('ctx.fillRect(-28 + lx, -100, 20, 9)');
+    expect(body).toContain('ctx.moveTo(-44, 10); ctx.lineTo(-44, -16); ctx.lineTo(-22, 0); ctx.lineTo(0, -26)');
+    expect(body).not.toContain('Star Crown');
+    expect(body).not.toContain('pulse = 0.5 + 0.5 * Math.sin(t * 5)');
+    expect(HTML).toContain(
+      'spec.prime ? Math.min(W * 0.72, H * 0.82, 760) : Math.min(W * 0.5, H * 0.62, 500)',
+    );
+    const W = 1024, H = 720;
+    expect(Math.round(Math.min(W * 0.5, H * 0.62, 500))).toBe(446);
+    expect(Math.round(Math.min(W * 0.72, H * 0.82, 760))).toBe(590);
+  });
+
+  it('gives every Outer Fleet ship a unique silhouette baked into HTML kits', () => {
+    const shapes = OUTER_SHIPS.map((s) => s.kit.shape);
+    expect(new Set(shapes).size).toBe(30);
+    for (const s of OUTER_SHIPS) {
+      expect(HTML).toContain(`"${s.id}":{"shape":"${s.kit.shape}"`);
+    }
+  });
 });
