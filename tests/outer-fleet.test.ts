@@ -153,7 +153,7 @@ describe('250-level bosses and Kaiser split', () => {
     expect(HTML).toContain('function drawKraken');
     expect(HTML).toContain('function drawSun');
     expect(HTML).toContain('function drawGuardian');
-    expect(HTML).toContain('late-boss-art-v2');
+    expect(HTML).toContain('late-boss-art-v3');
     expect(HTML).toContain('drawLateBossSheet: function');
     expect(HTML).toContain('RIVET DRONE');
     expect(HTML).toContain('VOID HERALD');
@@ -168,11 +168,18 @@ describe('250-level bosses and Kaiser split', () => {
     expect(levels).not.toContain(250);
     const keys = levels.map((L) => {
       const r = lateBossArtRecipe(L);
-      return [r.hull, r.limbs, r.crown, r.guns, r.body, r.limbN, r.hue].join(':');
+      return [r.kind, r.form, r.hull, r.hue].join(':');
     });
     expect(new Set(keys).size).toBe(keys.length);
+    const artForms = levels.filter((L) => ![120, 150, 174, 198, 225].includes(L)).map((L) => lateBossArtRecipe(L).form);
+    expect(new Set(artForms).size).toBe(artForms.length);
     expect(HTML).toContain('hull: a % 20');
     expect(HTML).toContain('limbN: 3 + (a % 4)');
+    expect(HTML).toContain('late-boss-art-v3');
+    expect(HTML).toContain('function latePal(L, fl, angry)');
+    expect(HTML).toContain('form === "rivetDrone"');
+    expect(HTML).toContain('form === "voidDelta"');
+    expect(HTML).not.toContain('if (r.crown)');
     expect(HTML).toMatch(/function drawForgeBoss\(b\) \{[\s\S]*ctx\.rotate\(t \* 2\)/);
     expect(HTML).toMatch(/function drawFoundryBoss\(b\) \{[\s\S]*ctx\.rotate\(t \* 0\.35\)/);
     expect(HTML).toMatch(/function drawVaultBoss\(b\) \{[\s\S]*bezierCurveTo/);

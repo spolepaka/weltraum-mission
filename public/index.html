@@ -3464,149 +3464,295 @@
 
   function artRecipe(L) {
     var a = Math.max(0, (L | 0) - 101);
-    return { hull: a % 20, limbs: Math.floor(a / 2) % 8, crown: (a * 3 + 1) % 10, guns: 2 + ((a * 2 + 2) % 5), orbit: 1 + ((a * 5 + 3) % 5), hue: (a * 47 + 18) % 360, hue2: (a * 47 + 148) % 360, hue3: (a * 29 + 80) % 360, body: a % 4, limbN: 3 + (a % 4) };
+    var forms = {102:"rivetDrone",105:"craneMech",108:"welderRig",111:"dockClamp",114:"boltHowitzer",117:"hullSaw",123:"launchClamp",126:"slagFurnace",129:"magmaPress",132:"smelterWalker",135:"ingotCannon",138:"cruciblePod",141:"forgeHammer",144:"lavaRail",147:"ashBarge",153:"frostProbe",156:"iceAuger",159:"cryoTurret",162:"vaultLock",165:"brineTank",168:"searchTurret",171:"crackerRig",177:"ringShear",180:"spokeDestroyer",183:"shepherdSat",186:"icePipe",189:"hexSail",192:"orbitScythe",195:"spokeFort",201:"stormCoil",204:"tiltGyro",207:"methaneWing",210:"diamondTurret",213:"sideCruiser",216:"auroraFan",219:"iceRam",222:"vortexTurbine",228:"cometRack",231:"plutoSpire",234:"charonGate",237:"oortNeedle",240:"pincerDeck",243:"haloRing",246:"iceWalker",249:"voidDelta"};
+    return { hull: a % 20, limbs: Math.floor(a / 2) % 8, crown: 0, guns: 2 + ((a * 2 + 2) % 5), orbit: 1 + ((a * 5 + 3) % 5), hue: (a * 47 + 18) % 360, hue2: (a * 47 + 148) % 360, hue3: (a * 29 + 80) % 360, body: a % 4, limbN: 3 + (a % 4), kind: L | 0, form: forms[L | 0] || ("late" + (L | 0)) };
   }
-  // late-boss-art-v2: unique silhouettes, layered armor, glow, animated limbs for L101–249
+  // late-boss-art-v3: hard-edged machines, unique body per art boss, no cute faces
+  function latePal(L, fl, angry) {
+    var w = L <= 125 ? 0 : L <= 150 ? 1 : L <= 175 ? 2 : L <= 200 ? 3 : L <= 225 ? 4 : 5;
+    var P = [
+      { a: "#d4b06a", b: "#6a5030", c: "#ffe08a", d: "#2a1c0c", h: "rgba(212,176,106,.32)" },
+      { a: "#e05020", b: "#6a1808", c: "#ffb02a", d: "#2a0804", h: "rgba(255,80,20,.34)" },
+      { a: "#b8d8e8", b: "#2a5080", c: "#7fe0ff", d: "#081828", h: "rgba(127,224,255,.32)" },
+      { a: "#e8c060", b: "#6a4a18", c: "#ffe066", d: "#2a1c08", h: "rgba(232,192,96,.30)" },
+      { a: "#4a9a90", b: "#1a3a40", c: "#7dffd0", d: "#041018", h: "rgba(125,255,208,.32)" },
+      { a: "#8a70b0", b: "#2a1848", c: "#d0b0ff", d: "#100818", h: "rgba(180,120,255,.32)" }
+    ][w];
+    if (fl) return { a: "#fff", b: "#e8e8e8", c: "#fff", d: P.d, h: P.h };
+    if (angry) return { a: P.a, b: P.b, c: "#ff6a2a", d: P.d, h: P.h };
+    return P;
+  }
   function drawArtBoss(b) {
     var L = (b.art | 0) || level, r = artRecipe(L), t = b.t, fl = b.flash > 0, angry = b.hp / b.maxHp < 0.4;
-    ctx.save(); ctx.translate(b.x, b.y + Math.sin(t * 1.4) * 4);
-    var sat = angry ? 88 : 78, lit = angry ? 62 : 52;
-    var c1 = fl ? "#fff" : "hsl(" + r.hue + "," + sat + "%," + lit + "%)";
-    var c2 = fl ? "#fff" : "hsl(" + r.hue2 + ",82%,34%)";
-    var c3 = fl ? "#fff" : "hsl(" + r.hue3 + ",90%,68%)";
-    var ink = "hsl(" + r.hue + ",40%,10%)";
-    ctx.strokeStyle = ink; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round";
-    var bloom = ctx.createRadialGradient(0, 0, 6, 0, 0, 128);
-    bloom.addColorStop(0, "hsla(" + r.hue3 + ",100%,70%,.42)"); bloom.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = bloom; ctx.beginPath(); ctx.arc(0, 0, 128, 0, 7); ctx.fill();
-    var oi, oa;
-    for (oi = 0; oi < r.orbit; oi++) {
-      oa = t * (1.1 + r.orbit * 0.08) + oi * 6.28 / r.orbit;
-      ctx.save(); ctx.translate(Math.cos(oa) * 86, Math.sin(oa) * 46);
-      ctx.rotate(oa + t); ctx.fillStyle = c3;
-      ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(5, 5); ctx.lineTo(-5, 5); ctx.closePath(); ctx.fill();
-      glowDot(0, 0, 3.2, c3, 12);
-      ctx.restore();
+    var p = latePal(L, fl, angry), form = r.form, i, a, s, wob;
+    ctx.save(); ctx.translate(b.x, b.y + Math.sin(t * 1.2) * 3); ctx.scale(1.12, 1.12);
+    ctx.lineJoin = "miter"; ctx.lineCap = "butt"; ctx.lineWidth = 3.5; ctx.strokeStyle = p.d;
+    var hg = ctx.createRadialGradient(0, 0, 8, 0, 0, 122);
+    hg.addColorStop(0, p.h); hg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(0, 0, 122, 0, 7); ctx.fill();
+    function pulse() { return 0.5 + 0.5 * Math.sin(t * 6); }
+    function plate(x, y, w, h) { ctx.fillStyle = p.b; ctx.fillRect(x, y, w, h); ctx.strokeRect(x, y, w, h); }
+    function visor(x, y, w) { ctx.fillStyle = p.c; ctx.fillRect(x - w / 2, y - 3, w, 6); glowDot(x, y, 3.2, p.c, 10); }
+    function thruster(x, y, w) {
+      ctx.fillStyle = p.c; ctx.globalAlpha = 0.55 + 0.45 * Math.sin(t * 11);
+      ctx.beginPath(); ctx.moveTo(x - w, y); ctx.lineTo(x + w, y); ctx.lineTo(x, y + 16 + Math.sin(t * 14) * 4); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
     }
-    function limb(kind, i, n) {
-      var span = 1.15 + n * 0.16, la = -span + i * (2 * span / Math.max(1, n - 1)), wob = Math.sin(t * 2.2 + i * 1.1) * 0.22;
-      var x0 = Math.cos(la) * 30, y0 = Math.sin(la) * 18 + 8;
-      var x1 = Math.cos(la + wob) * 88, y1 = Math.sin(la + wob) * 58 + 18;
-      var x2 = Math.cos(la + wob * 1.4) * 118, y2 = Math.sin(la + wob * 1.6) * 78 + 26;
-      ctx.save();
-      if (kind === 0) {
-        ctx.strokeStyle = c2; ctx.lineWidth = 7;
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(x1 + Math.sin(t * 3 + i) * 10, y1, x2, y2); ctx.stroke();
-        ctx.strokeStyle = c3; ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(x1, y1, x2, y2); ctx.stroke();
-        glowDot(x2, y2, 5, c3, 14);
-      } else if (kind === 1) {
-        ctx.fillStyle = c2; ctx.strokeStyle = ink; ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 + 8, y1 - 4); ctx.lineTo(x1 - 6, y1 + 8); ctx.closePath(); ctx.fill(); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 + 10, y2 - 8); ctx.lineTo(x2 + 2, y2 + 10); ctx.lineTo(x2 - 12, y2); ctx.closePath(); ctx.fill(); ctx.stroke();
-        glowDot(x2 + 4, y2, 4, "#ff4a3a", 12);
-      } else if (kind === 2) {
-        ctx.strokeStyle = c2; ctx.lineWidth = 5;
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1 + 8); ctx.lineTo(x2, y2 + 14); ctx.stroke();
-        ctx.fillStyle = c1; ctx.beginPath(); ctx.moveTo(x2 - 8, y2 + 12); ctx.lineTo(x2 + 10, y2 + 8); ctx.lineTo(x2 + 2, y2 + 22); ctx.closePath(); ctx.fill();
-      } else if (kind === 3) {
-        ctx.save(); ctx.translate(x1, y1); ctx.rotate(t * 4 + i);
-        ctx.fillStyle = c3; ctx.fillRect(-18, -3, 36, 6); ctx.fillRect(-3, -18, 6, 36);
-        glowDot(0, 0, 4, c3, 10); ctx.restore();
-        ctx.strokeStyle = c2; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-      } else if (kind === 4) {
-        ctx.fillStyle = "hsla(" + r.hue2 + ",80%,50%,.85)";
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(x1 * 1.1, y1 - 24, x2, y0 - 8); ctx.quadraticCurveTo(x1, y1 + 6, x0, y0); ctx.fill();
-        ctx.strokeStyle = c3; ctx.lineWidth = 2; ctx.stroke();
-      } else if (kind === 5) {
-        ctx.save(); ctx.translate(x1, y1); ctx.rotate(t * 3.2 + i);
-        ctx.strokeStyle = c3; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(0, 0, 14, 0, 7); ctx.stroke();
-        for (var s = 0; s < 8; s++) { ctx.rotate(0.785); ctx.fillStyle = c2; ctx.fillRect(10, -2, 10, 4); }
-        ctx.restore();
-        ctx.strokeStyle = c2; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-      } else if (kind === 6) {
-        ctx.strokeStyle = c2; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); ctx.lineDashOffset = -t * 20;
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.bezierCurveTo(x1, y0, x1, y2, x2, y2); ctx.stroke(); ctx.setLineDash([]);
-        glowDot(x2, y2, 4.5, c3, 12);
-      } else {
-        ctx.fillStyle = c2; ctx.fillRect(x1 - 7, y1, 14, 22); ctx.strokeRect(x1 - 7, y1, 14, 22);
-        glowDot(x1, y1 + 24, 4.5 + Math.sin(t * 8 + i) * 1.2, angry ? "#ff6a2a" : c3, 12);
+    function polyFill(pts, col) {
+      ctx.fillStyle = col || p.a; ctx.beginPath();
+      ctx.moveTo(pts[0], pts[1]);
+      for (var k = 2; k < pts.length; k += 2) ctx.lineTo(pts[k], pts[k + 1]);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    if (form === "rivetDrone") {
+      for (i = 0; i < 6; i++) { a = i * Math.PI / 3; plate(Math.cos(a) * 46 - 12, Math.sin(a) * 32 - 8, 24, 16); glowDot(Math.cos(a) * 56, Math.sin(a) * 38, 2.6 + Math.sin(t * 8 + i), p.c, 7); }
+      polyFill([-40, -22, 40, -22, 50, 20, -50, 20]); visor(0, -4, 40); plate(-16, 18, 32, 12); thruster(-18, 30, 9); thruster(18, 30, 9);
+    } else if (form === "craneMech") {
+      plate(-14, -70, 28, 90); plate(-10, -78, 20, 12);
+      ctx.save(); ctx.translate(0, -50); ctx.rotate(-0.55 + Math.sin(t * 1.6) * 0.18);
+      plate(0, -8, 96, 14); plate(88, -4, 14, 36); ctx.fillStyle = p.c; ctx.fillRect(92, 28, 6, 10); ctx.restore();
+      plate(-40, 22, 80, 18); visor(0, -8, 22); thruster(-20, 40, 9); thruster(20, 40, 9);
+    } else if (form === "welderRig") {
+      plate(-50, -8, 36, 28); plate(14, -8, 36, 28);
+      polyFill([-18, -36, 18, -36, 28, 20, -28, 20]);
+      ctx.save(); ctx.translate(36, -4); ctx.rotate(Math.sin(t * 3) * 0.4);
+      ctx.fillStyle = p.b; ctx.fillRect(0, -5, 54, 10); ctx.strokeRect(0, -5, 54, 10);
+      glowDot(54, 0, 7 + pulse() * 3, "#ff9a2a", 14); ctx.restore();
+      visor(0, -16, 24); plate(-16, 20, 32, 12); thruster(0, 32, 10);
+    } else if (form === "dockClamp") {
+      plate(-70, -64, 20, 108); plate(50, -64, 20, 108); plate(-70, -72, 140, 16);
+      var pinch = 10 + Math.sin(t * 2.2) * 8;
+      plate(-50, -8, 44 - pinch, 14); plate(6 + pinch, -8, 44 - pinch, 14);
+      plate(-28, 28, 56, 18); visor(0, 34, 22); thruster(-16, 46, 8); thruster(16, 46, 8);
+    } else if (form === "boltHowitzer") {
+      plate(-70, 8, 36, 22); plate(34, 8, 36, 22);
+      polyFill([-56, -16, 48, -16, 62, 20, -62, 20]);
+      ctx.save(); ctx.translate(48, -4); ctx.rotate(Math.sin(t * 2) * 0.06);
+      plate(0, -8, 78, 16); glowDot(78, 0, 5 + pulse() * 2, p.c, 12); ctx.restore();
+      visor(-8, -6, 30); thruster(-40, 30, 8); thruster(20, 30, 8);
+    } else if (form === "hullSaw") {
+      polyFill([-20, -48, 20, -48, 70, 18, 40, 36, -40, 36, -70, 18]);
+      ctx.save(); ctx.translate(0, 8); ctx.rotate(t * 3.2);
+      ctx.strokeStyle = p.c; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, 28, 0, 7); ctx.stroke();
+      for (i = 0; i < 8; i++) { ctx.rotate(Math.PI / 4); ctx.fillStyle = p.b; ctx.fillRect(22, -4, 16, 8); }
+      ctx.restore(); visor(0, -28, 22); thruster(-16, 36, 8); thruster(16, 36, 8);
+    } else if (form === "launchClamp") {
+      var gap = 22 + Math.sin(t * 2) * 10;
+      plate(-56, -56, 22, 100); plate(34, -56, 22, 100);
+      plate(-56, -16, 34 + gap, 12); plate(22 - gap, -16, 34 + gap, 12);
+      plate(-34, 36, 68, 16); visor(0, 42, 20); thruster(-20, 52, 8); thruster(20, 52, 8);
+      glowDot(-45, -50, 4, p.c, 8); glowDot(45, -50, 4, p.c, 8);
+    } else if (form === "slagFurnace") {
+      plate(-18, -78, 36, 28); polyFill([-48, -50, 48, -50, 40, 36, -40, 36]);
+      plate(-56, 8, 18, 28); plate(38, 8, 18, 28);
+      ctx.fillStyle = p.c; ctx.globalAlpha = 0.7 + 0.3 * pulse();
+      ctx.beginPath(); ctx.moveTo(-12, 36); ctx.lineTo(12, 36); ctx.lineTo(20, 58); ctx.lineTo(-20, 58); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1; visor(0, -20, 26); glowDot(0, -64, 5 + pulse() * 2, p.c, 12);
+    } else if (form === "magmaPress") {
+      var slam = Math.abs(Math.sin(t * 2.5)) * 22;
+      plate(-50, -62, 100, 16); plate(-12, -62, 24, 28 + slam);
+      plate(-50, 28, 100, 18); polyFill([-36, -20 + slam, 36, -20 + slam, 40, 28, -40, 28], p.b);
+      visor(0, 8, 24); glowDot(0, -18 + slam, 6, p.c, 12);
+    } else if (form === "smelterWalker") {
+      plate(-22, -18, 44, 32); visor(0, -4, 26);
+      for (i = 0; i < 6; i++) {
+        a = -0.9 + i * 0.36; wob = Math.sin(t * 3 + i) * 0.2;
+        ctx.strokeStyle = p.b; ctx.lineWidth = 7;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a) * 20, 12); ctx.lineTo(Math.cos(a + wob) * 58, 18 + Math.sin(a) * 36); ctx.lineTo(Math.cos(a + wob) * 70, 44 + Math.sin(a) * 20); ctx.stroke();
+        ctx.fillStyle = p.d; ctx.fillRect(Math.cos(a + wob) * 70 - 6, 42 + Math.sin(a) * 20, 12, 8);
       }
+      glowDot(0, 6, 5 + pulse() * 2, p.c, 10);
+    } else if (form === "ingotCannon") {
+      plate(-36, 16, 72, 20);
+      plate(-18, 0, 36, 16); plate(-14, -16, 28, 16); plate(-10, -32, 20, 16);
+      plate(-8, -70, 16, 38); glowDot(0, -70, 6 + pulse() * 2, p.c, 12);
+      visor(0, 24, 24); plate(-44, 32, 16, 12); plate(28, 32, 16, 12);
+    } else if (form === "cruciblePod") {
+      ctx.save(); ctx.rotate(t * 0.5); ctx.strokeStyle = p.c; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, 52, 0, 7); ctx.stroke(); ctx.restore();
+      polyFill([-36, -8, 36, -8, 28, 32, -28, 32]);
+      ctx.fillStyle = p.c; ctx.globalAlpha = 0.65 + 0.35 * pulse(); ctx.beginPath(); ctx.ellipse(0, 8, 18, 10, 0, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+      plate(-10, -24, 20, 12); thruster(-14, 32, 7); thruster(14, 32, 7);
+    } else if (form === "forgeHammer") {
+      var drop = Math.abs(Math.sin(t * 2.8)) * 26;
+      plate(-8, -78, 16, 40 + drop); polyFill([-40, -38 + drop, 40, -38 + drop, 32, -8 + drop, -32, -8 + drop], p.b);
+      plate(-44, 20, 88, 20); visor(0, 28, 20); glowDot(0, -8 + drop, 6, p.c, 12);
+    } else if (form === "lavaRail") {
+      polyFill([-86, -8, 86, -8, 76, 20, -76, 20]); plate(-20, -28, 40, 20);
+      for (i = -2; i <= 2; i++) { ctx.save(); ctx.translate(i * 28, 26); ctx.rotate(t * 4); ctx.strokeStyle = p.b; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, 10, 0, 7); ctx.stroke(); ctx.restore(); }
+      visor(0, -18, 24); glowDot(0, -34, 4 + pulse() * 2, p.c, 10);
+    } else if (form === "ashBarge") {
+      polyFill([-96, 0, 96, 0, 80, 28, -80, 28]);
+      plate(-70, -28, 18, 28); plate(-8, -36, 16, 36); plate(52, -28, 18, 28);
+      visor(0, 10, 36); thruster(-40, 28, 8); thruster(40, 28, 8);
+      glowDot(-61, -30, 3 + pulse(), p.c, 8); glowDot(61, -30, 3 + pulse(), p.c, 8);
+    } else if (form === "frostProbe") {
+      plate(-10, -8, 20, 48); ctx.save(); ctx.translate(0, -20); ctx.rotate(t * 1.4);
+      ctx.strokeStyle = p.a; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, 34, 0.4, 5.8); ctx.stroke();
+      plate(-8, -8, 16, 16); ctx.restore();
+      visor(0, 20, 16); thruster(0, 40, 8);
+    } else if (form === "iceAuger") {
+      plate(-16, -20, 32, 44); visor(0, -6, 20);
+      ctx.save(); ctx.translate(0, 28); ctx.rotate(t * 5);
+      ctx.strokeStyle = p.c; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(10, -8); ctx.lineTo(-10, 6); ctx.lineTo(10, 20); ctx.lineTo(0, 28); ctx.stroke();
+      ctx.restore(); plate(-40, 4, 16, 12); plate(24, 4, 16, 12);
+    } else if (form === "cryoTurret") {
+      polyFill((function () { var pts = []; for (i = 0; i < 6; i++) { a = i * Math.PI / 3 - Math.PI / 6; pts.push(Math.cos(a) * 48, Math.sin(a) * 40); } return pts; })());
+      plate(-14, -14, 28, 36); visor(0, -2, 22); plate(-8, 22, 16, 20); glowDot(0, 42, 4 + pulse() * 2, p.c, 10);
+    } else if (form === "vaultLock") {
+      plate(-40, -40, 80, 80); plate(-28, -28, 56, 56);
+      ctx.save(); ctx.rotate(t * 1.1); ctx.strokeStyle = p.c; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.stroke();
+      ctx.fillStyle = p.c; ctx.fillRect(16, -4, 18, 8); ctx.restore();
+      visor(0, -34, 28);
+    } else if (form === "brineTank") {
+      polyFill([-36, -36, 36, -36, 44, 8, 28, 32, -28, 32, -44, 8]);
+      plate(-70, -8, 28, 28); plate(42, -8, 28, 28);
+      plate(-12, -52, 24, 16); visor(0, -12, 26);
+      ctx.fillStyle = p.c; ctx.globalAlpha = 0.7 + 0.3 * pulse();
+      ctx.beginPath(); ctx.moveTo(-10, 32); ctx.lineTo(10, 32); ctx.lineTo(14, 50); ctx.lineTo(-14, 50); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (form === "searchTurret") {
+      plate(-40, 6, 80, 28); plate(-22, -10, 44, 20);
+      ctx.save(); ctx.translate(10, -18); ctx.rotate(-0.35 + Math.sin(t * 1.3) * 0.25);
+      plate(0, -10, 54, 20); plate(46, -14, 18, 28); glowDot(64, 0, 6 + pulse() * 2, p.c, 14); ctx.restore();
+      visor(0, 16, 28);
+    } else if (form === "crackerRig") {
+      plate(-18, -24, 36, 36); visor(0, -10, 20);
+      [-1, 1].forEach(function (sd) {
+        ctx.save(); ctx.translate(sd * 28, 16); ctx.rotate(sd * 0.4 + t * 4);
+        ctx.strokeStyle = p.c; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(sd * 8, 0); ctx.lineTo(0, 16); ctx.lineTo(sd * 8, 28); ctx.stroke();
+        ctx.restore();
+      });
+      plate(-40, 8, 14, 14); plate(26, 8, 14, 14);
+    } else if (form === "ringShear") {
+      var bite = 0.55 + Math.sin(t * 2.8) * 0.16;
+      ctx.save(); ctx.rotate(-bite); polyFill([-8, -12, -90, -36, -78, 4, -12, 10], p.b); ctx.restore();
+      ctx.save(); ctx.rotate(bite); polyFill([8, -12, 90, -36, 78, 4, 12, 10], p.a); ctx.restore();
+      plate(-18, -6, 36, 28); visor(0, 4, 20);
+    } else if (form === "spokeDestroyer") {
+      polyFill([-80, -6, 72, -6, 64, 20, -72, 20]);
+      plate(-12, -48, 24, 42); visor(0, -30, 16);
+      for (i = -2; i <= 2; i++) { ctx.save(); ctx.translate(i * 26, 2); ctx.rotate(t * 2.4 + i); plate(-4, -18, 8, 18); glowDot(0, -18, 3, p.c, 7); ctx.restore(); }
+      thruster(-56, 20, 8); thruster(40, 20, 8);
+    } else if (form === "shepherdSat") {
+      plate(-16, -16, 32, 32); visor(0, -2, 18);
+      [-1, 1].forEach(function (sd) {
+        a = t * 1.2; ctx.save(); ctx.translate(sd * 64 * Math.cos(a * 0.3), Math.sin(a + sd) * 18);
+        plate(-12, -10, 24, 20); glowDot(0, 0, 4, p.c, 8); ctx.restore();
+        ctx.strokeStyle = p.c; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sd * 16, 0); ctx.lineTo(sd * 52, Math.sin(a + sd) * 18); ctx.stroke();
+      });
+    } else if (form === "icePipe") {
+      for (i = 0; i < 6; i++) {
+        wob = Math.sin(t * 2.2 + i * 0.8) * 10;
+        plate(-70 + i * 24, -12 + wob, 22, 20);
+        if (i < 5) { ctx.strokeStyle = p.c; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-48 + i * 24, wob); ctx.lineTo(-46 + i * 24, 8 + Math.sin(t * 2.2 + (i + 1) * 0.8) * 10); ctx.stroke(); }
+      }
+      visor(-46, -8 + Math.sin(t * 2.2) * 10, 14);
+    } else if (form === "hexSail") {
+      [-1, 1].forEach(function (sd) {
+        var flap = sd * (0.08 + Math.sin(t * 1.8) * 0.06);
+        ctx.save(); ctx.translate(sd * 16, 0); ctx.rotate(flap);
+        var hx = []; for (i = 0; i < 6; i++) { a = i * Math.PI / 3; hx.push(sd * 28 + Math.cos(a) * 34, Math.sin(a) * 26); }
+        polyFill(hx, p.a); ctx.restore();
+      });
+      plate(-14, -18, 28, 40); visor(0, -2, 16); thruster(0, 22, 8);
+    } else if (form === "orbitScythe") {
+      ctx.save(); ctx.rotate(t * 1.3);
+      ctx.strokeStyle = p.a; ctx.lineWidth = 14; ctx.beginPath(); ctx.arc(0, 0, 58, 0.4, 5.6); ctx.stroke();
+      ctx.strokeStyle = p.c; ctx.lineWidth = 4; ctx.stroke(); ctx.restore();
+      plate(-16, -16, 32, 32); visor(0, 0, 18);
+    } else if (form === "spokeFort") {
+      polyFill((function () { var pts = []; for (i = 0; i < 6; i++) { a = i * Math.PI / 3; pts.push(Math.cos(a) * 54, Math.sin(a) * 46); } return pts; })());
+      ctx.save(); ctx.rotate(t * 0.6); ctx.strokeStyle = p.c; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(0, 0, 70, 22, 0, 0, 7); ctx.stroke(); ctx.restore();
+      visor(0, 0, 24);
+    } else if (form === "stormCoil") {
+      plate(-20, 20, 40, 18); plate(-12, -60, 24, 80);
+      for (i = 0; i < 5; i++) { ctx.strokeStyle = p.c; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(0, -48 + i * 16, 22 - i, 8, 0, 0, 7); ctx.stroke(); }
+      glowDot(0, -64, 7 + pulse() * 3, p.c, 14);
+      ctx.strokeStyle = p.c; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.moveTo(0, -64); ctx.lineTo(20 + Math.sin(t * 20) * 16, -90); ctx.stroke(); ctx.globalAlpha = 1;
+    } else if (form === "tiltGyro") {
+      ctx.save(); ctx.rotate(t * 1.1); ctx.strokeStyle = p.a; ctx.lineWidth = 6; ctx.beginPath(); ctx.ellipse(0, 0, 58, 20, 0, 0, 7); ctx.stroke(); ctx.restore();
+      ctx.save(); ctx.rotate(-t * 0.8 + 1.1); ctx.strokeStyle = p.b; ctx.lineWidth = 6; ctx.beginPath(); ctx.ellipse(0, 0, 20, 58, 0, 0, 7); ctx.stroke(); ctx.restore();
+      ctx.save(); ctx.rotate(t * 0.4); ctx.strokeStyle = p.c; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, 28, 0, 7); ctx.stroke(); ctx.restore();
+      glowDot(0, 0, 6 + pulse() * 2, p.c, 12);
+    } else if (form === "methaneWing") {
+      polyFill([-96, 4, -20, -16, 20, -16, 96, 4, 40, 16, -40, 16]);
+      plate(-16, -8, 32, 22); visor(0, 0, 22);
+      thruster(-36, 16, 8); thruster(36, 16, 8);
+      ctx.strokeStyle = p.c; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-70, 2); ctx.lineTo(-20, -8); ctx.moveTo(70, 2); ctx.lineTo(20, -8); ctx.stroke();
+    } else if (form === "diamondTurret") {
+      polyFill([0, -62, 28, -20, 20, 28, -20, 28, -28, -20]);
+      polyFill([0, -36, 16, -8, 0, 12, -16, -8], p.b);
+      visor(0, -8, 16); plate(-10, 28, 20, 16); glowDot(0, -48, 4 + pulse() * 2, p.c, 10);
+    } else if (form === "sideCruiser") {
+      polyFill([-108, -4, 108, -4, 96, 18, -96, 18]);
+      plate(24, -36, 48, 32); visor(48, -22, 20);
+      plate(-88, -16, 22, 12); plate(-40, -14, 18, 10);
+      thruster(-80, 18, 8); thruster(80, 18, 8);
+    } else if (form === "auroraFan") {
+      for (i = 0; i < 7; i++) {
+        a = -0.9 + i * 0.3 + Math.sin(t * 2) * 0.08;
+        ctx.save(); ctx.rotate(a); polyFill([0, 0, 8, -70, -8, -70], i % 2 ? p.a : p.b); ctx.restore();
+      }
+      plate(-16, -8, 32, 28); visor(0, 4, 20); thruster(0, 20, 8);
+    } else if (form === "iceRam") {
+      var ram = Math.sin(t * 2.4) * 8;
+      polyFill([-28, -20 + ram, 28, -20 + ram, 36, 16 + ram, 0, 40 + ram, -36, 16 + ram]);
+      plate(-20, -8 + ram, 40, 18); visor(0, -2 + ram, 22);
+      plate(-44, 20, 16, 16); plate(28, 20, 16, 16);
+    } else if (form === "vortexTurbine") {
+      ctx.save(); ctx.rotate(t * 3);
+      for (i = 0; i < 6; i++) { ctx.rotate(Math.PI / 3); polyFill([8, -6, 46, -14, 46, 14, 8, 6], p.b); }
       ctx.restore();
-    }
-    for (var li = 0; li < r.limbN; li++) limb(r.limbs, li, r.limbN);
-    function hullPath(h) {
-      ctx.beginPath();
-      if (h === 0) { ctx.ellipse(0, 8, 78, 34, 0, 0, 7); }
-      else if (h === 1) { ctx.moveTo(0, -56); ctx.lineTo(68, 8); ctx.lineTo(42, 46); ctx.lineTo(-42, 46); ctx.lineTo(-68, 8); ctx.closePath(); }
-      else if (h === 2) { for (var i = 0; i < 6; i++) { var a = i * Math.PI / 3 - Math.PI / 6; ctx[i ? "lineTo" : "moveTo"](Math.cos(a) * 70, Math.sin(a) * 48); } ctx.closePath(); }
-      else if (h === 3) { ctx.moveTo(0, -52); ctx.quadraticCurveTo(62, -8, 40, 48); ctx.lineTo(-40, 48); ctx.quadraticCurveTo(-62, -8, 0, -52); }
-      else if (h === 4) { ctx.moveTo(-78, 8); ctx.quadraticCurveTo(0, -70, 78, 8); ctx.quadraticCurveTo(0, 28, -78, 8); }
-      else if (h === 5) { ctx.rect(-22, -58, 44, 116); ctx.rect(-70, -16, 140, 32); }
-      else if (h === 6) { ctx.moveTo(0, -62); ctx.lineTo(58, 50); ctx.lineTo(-58, 50); ctx.closePath(); }
-      else if (h === 7) { ctx.moveTo(-28, -50); ctx.lineTo(28, -50); ctx.lineTo(58, 0); ctx.lineTo(28, 50); ctx.lineTo(-28, 50); ctx.lineTo(-58, 0); ctx.closePath(); }
-      else if (h === 8) { ctx.arc(0, 0, 56, 0, 7); }
-      else if (h === 9) { for (var k = 0; k < 8; k++) { var aa = k * Math.PI / 4, rr = k % 2 ? 36 : 72; ctx[k ? "lineTo" : "moveTo"](Math.cos(aa) * rr, Math.sin(aa) * rr * 0.78); } ctx.closePath(); }
-      else if (h === 10) { ctx.ellipse(0, 10, 84, 28, 0, 0, 7); }
-      else if (h === 11) { ctx.moveTo(-70, -20); ctx.bezierCurveTo(-20, -70, 20, 70, 70, 24); ctx.bezierCurveTo(20, 80, -20, -10, -70, -20); }
-      else if (h === 12) { ctx.moveTo(-86, -8); ctx.lineTo(-30, -36); ctx.lineTo(30, -36); ctx.lineTo(86, -8); ctx.lineTo(50, 44); ctx.lineTo(-50, 44); ctx.closePath(); }
-      else if (h === 13) { ctx.ellipse(0, 6, 58, 50, 0, 0, 7); }
-      else if (h === 14) { ctx.moveTo(0, -64); ctx.lineTo(70, 48); ctx.lineTo(-70, 48); ctx.closePath(); }
-      else if (h === 15) { ctx.ellipse(-34, 6, 36, 40, 0, 0, 7); ctx.ellipse(34, 6, 36, 40, 0, 0, 7); }
-      else if (h === 16) { ctx.moveTo(0, -18); ctx.quadraticCurveTo(90, 8, 70, 36); ctx.lineTo(-70, 36); ctx.quadraticCurveTo(-90, 8, 0, -18); }
-      else if (h === 17) { ctx.ellipse(0, -6, 50, 46, 0, 0, 7); }
-      else if (h === 18) { ctx.moveTo(-74, -8); ctx.lineTo(74, -8); ctx.lineTo(48, 18); ctx.lineTo(58, 48); ctx.lineTo(-58, 48); ctx.lineTo(-48, 18); ctx.closePath(); }
-      else { ctx.moveTo(-22, 52); ctx.lineTo(-18, -40); ctx.lineTo(0, -68); ctx.lineTo(18, -40); ctx.lineTo(22, 52); ctx.closePath(); }
-    }
-    var hg = ctx.createLinearGradient(0, -60, 0, 56);
-    hg.addColorStop(0, fl ? "#fff" : "hsl(" + r.hue + ",70%,72%)");
-    hg.addColorStop(0.45, c1);
-    hg.addColorStop(1, c2);
-    ctx.fillStyle = hg;
-    hullPath(r.hull);
-    if (r.hull === 8) { ctx.beginPath(); ctx.arc(0, 0, 56, 0, 7); ctx.arc(0, 0, 26, 0, 7, true); ctx.fill("evenodd"); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 26, 0, 7); ctx.stroke(); }
-    else { ctx.fill(); ctx.stroke(); }
-    ctx.fillStyle = "hsla(" + r.hue + ",30%,12%,.35)";
-    ctx.beginPath(); ctx.moveTo(-40, -8); ctx.lineTo(-28, 28); ctx.moveTo(40, -8); ctx.lineTo(28, 28); ctx.moveTo(-50, 10); ctx.lineTo(50, 10); ctx.stroke();
-    ctx.fillStyle = c2;
-    [[-46, -6], [46, -6], [-34, 22], [34, 22]].forEach(function (p) {
-      ctx.beginPath(); ctx.moveTo(p[0] - 10, p[1] - 6); ctx.lineTo(p[0] + 10, p[1] - 4); ctx.lineTo(p[0] + 8, p[1] + 8); ctx.lineTo(p[0] - 8, p[1] + 6); ctx.closePath(); ctx.fill(); ctx.stroke();
-    });
-    ctx.save(); ctx.rotate(t * 0.7);
-    ctx.strokeStyle = c3; ctx.lineWidth = 2; ctx.globalAlpha = 0.7; ctx.setLineDash([8, 7]); ctx.lineDashOffset = -t * 24;
-    ctx.beginPath(); ctx.ellipse(0, 4, 62, 22, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
-    var pulse = 0.5 + 0.5 * Math.sin(t * 6);
-    var coreR = 16 + pulse * 5;
-    var cg = ctx.createRadialGradient(0, 6, 2, 0, 6, coreR + 8);
-    cg.addColorStop(0, "#fff"); cg.addColorStop(0.35, c3); cg.addColorStop(1, "hsla(" + r.hue3 + ",90%,60%,0)");
-    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 6, coreR + 8, 0, 7); ctx.fill();
-    ctx.fillStyle = "#0a0610"; ctx.beginPath(); ctx.arc(0, 6, 12, 0, 7); ctx.fill();
-    glowDot(0, 6, 7 + pulse * 3, c3, 18);
-    var gi, gx;
-    for (gi = 0; gi < r.guns; gi++) {
-      gx = (gi - (r.guns - 1) / 2) * 20;
-      ctx.fillStyle = c2; ctx.strokeStyle = ink; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(gx - 6, 30); ctx.lineTo(gx + 6, 30); ctx.lineTo(gx + 4, 52); ctx.lineTo(gx - 4, 52); ctx.closePath(); ctx.fill(); ctx.stroke();
-      glowDot(gx, 54, 3.6 + Math.sin(t * 9 + gi) * 1.1, angry ? "#ff6a2a" : c3, 10);
-    }
-    ctx.fillStyle = "#10060c";
-    if (r.body === 0) { ctx.beginPath(); ctx.ellipse(0, -16, 30, 12, 0, 0, 7); ctx.fill(); }
-    else if (r.body === 1) { ctx.fillRect(-26, -24, 52, 16); }
-    else if (r.body === 2) { ctx.beginPath(); ctx.arc(-12, -16, 10, 0, 7); ctx.arc(12, -16, 10, 0, 7); ctx.fill(); }
-    else { ctx.beginPath(); ctx.moveTo(-28, -10); ctx.lineTo(0, -28); ctx.lineTo(28, -10); ctx.lineTo(16, -4); ctx.lineTo(-16, -4); ctx.closePath(); ctx.fill(); }
-    var lx = ship ? Math.max(-6, Math.min(6, (ship.x - b.x) / 50)) : 0;
-    glowDot(-11 + lx, r.body === 3 ? -16 : -16, 5.2, angry ? "#ff8a2a" : "#ff2a3a", 14);
-    glowDot(11 + lx, r.body === 3 ? -16 : -16, 5.2, angry ? "#ff8a2a" : "#ff2a3a", 14);
-    if (r.crown) {
-      ctx.fillStyle = c3; ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.shadowColor = c3; ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.moveTo(-26, -34);
-      ctx.lineTo(-22, -54 - r.crown); ctx.lineTo(-10, -38);
-      ctx.lineTo(0, -62 - r.crown); ctx.lineTo(10, -38);
-      ctx.lineTo(22, -54 - r.crown); ctx.lineTo(26, -34);
-      ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
-      glowDot(0, -48 - r.crown * 0.4, 3.5, "#fff", 10);
+      ctx.fillStyle = p.d; ctx.beginPath(); ctx.arc(0, 0, 16, 0, 7); ctx.fill(); ctx.stroke();
+      glowDot(0, 0, 7 + pulse() * 2, p.c, 12);
+    } else if (form === "cometRack") {
+      polyFill([0, -56, 18, -20, 14, 24, -14, 24, -18, -20]);
+      for (i = 0; i < 4; i++) plate(-36 + i * 18, 8, 14, 18);
+      ctx.fillStyle = p.c; ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.moveTo(-10, 24); ctx.lineTo(10, 24); ctx.lineTo(0, 64 + Math.sin(t * 8) * 6); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1; visor(0, -16, 14);
+    } else if (form === "plutoSpire") {
+      polyFill([-10, 40, 10, 40, 6, -70, -6, -70]); plate(-18, 20, 36, 22);
+      for (i = 0; i < 4; i++) { a = t + i * 1.57; glowDot(Math.cos(a) * 28, -20 + Math.sin(a) * 16, 3.5, p.c, 8); }
+      visor(0, 28, 16); glowDot(0, -70, 5 + pulse() * 2, p.c, 12);
+    } else if (form === "charonGate") {
+      plate(-52, -48, 18, 88); plate(34, -48, 18, 88); plate(-52, -56, 104, 14);
+      ctx.fillStyle = p.d; ctx.beginPath(); ctx.arc(0, 4, 22 + pulse() * 4, 0, 7); ctx.fill();
+      ctx.save(); ctx.rotate(t); ctx.strokeStyle = p.c; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 4, 16, 0, 7); ctx.stroke(); ctx.restore();
+      visor(0, -48, 20);
+    } else if (form === "oortNeedle") {
+      polyFill([0, -78, 10, 8, 6, 40, -6, 40, -10, 8]);
+      plate(-18, -8, 36, 12); visor(0, -8, 12); thruster(0, 40, 6);
+    } else if (form === "pincerDeck") {
+      polyFill([-70, 4, 70, 4, 58, 22, -58, 22]);
+      plate(-20, -10, 40, 16); visor(0, -2, 24);
+      [-1, 1].forEach(function (sd) {
+        var pinch = Math.sin(t * 2.2) * 10;
+        ctx.strokeStyle = p.b; ctx.lineWidth = 8;
+        ctx.beginPath(); ctx.moveTo(sd * 50, 6); ctx.lineTo(sd * 88, -36 + pinch); ctx.lineTo(sd * 104, -20 + pinch); ctx.stroke();
+        glowDot(sd * 104, -20 + pinch, 5, p.c, 10);
+      });
+      thruster(-28, 22, 7); thruster(28, 22, 7);
+    } else if (form === "haloRing") {
+      ctx.save(); ctx.rotate(t * 0.7); ctx.strokeStyle = p.a; ctx.lineWidth = 12; ctx.beginPath(); ctx.arc(0, 0, 52, 0, 7); ctx.stroke();
+      ctx.strokeStyle = p.c; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+      plate(-16, -16, 32, 32); visor(0, 0, 20);
+    } else if (form === "iceWalker") {
+      polyFill([-30, -36, 30, -36, 36, 8, -36, 8]);
+      visor(0, -16, 32); plate(-12, 8, 24, 12);
+      [-1, 1].forEach(function (sd) {
+        var stomp = Math.sin(t * 3 + sd) * 7;
+        polyFill([sd * 16, 8, sd * 40, 8, sd * 44, 28 + stomp, sd * 12, 28 + stomp], p.b);
+        plate(sd * 20 - 8, 28 + stomp, 24, 10);
+      });
+      glowDot(0, 2, 4, p.c, 8);
+    } else if (form === "voidDelta") {
+      polyFill([0, -58, 78, 28, 20, 16, 0, 36, -20, 16, -78, 28]);
+      plate(-12, -12, 24, 20); visor(0, -4, 18);
+      ctx.save(); ctx.rotate(t * 1.5); ctx.strokeStyle = p.c; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 4, 12, 0, 7); ctx.stroke(); ctx.restore();
+      thruster(-18, 20, 7); thruster(18, 20, 7);
+    } else {
+      polyFill([-40, -16, 40, -16, 32, 24, -32, 24]); visor(0, 0, 24); thruster(0, 24, 10);
     }
     ctx.restore();
   }
@@ -9504,7 +9650,7 @@
       var main = ctx, sb = boss, sl = level; ctx = cv.getContext("2d");
       ctx.fillStyle = "#050816"; ctx.fillRect(0, 0, cv.width, cv.height);
       ctx.fillStyle = "#ffd54a"; ctx.font = "bold 26px Arial, sans-serif"; ctx.textAlign = "center";
-      ctx.fillText("Bosses 101-249 — unique late-fleet silhouettes", cv.width / 2, 36);
+      ctx.fillText("Bosses 101-249 — hard-edged machines, unique bodies", cv.width / 2, 36);
       function paintLate(bL, x, y) {
         var sp = bossSpec(bL);
         var b = { x: 0, y: 0, t: 1.35, flash: 0, hp: 1, maxHp: 1, k: 0.72, phase: 1, wind: 0, type: sp.type, final: false, prime: false, art: bL, mods: [] };

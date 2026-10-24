@@ -324,6 +324,24 @@ export type ArtRecipe = {
   hue3?: number;
   body?: number;
   limbN?: number;
+  kind?: number;
+  form?: string;
+};
+
+/** One named body per L101–249 art boss. Sector bosses keep dedicated draw fns. */
+export const LATE_ART_FORMS: Record<number, string> = {
+  102: 'rivetDrone', 105: 'craneMech', 108: 'welderRig', 111: 'dockClamp',
+  114: 'boltHowitzer', 117: 'hullSaw', 123: 'launchClamp', 126: 'slagFurnace',
+  129: 'magmaPress', 132: 'smelterWalker', 135: 'ingotCannon', 138: 'cruciblePod',
+  141: 'forgeHammer', 144: 'lavaRail', 147: 'ashBarge', 153: 'frostProbe',
+  156: 'iceAuger', 159: 'cryoTurret', 162: 'vaultLock', 165: 'brineTank',
+  168: 'searchTurret', 171: 'crackerRig', 177: 'ringShear', 180: 'spokeDestroyer',
+  183: 'shepherdSat', 186: 'icePipe', 189: 'hexSail', 192: 'orbitScythe',
+  195: 'spokeFort', 201: 'stormCoil', 204: 'tiltGyro', 207: 'methaneWing',
+  210: 'diamondTurret', 213: 'sideCruiser', 216: 'auroraFan', 219: 'iceRam',
+  222: 'vortexTurbine', 228: 'cometRack', 231: 'plutoSpire', 234: 'charonGate',
+  237: 'oortNeedle', 240: 'pincerDeck', 243: 'haloRing', 246: 'iceWalker',
+  249: 'voidDelta',
 };
 
 export function bossArtRecipe(art: number): ArtRecipe {
@@ -340,7 +358,7 @@ export function bossArtRecipe(art: number): ArtRecipe {
   };
 }
 
-/** L101–249 art bosses: richer recipe, unique silhouette per level. Keep in lockstep with HTML artRecipe(). */
+/** L101–249 art bosses: unique body form per level. Keep in lockstep with HTML artRecipe(). */
 export function lateBossArtRecipe(level: number): ArtRecipe {
   const L = Math.floor(level);
   const a = Math.max(0, L - 101);
@@ -348,7 +366,7 @@ export function lateBossArtRecipe(level: number): ArtRecipe {
     art: a,
     hull: a % 20,
     limbs: Math.floor(a / 2) % 8,
-    crown: (a * 3 + 1) % 10,
+    crown: 0,
     guns: 2 + ((a * 2 + 2) % 5),
     orbit: 1 + ((a * 5 + 3) % 5),
     hue: (a * 47 + 18) % 360,
@@ -356,6 +374,8 @@ export function lateBossArtRecipe(level: number): ArtRecipe {
     hue3: (a * 29 + 80) % 360,
     body: a % 4,
     limbN: 3 + (a % 4),
+    kind: L,
+    form: LATE_ART_FORMS[L] || `late${L}`,
   };
 }
 
