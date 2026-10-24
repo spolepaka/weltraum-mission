@@ -52,17 +52,18 @@ describe('L250 Kaiser freeze safety', () => {
     expect(env.ctx.depth()).toBe(d0);
   });
 
-  it('simulates the whole L250 fight through all 20 phases, damage, death, and forced phases', () => {
-    expect(PRIME_KAISER_PHASES).toBe(20);
-    expect(primeKaiserPhase(0.05)).toBe(20);
+  it('simulates the whole L250 fight through all 30 phases, damage, death, and forced phases', () => {
+    expect(PRIME_KAISER_PHASES).toBe(30);
+    expect(primeKaiserPhase(0.05)).toBe(29);
+    expect(primeKaiserPhase(0.02)).toBe(30);
     const report = simulateKaiserFight(HTML, {
       viewport: { W: 768, H: 1024 },
       fullSeconds: 180,
-      phaseSeconds: 8,
+      phaseSeconds: 5,
       death: true,
     });
     expect(report.seconds).toBeGreaterThan(300);
-    expect(report.phasesSeen).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
+    expect(report.phasesSeen).toEqual(Array.from({ length: 30 }, (_, i) => i + 1));
     expect(report.errors).toEqual([]);
     expect(report.ctxIssues).toEqual([]);
     expect(report.nanHits).toBe(0);
@@ -86,7 +87,7 @@ describe('L250 Kaiser freeze safety', () => {
     });
     expect(report.errors).toEqual([]);
     expect(report.nanHits).toBe(0);
-    expect(report.phasesSeen.length).toBe(20);
+    expect(report.phasesSeen.length).toBe(30);
 
     const ctx = makeStrictCtx();
     const env = bindKaiserHtml(HTML);
@@ -100,8 +101,8 @@ describe('L250 Kaiser freeze safety', () => {
 
 function fracForPhase(phase: number): number {
   if (phase <= 1) return 0.99;
-  if (phase >= 20) return 0.02;
-  return 1.01 - phase * 0.05;
+  if (phase >= 30) return 0.01;
+  return 1.01 - phase / 30;
 }
 
 function forcePhase(env: ReturnType<typeof bindKaiserHtml>, phase: number) {
@@ -294,7 +295,7 @@ describe('L250 Kaiser attack audit — dash, drones, cage, blades', () => {
   it('forces every phase and records a spawn, motion, or hazard signature', () => {
     const env = bindKaiserHtml(HTML, { W: 768, H: 1024 });
     const seen: Record<number, string> = {};
-    for (let ph = 1; ph <= 20; ph++) {
+    for (let ph = 1; ph <= 30; ph++) {
       env.bombs = [];
       env.drones = [];
       env.mines = [];
@@ -311,7 +312,8 @@ describe('L250 Kaiser attack audit — dash, drones, cage, blades', () => {
       const tags = new Set<string>();
       const note = () => {
         if (env.bombs.length) tags.add('bombs');
-        if (env.drones.some((d) => d.sdrone)) tags.add('sdrones');
+        if (env.drones.some((d) => d.sdrone && !d.dstorm)) tags.add('sdrones');
+        if (env.drones.some((d) => d.dstorm)) tags.add('dstorm');
         if (env.drones.some((d) => d.missile)) tags.add('missiles');
         if (env.drones.some((d) => d.clone)) tags.add('clones');
         if (env.mines.length) tags.add('mines');
@@ -322,6 +324,11 @@ describe('L250 Kaiser attack audit — dash, drones, cage, blades', () => {
         if (env.boss.blades) tags.add('blades');
         if (env.boss.dash) tags.add('dash');
         if (env.boss.laser) tags.add('laser');
+        if (env.boss.wheel) tags.add('wheel');
+        if (env.boss.marks) tags.add('marks');
+        if (env.boss.emp) tags.add('emp');
+        if (env.boss.tractor) tags.add('tractor');
+        if (env.boss.wall) tags.add('wall');
         if (env.grid) tags.add('grid');
         if (env.shower) tags.add('shower');
       };
@@ -346,5 +353,88 @@ describe('L250 Kaiser attack audit — dash, drones, cage, blades', () => {
     expect(seen[15]).toMatch(/blade/);
     expect(seen[17]).toMatch(/cage/);
     expect(seen[19]).toMatch(/dash|laser|missile|bomb/);
+    expect(seen[21]).toMatch(/well/);
+    expect(seen[22]).toMatch(/missile/);
+    expect(seen[23]).toMatch(/wheel/);
+    expect(seen[24]).toMatch(/marks|bomb/);
+    expect(seen[25]).toMatch(/bomb/);
+    expect(seen[26]).toMatch(/emp/);
+    expect(seen[27]).toMatch(/tractor/);
+    expect(seen[28]).toMatch(/dstorm/);
+    expect(seen[29]).toMatch(/wall/);
+    expect(seen[30]).toMatch(/laser|cage|missile|bomb/);
+  });
+
+  it('phase 28 drone storm orbits outside the hull, staggers rapid fire, and despawns', () => {
+    const env = bindKaiserHtml(HTML, { W: 768, H: 1024 });
+    env.boss.k = 1.8;
+    env.boss.x = 384;
+    env.boss.y = 340;
+    const hull = 118 * 1.8;
+    env.spawnDroneStorm();
+    const storm = env.drones.filter((d) => d.dstorm);
+    expect(storm).toHaveLength(10);
+    expect(env.primeGuarded()).toBe(false);
+    for (const d of storm) {
+      expect(Number(d.orb)).toBeGreaterThan(hull);
+      const dist = Math.hypot(Number(d.x) - Number(env.boss.x), (Number(d.y) - Number(env.boss.y)) / 0.55);
+      expect(dist).toBeGreaterThan(hull);
+    }
+    const offsets = storm.map((d) => Number(d.burstT));
+    expect(new Set(offsets.map((n) => n.toFixed(2))).size).toBeGreaterThan(4);
+
+    env.bombs = [];
+    for (let i = 0; i < 80; i++) env.updateDrones(0.05);
+    const shots = env.bombs.filter((b) => b.storm);
+    expect(shots.length).toBeGreaterThan(8);
+    expect(shots.every((b) => Math.hypot(Number(b.vx), Number(b.vy)) <= 130)).toBe(true);
+    const firstTimes = storm.map((d) => Number(d.burstT));
+    expect(firstTimes.some((t, i) => Math.abs(t - firstTimes[0]) > 0.05 || i === 0)).toBe(true);
+
+    env.drones = Array.from({ length: 16 }, (_, i) => ({ missile: true, x: i * 10, y: -20, t: 0, warn: 0.2, vx: 0 }));
+    env.spawnDroneStorm();
+    expect(env.drones.filter((d) => d.dstorm)).toHaveLength(10);
+    expect(env.drones.length).toBeLessThanOrEqual(PRIME_KAISER_CAPS.drones);
+
+    env.endPrimePhase(28);
+    expect(env.drones.some((d) => d.dstorm)).toBe(false);
+  });
+
+  it('draws destorm drones with guarded Kaiser-palette colors and no NaN', () => {
+    const env = bindKaiserHtml(HTML, { W: 768, H: 1024 });
+    env.spawnDroneStorm();
+    const d0 = env.ctx.depth();
+    env.drones.filter((d) => d.dstorm).forEach((d) => {
+      d.eye = 0.1; d.muzzle = 0.07; d.t = 1.2;
+      env.drawStormDrone(d);
+    });
+    expect(env.ctx.depth()).toBe(d0);
+    expect(env.ctx.issues.filter((i) => i.startsWith('color:') || i.startsWith('radial') || i.startsWith('arc'))).toEqual([]);
+    expect(HTML).toContain('function drawStormDrone(');
+    expect(HTML).toContain('function safeCol(');
+    expect(HTML).not.toMatch(/function drawStormDrone\([\s\S]{0,900}createLinearGradient/);
+    expect(HTML).not.toMatch(/function drawStormDrone\([\s\S]{0,900}createRadialGradient/);
+  });
+
+  it('plays a 2–3s L250 death blast, clears hazards, then finishes victory', () => {
+    const env = bindKaiserHtml(HTML, { W: 768, H: 1024 });
+    env.bombs.push({ x: 10, y: 10, vx: 0, vy: 40 });
+    env.drones.push({ dstorm: true, sdrone: true, x: 20, y: 20, t: 0, warn: 0 });
+    env.startPrimeDeath();
+    expect(env.boss.dying).toBe(true);
+    expect(env.bombs).toHaveLength(0);
+    expect(env.drones).toHaveLength(0);
+    expect(HTML).not.toMatch(/if \(L === 100\)[\s\S]{0,200}startPrimeDeath/);
+    const d0 = env.ctx.depth();
+    for (let i = 0; i < 26; i++) env.updatePrimeDeath(0.05);
+    expect(Number(env.boss.dieT)).toBeGreaterThan(1.2);
+    expect(env.boss.dieBoom).toBe(true);
+    expect(env.particles.length).toBeGreaterThan(0);
+    expect(env.particles.length).toBeLessThanOrEqual(PRIME_KAISER_CAPS.particles);
+    env.drawPrimeKaiserFx();
+    expect(env.ctx.depth()).toBe(d0);
+    expect(env.ctx.issues.filter((i) => i.startsWith('color:') || i.startsWith('radial') || i.startsWith('arc'))).toEqual([]);
+    for (let i = 0; i < 30; i++) env.updatePrimeDeath(0.05);
+    expect(env.boss == null || env.boss.dying).toBeTruthy();
   });
 });

@@ -120,6 +120,7 @@ export function extractHtmlFunction(html: string, name: string): string {
 
 const EXTRACT_FNS = [
   'finiteN',
+  'safeCol',
   'primeKaiserPhase',
   'roomFor',
   'keepKaiserDrone',
@@ -127,6 +128,7 @@ const EXTRACT_FNS = [
   'bladeHaloR',
   'cageWalls',
   'inCageBeam',
+  'segDist',
   'primeGuarded',
   'dropPrimeBomb',
   'spawnSpiralGalaxy',
@@ -135,14 +137,30 @@ const EXTRACT_FNS = [
   'spawnShieldDrones',
   'spawnMirrorClones',
   'seedMineField',
+  'spawnDroneStorm',
+  'droneStormShoot',
+  'startVoidWell',
+  'spawnSplitSwarm',
+  'startPinwheel',
+  'startAmbush',
+  'rainCrownShards',
+  'startEmpPulse',
+  'startTractor',
+  'startMeteorWall',
   'startCrownDash',
   'updateCrownDash',
+  'clearPrimeHazards',
+  'startPrimeDeath',
+  'finishPrimeDeath',
+  'updatePrimeDeath',
   'endPrimePhase',
   'primeKaiserFight',
   'updatePrimeKaiserFx',
   'updateDrones',
   'updateWells',
   'drawWell',
+  'drawStormDrone',
+  'drawDrone',
   'drawPrimeKaiserFx',
   'safeAtk',
   'clampKaiserEntities',
@@ -194,8 +212,24 @@ type FightEnv = Record<string, unknown> & {
   startShockwave: () => void;
   startLaserCage: () => void;
   spawnShieldDrones: () => void;
+  spawnDroneStorm: () => void;
+  droneStormShoot: (d: Record<string, number | boolean>, dt: number) => void;
+  startVoidWell: () => void;
+  spawnSplitSwarm: () => void;
+  startPinwheel: () => void;
+  startAmbush: () => void;
+  rainCrownShards: () => void;
+  startEmpPulse: () => void;
+  startTractor: () => void;
+  startMeteorWall: () => void;
   startCrownDash: () => void;
   updateCrownDash: (dt: number) => void;
+  clearPrimeHazards: () => void;
+  startPrimeDeath: () => void;
+  updatePrimeDeath: (dt: number) => boolean;
+  finishPrimeDeath: () => void;
+  drawStormDrone: (d: Record<string, unknown>) => void;
+  drawDrone: (d: Record<string, unknown>) => void;
   endPrimePhase: (prev: number) => void;
   shieldDroneOrb: (k: number) => number;
   bladeHaloR: (k: number) => { rx: number; ry: number };
@@ -232,8 +266,13 @@ function stubEnv(viewport: { W: number; H: number }): FightEnv {
     errors: [] as string[],
     nanHits: 0,
     ENT_CAP: { ...PRIME_KAISER_CAPS },
-    PRIME_KAISER_PHASES: 20,
-    PRIME_KAISER_THRESHOLDS: [0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05],
+    PRIME_KAISER_PHASES: 30,
+    PRIME_KAISER_THRESHOLDS: [0.967, 0.933, 0.9, 0.867, 0.833, 0.8, 0.767, 0.733, 0.7, 0.667, 0.633, 0.6, 0.567, 0.533, 0.5, 0.467, 0.433, 0.4, 0.367, 0.333, 0.3, 0.267, 0.233, 0.2, 0.167, 0.133, 0.1, 0.067, 0.033],
+    primeFlash: 0,
+    frozen: 0,
+    trainOn: false,
+    coinsArr: [] as unknown[],
+    bossesBeaten: 0,
     FIRE: ['#ff9a2a', '#ffd54a'],
     CYAN: ['#7dffea'],
     PURPLE: ['#d08cff'],
@@ -241,7 +280,7 @@ function stubEnv(viewport: { W: number; H: number }): FightEnv {
     ship: { x: viewport.W / 2, y: viewport.H - 80, down: 0 },
     boss: {
       type: 'emperor', prime: true, k: 1.15, x: viewport.W / 2, y: 220, targetY: 220,
-      hp: 264000, maxHp: 264000, phase: 1, bph: 1, atk: 1,
+      hp: 396000, maxHp: 396000, phase: 1, bph: 1, atk: 1,
       bombTimer: 1, laserCd: 2, spreadT: 3, fx1: 2, fx2: 4, fx3: 5, dashT: 3,
       laser: null, shock: null, cage: null, blades: null, t: 0, flash: 0, vx: 40,
     },
@@ -254,7 +293,12 @@ function stubEnv(viewport: { W: number; H: number }): FightEnv {
   env.showMsg = () => undefined;
   env.tone = () => undefined;
   env.noise = () => undefined;
-  env.SFX = { boss() { return undefined; } };
+  env.SFX = { boss() { return undefined; }, bigBoom() { return undefined; }, win() { return undefined; } };
+  env.spawnPower = () => undefined;
+  env.dropCoin = () => undefined;
+  env.addScore = () => undefined;
+  env.missionAdd = () => undefined;
+  env.safeCol = (c: unknown, fb = '#ffd54a') => (typeof c === 'string' && c && !/NaN|undefined/i.test(c) ? c : fb);
   env.explode = (x: number, y: number, n = 8) => {
     const room = PRIME_KAISER_CAPS.particles - env.particles.length;
     for (let i = 0; i < Math.min(n, Math.max(0, room)); i++) {
@@ -279,6 +323,8 @@ function stubEnv(viewport: { W: number; H: number }): FightEnv {
   };
   env.rnd = (a: number, b: number) => a + (b - a) * 0.5;
   env.pick = (arr: unknown[]) => arr[0];
+  env.drawMissile = () => undefined;
+  env.glowDot = () => undefined;
   env.poly = (pts: number[]) => {
     const c = env.ctx as { beginPath: () => void; moveTo: (x: number, y: number) => void; lineTo: (x: number, y: number) => void; closePath: () => void };
     c.beginPath();
@@ -315,8 +361,24 @@ export function bindKaiserHtml(html: string, viewport = { W: 768, H: 1024 }): Fi
         spawnShieldDrones: typeof spawnShieldDrones === 'function' ? spawnShieldDrones : null,
         spawnMirrorClones: typeof spawnMirrorClones === 'function' ? spawnMirrorClones : null,
         seedMineField: typeof seedMineField === 'function' ? seedMineField : null,
+        spawnDroneStorm: typeof spawnDroneStorm === 'function' ? spawnDroneStorm : null,
+        droneStormShoot: typeof droneStormShoot === 'function' ? droneStormShoot : null,
+        startVoidWell: typeof startVoidWell === 'function' ? startVoidWell : null,
+        spawnSplitSwarm: typeof spawnSplitSwarm === 'function' ? spawnSplitSwarm : null,
+        startPinwheel: typeof startPinwheel === 'function' ? startPinwheel : null,
+        startAmbush: typeof startAmbush === 'function' ? startAmbush : null,
+        rainCrownShards: typeof rainCrownShards === 'function' ? rainCrownShards : null,
+        startEmpPulse: typeof startEmpPulse === 'function' ? startEmpPulse : null,
+        startTractor: typeof startTractor === 'function' ? startTractor : null,
+        startMeteorWall: typeof startMeteorWall === 'function' ? startMeteorWall : null,
         startCrownDash: typeof startCrownDash === 'function' ? startCrownDash : null,
         updateCrownDash: typeof updateCrownDash === 'function' ? updateCrownDash : null,
+        clearPrimeHazards: typeof clearPrimeHazards === 'function' ? clearPrimeHazards : null,
+        startPrimeDeath: typeof startPrimeDeath === 'function' ? startPrimeDeath : null,
+        updatePrimeDeath: typeof updatePrimeDeath === 'function' ? updatePrimeDeath : null,
+        finishPrimeDeath: typeof finishPrimeDeath === 'function' ? finishPrimeDeath : null,
+        drawStormDrone: typeof drawStormDrone === 'function' ? drawStormDrone : null,
+        drawDrone: typeof drawDrone === 'function' ? drawDrone : null,
         endPrimePhase: typeof endPrimePhase === 'function' ? endPrimePhase : null,
         shieldDroneOrb: typeof shieldDroneOrb === 'function' ? shieldDroneOrb : null,
         bladeHaloR: typeof bladeHaloR === 'function' ? bladeHaloR : null,
@@ -378,7 +440,9 @@ function tickFight(env: FightEnv, dt: number) {
   env.ship.x = env.W * (0.5 + 0.28 * Math.sin(env.time * 1.4));
 
   try {
-    if (env.boss.laser) {
+    if (env.boss.dying) {
+      if (typeof env.updatePrimeDeath === 'function') env.updatePrimeDeath(dt);
+    } else if (env.boss.laser) {
       const L = env.boss.laser as { t: number; phase: string; warnDur: number; fireDur: number };
       L.t += dt;
       if (L.phase === 'warn' && L.t >= L.warnDur) { L.phase = 'fire'; L.t = 0; }
@@ -388,7 +452,7 @@ function tickFight(env: FightEnv, dt: number) {
       env.boss.laserCd = Number(env.boss.laserCd) - dt;
       env.primeKaiserFight(dt * Number(env.boss.atk || 1));
     }
-    env.updatePrimeKaiserFx(dt);
+    if (!env.boss.dying) env.updatePrimeKaiserFx(dt);
     for (const b of env.bombs) {
       b.y = Number(b.y) + Number(b.vy || 0) * dt;
       b.x = Number(b.x) + Number(b.vx || 0) * dt;
@@ -430,6 +494,9 @@ function tickFight(env: FightEnv, dt: number) {
   try {
     for (const w of env.wells) env.drawWell(w);
     env.drawPrimeKaiserFx();
+    if (typeof env.drawDrone === 'function') {
+      for (const d of env.drones) env.drawDrone(d);
+    }
   } catch (e) {
     env.errors.push(`draw:${e instanceof Error ? e.message : String(e)}`);
   }
@@ -460,23 +527,24 @@ export function simulateKaiserFight(html: string, opts?: {
     }
   };
 
-  // Whole fight: drain HP through all 20 phases over several minutes.
+  // Whole fight: drain HP through all 30 phases over several minutes.
   const full = opts?.fullSeconds ?? 180;
   env.boss.hp = env.boss.maxHp;
   env.boss.phase = 1;
   runFor(full * 0.05);
-  for (let step = 0; step <= 20; step++) {
-    env.boss.hp = Math.max(0, Number(env.boss.maxHp) * (1 - step / 20));
-    runFor(full / 20);
+  for (let step = 0; step <= 30; step++) {
+    env.boss.hp = Math.max(0, Number(env.boss.maxHp) * (1 - step / 30));
+    runFor(full / 30);
   }
 
   // Force every phase on its own for a stretch, including late stacked attacks.
   const per = opts?.phaseSeconds ?? 8;
-  for (let ph = 1; ph <= 20; ph++) {
-    const frac = ph === 1 ? 0.99 : ph === 20 ? 0.02 : 1.01 - ph * 0.05;
+  for (let ph = 1; ph <= 30; ph++) {
+    const frac = ph === 1 ? 0.99 : ph >= 30 ? 0.01 : 1.01 - ph / 30;
     env.boss.hp = Number(env.boss.maxHp) * frac;
     env.boss.phase = ph === 1 ? 1 : ph - 1;
     env.boss.laser = null;
+    env.boss.dying = false;
     env.state = 'play';
     if (env.lives <= 0) env.lives = 2;
     runFor(per);
