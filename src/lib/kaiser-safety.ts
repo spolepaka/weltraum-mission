@@ -140,7 +140,10 @@ const EXTRACT_FNS = [
   'spawnDroneStorm',
   'droneStormShoot',
   'startVoidWell',
+  'startTwinWells',
   'spawnSplitSwarm',
+  'spawnHeavySwarm',
+  'seedOrbitMines',
   'startPinwheel',
   'startAmbush',
   'rainCrownShards',
@@ -151,6 +154,7 @@ const EXTRACT_FNS = [
   'updateCrownDash',
   'clearPrimeHazards',
   'startPrimeDeath',
+  'primeDeathBurst',
   'finishPrimeDeath',
   'updatePrimeDeath',
   'endPrimePhase',
@@ -266,8 +270,8 @@ function stubEnv(viewport: { W: number; H: number }): FightEnv {
     errors: [] as string[],
     nanHits: 0,
     ENT_CAP: { ...PRIME_KAISER_CAPS },
-    PRIME_KAISER_PHASES: 30,
-    PRIME_KAISER_THRESHOLDS: [0.967, 0.933, 0.9, 0.867, 0.833, 0.8, 0.767, 0.733, 0.7, 0.667, 0.633, 0.6, 0.567, 0.533, 0.5, 0.467, 0.433, 0.4, 0.367, 0.333, 0.3, 0.267, 0.233, 0.2, 0.167, 0.133, 0.1, 0.067, 0.033],
+    PRIME_KAISER_PHASES: 50,
+    PRIME_KAISER_THRESHOLDS: [0.98, 0.96, 0.94, 0.92, 0.9, 0.88, 0.86, 0.84, 0.82, 0.8, 0.78, 0.76, 0.74, 0.72, 0.7, 0.68, 0.66, 0.64, 0.62, 0.6, 0.58, 0.56, 0.54, 0.52, 0.5, 0.48, 0.46, 0.44, 0.42, 0.4, 0.38, 0.36, 0.34, 0.32, 0.3, 0.28, 0.26, 0.24, 0.22, 0.2, 0.18, 0.16, 0.14, 0.12, 0.1, 0.08, 0.06, 0.04, 0.02],
     primeFlash: 0,
     frozen: 0,
     trainOn: false,
@@ -280,7 +284,7 @@ function stubEnv(viewport: { W: number; H: number }): FightEnv {
     ship: { x: viewport.W / 2, y: viewport.H - 80, down: 0 },
     boss: {
       type: 'emperor', prime: true, k: 1.15, x: viewport.W / 2, y: 220, targetY: 220,
-      hp: 396000, maxHp: 396000, phase: 1, bph: 1, atk: 1,
+      hp: 594000, maxHp: 594000, phase: 1, bph: 1, atk: 1,
       bombTimer: 1, laserCd: 2, spreadT: 3, fx1: 2, fx2: 4, fx3: 5, dashT: 3,
       laser: null, shock: null, cage: null, blades: null, t: 0, flash: 0, vx: 40,
     },
@@ -364,7 +368,10 @@ export function bindKaiserHtml(html: string, viewport = { W: 768, H: 1024 }): Fi
         spawnDroneStorm: typeof spawnDroneStorm === 'function' ? spawnDroneStorm : null,
         droneStormShoot: typeof droneStormShoot === 'function' ? droneStormShoot : null,
         startVoidWell: typeof startVoidWell === 'function' ? startVoidWell : null,
+        startTwinWells: typeof startTwinWells === 'function' ? startTwinWells : null,
         spawnSplitSwarm: typeof spawnSplitSwarm === 'function' ? spawnSplitSwarm : null,
+        spawnHeavySwarm: typeof spawnHeavySwarm === 'function' ? spawnHeavySwarm : null,
+        seedOrbitMines: typeof seedOrbitMines === 'function' ? seedOrbitMines : null,
         startPinwheel: typeof startPinwheel === 'function' ? startPinwheel : null,
         startAmbush: typeof startAmbush === 'function' ? startAmbush : null,
         rainCrownShards: typeof rainCrownShards === 'function' ? rainCrownShards : null,
@@ -375,6 +382,7 @@ export function bindKaiserHtml(html: string, viewport = { W: 768, H: 1024 }): Fi
         updateCrownDash: typeof updateCrownDash === 'function' ? updateCrownDash : null,
         clearPrimeHazards: typeof clearPrimeHazards === 'function' ? clearPrimeHazards : null,
         startPrimeDeath: typeof startPrimeDeath === 'function' ? startPrimeDeath : null,
+        primeDeathBurst: typeof primeDeathBurst === 'function' ? primeDeathBurst : null,
         updatePrimeDeath: typeof updatePrimeDeath === 'function' ? updatePrimeDeath : null,
         finishPrimeDeath: typeof finishPrimeDeath === 'function' ? finishPrimeDeath : null,
         drawStormDrone: typeof drawStormDrone === 'function' ? drawStormDrone : null,
@@ -527,20 +535,20 @@ export function simulateKaiserFight(html: string, opts?: {
     }
   };
 
-  // Whole fight: drain HP through all 30 phases over several minutes.
+  // Whole fight: drain HP through all 50 phases over several minutes.
   const full = opts?.fullSeconds ?? 180;
   env.boss.hp = env.boss.maxHp;
   env.boss.phase = 1;
   runFor(full * 0.05);
-  for (let step = 0; step <= 30; step++) {
-    env.boss.hp = Math.max(0, Number(env.boss.maxHp) * (1 - step / 30));
-    runFor(full / 30);
+  for (let step = 0; step <= 50; step++) {
+    env.boss.hp = Math.max(0, Number(env.boss.maxHp) * (1 - step / 50));
+    runFor(full / 50);
   }
 
   // Force every phase on its own for a stretch, including late stacked attacks.
   const per = opts?.phaseSeconds ?? 8;
-  for (let ph = 1; ph <= 30; ph++) {
-    const frac = ph === 1 ? 0.99 : ph >= 30 ? 0.01 : 1.01 - ph / 30;
+  for (let ph = 1; ph <= 50; ph++) {
+    const frac = ph === 1 ? 0.99 : ph >= 50 ? 0.01 : 1.01 - ph / 50;
     env.boss.hp = Number(env.boss.maxHp) * frac;
     env.boss.phase = ph === 1 ? 1 : ph - 1;
     env.boss.laser = null;

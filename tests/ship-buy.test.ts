@@ -30,8 +30,8 @@ describe('coin ship catalog', () => {
     expect(UNLOCK_SALE_PRICES.kaiserbrecher).toBe(90000);
     expect(outerSalePrice(0)).toBe(380000);
     expect(outerSalePrice(28)).toBe(2060000);
-    expect(outerSalePrice(29)).toBe(2500000);
-    expect(SHIP_PRICES.starcrown).toBe(2500000);
+    expect(outerSalePrice(29)).toBe(50000000);
+    expect(SHIP_PRICES.starcrown).toBe(50000000);
     expect(SHIP_PRICES.rivet).toBeGreaterThan(SHIP_PRICES.omega * 2);
     expect(SHIP_PRICES.starcrown).toBeGreaterThan(SHIP_PRICES.rivet * 4);
     for (const id of Object.keys(SHIP_PRICES)) {

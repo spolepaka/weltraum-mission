@@ -10,6 +10,7 @@ import { nameKey, validateDisplayName, type NameKind } from './display-names';
 import { plausibleLegacyUnlock } from './legacy-import';
 import { isMillionScaleGrant, maxCoinsForLevel, salePrice, UNLOCK_SHIPS, upgradeSalePrice } from './economy';
 import { unlockEarned } from './ship-ownership';
+import { AMELIA_STAR_KEY, AMELIA_STAR_SHIP, isAmeliaStarCode, normalizeSecretCode } from './secret-codes';
 import {
   cleanVersusMatchId,
   effectiveStrength,
@@ -1300,8 +1301,25 @@ export const applySecretCode = spacetimedb.reducer(
   { code: t.string() },
   (ctx, { code }) => {
     const identity = ctx.sender;
-    const upperCode = code.toUpperCase().replace(/\s+/g, '');
+    const upperCode = normalizeSecretCode(code);
     
+    if (isAmeliaStarCode(upperCode)) {
+      let owned = false;
+      for (const s of ctx.db.ownedShip.identity.filter(identity)) {
+        if (s.shipId === AMELIA_STAR_SHIP) owned = true;
+      }
+      if (owned) throw new Error('Ship already owned');
+      ctx.db.ownedShip.insert({ identity, shipId: AMELIA_STAR_SHIP });
+      const shop = ctx.db.playerShop.identity.find(identity);
+      if (shop) ctx.db.playerShop.identity.update({ ...shop, equippedShip: AMELIA_STAR_SHIP });
+      let used = false;
+      for (const u of ctx.db.usedSecretCode.identity.filter(identity)) {
+        if (u.codeKey === AMELIA_STAR_KEY) used = true;
+      }
+      if (!used) ctx.db.usedSecretCode.insert({ identity, codeKey: AMELIA_STAR_KEY });
+      return;
+    }
+
     // Test unlock: ALLELEVEL raises this identity's unlockedLevel to MAX_LEVEL (250).
     // getLevelData then allows every level for that identity only (same anti-cheat
     // gate as normal play — other players stay locked). Use only in tests / owner QA.

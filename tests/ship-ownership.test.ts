@@ -112,7 +112,7 @@ describe('reload, second device, buy then reload', () => {
   it('keeps a purchased ship after buy then reload', () => {
     const before = ['starter'];
     const bought = purchaseShipLocal(
-      { coins: 2_500_000, owned: [...before], equipped: 'starter' },
+      { coins: 50_000_000, owned: [...before], equipped: 'starter' },
       'starcrown',
       SHIP_PRICES,
       VALID,
