@@ -85,7 +85,7 @@ const FEAT_COPY: Record<number, { title: string; desc: string }> = {
   201: { title: 'Galaxy 12: Uranus Stormworks', desc: 'Storm coils and sideways cruisers. Solar wind pushes hard!' },
   225: { title: 'Sector boss: Stormworks Core', desc: 'The storm AI core. When it glows, shards and lasers fly!' },
   226: { title: 'Galaxy 13: Kuiper Crown', desc: 'The edge of the map. Dark-matter crabs and void heralds.' },
-  250: { title: 'FINALE: Weltraum Kaiser — Star Crown', desc: 'The last boss! The same Kaiser as level 100 — bigger, stronger, more phases. You can do this!' },
+  250: { title: 'FINALE: Weltraum Kaiser — Star Crown', desc: 'The last boss! Ten phases, one every 10% HP. Same look as level 100 — much stronger. You can do this!' },
 };
 
 function earlyFeats(L: number): LevelFeats {

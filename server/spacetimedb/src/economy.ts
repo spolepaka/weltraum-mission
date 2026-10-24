@@ -1,6 +1,7 @@
 /** Keep in lockstep with src/lib/economy.ts — spacetime module cannot import the client tree. */
 
 import { OUTER_SHIPS, outerUnlockMap } from './outer-ships';
+import { SPECIAL_SHIPS, specialSalePrice, specialUnlockMap } from './special-ships';
 
 export const MAX_LEVEL = 250;
 
@@ -11,12 +12,14 @@ export const UNLOCK_SALE_PRICES: Record<string, number> = {
   hydra: 42000,
   regenbogen: 36000,
   kaiserbrecher: 90000,
+  ...Object.fromEntries(SPECIAL_SHIPS.map((s, i) => [s.id, specialSalePrice(i)])),
 };
 
-/** Outer Fleet: expensive early, Star Crown is the wallet-breaker. */
+/** Outer Fleet: ~2×+ the old curve, steepest for the last ships. */
 export function outerSalePrice(index: number): number {
   const i = Math.max(0, Math.floor(index) || 0);
-  return i >= 29 ? 900000 : 180000 + i * 20000;
+  if (i >= 29) return 2_500_000;
+  return 380000 + i * 32000 + i * i * 1000;
 }
 
 /** Catalog prices. 0 = starter (not for sale). Unlock ships now have a coin price too. */
@@ -56,6 +59,7 @@ export const SHIP_PRICES: Record<string, number> = {
   chromewasp: 45000,
   apexflash: 148000,
   ...Object.fromEntries(OUTER_SHIPS.map((s, i) => [s.id, outerSalePrice(i)])),
+  ...Object.fromEntries(SPECIAL_SHIPS.map((s, i) => [s.id, specialSalePrice(i)])),
 };
 
 /** Paid catalog price, or null if the id is unknown / not for sale. */
@@ -88,6 +92,7 @@ export const UNLOCK_SHIPS: Record<string, { level?: number; ach?: string }> = {
   kaiserbrecher: { level: 90 },
   regenbogen: { ach: 'combo25' },
   ...outerUnlockMap(),
+  ...specialUnlockMap(),
 };
 
 export function isBossLevel(level: number): boolean {

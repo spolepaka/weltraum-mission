@@ -129,10 +129,10 @@ const NAMES: Array<[string, string, string, string, string, string, string]> = [
   ['smeltwing', 'Smelter Wing', 'Schmelz-Flügel', 'Burn + wing escorts', 'Brand + Begleiter', 'Two hot escorts fly beside you.', 'Zwei heiße Begleiter fliegen neben dir.'],
   ['ingothulk', 'Ingot Hulk', 'Barren-Koloss', 'Triple ingot + shield', 'Dreifach-Barren + Schild', 'A heavy foundry tank. Slow shots, big hearts.', 'Ein schwerer Gießerei-Panzer. Langsame Schüsse, große Herzen.'],
   ['crucibit', 'Crucible Bit', 'Tiegel-Bit', 'Nova melt', 'Nova-Schmelze', 'Every few seconds a melt-wave pops nearby foes.', 'Alle paar Sekunden knallt eine Schmelz-Welle.'],
-  ['forgefin', 'Forge Fin', 'Schmiede-Finne', 'Pierce + hammer drone', 'Durchschuss + Hammer-Drohne', 'A finned forge craft with one hammer drone.', 'Ein Flossen-Schmiedeschiff mit einer Hammer-Drohne.'],
+  ['forgefin', 'Forge Fin', 'Schmiede-Finne', 'Pierce + hammer drones', 'Durchschuss + Hammer-Drohnen', 'A finned forge craft with two hammer drones.', 'Ein Flossen-Schmiedeschiff mit zwei Hammer-Drohnen.'],
   ['frostbit', 'Frost Bit', 'Frost-Bit', 'Ice shots freeze', 'Eis-Schüsse frieren', 'Tiny ice bits freeze nearby rocks.', 'Kleine Eis-Bits frieren Steine in der Nähe.'],
   ['iceauger', 'Ice Auger', 'Eis-Bohrer', 'Pierce auger', 'Bohr-Durchschuss', 'Drills straight through every foe in the lane.', 'Bohrt gerade durch alle Gegner in der Bahn.'],
-  ['cryowing', 'Cryo Wing', 'Kryo-Flügel', 'Frost aura + 3 shots', 'Frost-Aura + 3 Schüsse', 'A cold field slows bombs around you.', 'Ein Kältefeld bremst Bomben um dich.'],
+  ['cryowing', 'Cryo Wing', 'Kryo-Flügel', 'Frost aura + 4 shots', 'Frost-Aura + 4 Schüsse', 'A cold field slows bombs around you.', 'Ein Kältefeld bremst Bomben um dich.'],
   ['vaultskip', 'Vault Skip', 'Tresor-Skip', 'Phase vault shots', 'Phasen-Tresor-Schüsse', 'Shots slip through walls of ice.', 'Schüsse gleiten durch Eiswände.'],
   ['brinefin', 'Brine Fin', 'Laugen-Finne', 'Homing brine', 'Zielsuch-Lauge', 'Salty homing darts from Europa.', 'Salzige Such-Pfeile von Europa.'],
   ['ringshear', 'Ring Shear', 'Ring-Schere', 'Split ring blades', 'Splitter-Ringklingen', 'Each hit shears into two ring blades.', 'Jeder Treffer teilt sich in zwei Ringklingen.'],
@@ -145,9 +145,9 @@ const NAMES: Array<[string, string, string, string, string, string, string]> = [
   ['methanray', 'Methane Ray', 'Methan-Strahl', 'Beam + shield', 'Strahl + Schild', 'A cyan methane beam from Uranus.', 'Ein cyaner Methan-Strahl von Uranus.'],
   ['aurorafin', 'Aurora Fin', 'Aurora-Finne', 'Prism aurora shots', 'Prisma-Aurora', 'Five colorful aurora shots.', 'Fünf bunte Aurora-Schüsse.'],
   ['oortneedle', 'Oort Needle', 'Oort-Nadel', 'Tiny pierce needle', 'Winzige Durchschuss-Nadel', 'A Kuiper needle. Very small, very sharp.', 'Eine Kuiper-Nadel. Sehr klein, sehr scharf.'],
-  ['plutospire', 'Pluto Spire', 'Pluto-Turm', 'Homing + 2 drones', 'Zielsuchend + 2 Drohnen', 'A dark spire with two ice drones.', 'Ein dunkler Turm mit zwei Eis-Drohnen.'],
+  ['plutospire', 'Pluto Spire', 'Pluto-Turm', 'Homing + 3 drones', 'Zielsuchend + 3 Drohnen', 'A dark spire with three ice drones.', 'Ein dunkler Turm mit drei Eis-Drohnen.'],
   ['charongate', 'Charon Gate', 'Charon-Tor', 'Nova + clone', 'Nova + Klon', 'Opens a gate-clone on the other side.', 'Öffnet einen Tor-Klon auf der anderen Seite.'],
-  ['starcrown', 'Star Crown', 'Sternenkrone', 'Omega crown + drones', 'Omega-Krone + Drohnen', 'Reward for the Weltraum Kaiser at 250! Crown shots seek and pierce.', 'Belohnung für den Weltraum-Kaiser auf 250! Kronen-Schüsse suchen und durchschlagen.'],
+  ['starcrown', 'Star Crown', 'Sternenkrone', 'Omega crown + 4 drones', 'Omega-Krone + 4 Drohnen', 'Reward for the Weltraum Kaiser at 250! Crown shots seek and pierce.', 'Belohnung für den Weltraum-Kaiser auf 250! Kronen-Schüsse suchen und durchschlagen.'],
 ];
 
 const PERKS: Array<[string, string, number?]> = [
@@ -162,7 +162,7 @@ const PERKS: Array<[string, string, number?]> = [
   ['burn', 'wing', 0],
   ['', '', 0],
   ['nova', '', 0],
-  ['pierce', 'orbit', 1],
+  ['pierce', 'orbit', 2],
   ['freeze', '', 0],
   ['pierce', '', 0],
   ['freeze', 'frostaura', 0],
@@ -178,20 +178,21 @@ const PERKS: Array<[string, string, number?]> = [
   ['beam', '', 0],
   ['prism', '', 0],
   ['small', 'pierce', 0],
-  ['homing', 'orbit', 2],
+  ['homing', 'orbit', 3],
   ['nova', 'clone', 0],
-  ['omega', 'timeslow', 2],
+  ['omega', 'timeslow', 4],
 ];
 
 export const OUTER_SHIPS: OuterShip[] = NAMES.map((row, i) => {
   const unlockL = 105 + i * 5;
   const [perk, perk2, drones] = PERKS[i];
-  const hearts = 5 + Math.floor(i / 8);
-  const speed = Math.round((1.35 + i * 0.012) * 100) / 100;
-  const rate = Math.round((0.26 - i * 0.002) * 1000) / 1000;
-  const shots = i < 8 ? 2 : i < 20 ? 2 + (i % 2) : 3;
-  const dmg = Math.round((3.0 + i * 0.09) * 100) / 100;
-  const regen = i === 29 ? 12 : i >= 7 && i % 4 === 3 ? 12 + Math.floor(i / 6) : i >= 9 && i % 5 === 0 ? 14 : 0;
+  // Floor sits above every L1–100 ship (omega 8/5.4/0.2/1.7); scales to Star Crown.
+  const hearts = 11 + Math.floor((i * 5) / 29);
+  const speed = Math.round((1.85 + i * 0.014) * 100) / 100;
+  const rate = Math.round((0.16 - i * 0.0016) * 1000) / 1000;
+  const shots = i < 8 ? 3 : i < 18 ? 4 : 5;
+  const dmg = Math.round((8.2 + i * 0.22) * 100) / 100;
+  const regen = i === 29 ? 16 : i >= 7 && i % 4 === 3 ? 14 + Math.floor(i / 5) : i >= 9 && i % 5 === 0 ? 16 : i >= 4 ? 12 : 10;
   const hue = (i * 41 + 12) % 360;
   const bulletHue = (hue + 160) % 360;
   return {
@@ -206,7 +207,7 @@ export const OUTER_SHIPS: OuterShip[] = NAMES.map((row, i) => {
     hearts,
     speed,
     rate,
-    shots: Math.min(3, shots),
+    shots: Math.min(5, shots),
     dmg,
     regen,
     perk,

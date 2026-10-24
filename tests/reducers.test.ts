@@ -19,6 +19,8 @@ const VALID_SHIPS = new Set([
   'vaultskip', 'brinefin', 'ringshear', 'spokejet', 'shepwing', 'hexsail', 'scythesk',
   'stormcoil', 'tiltwing', 'methanray', 'aurorafin', 'oortneedle', 'plutospire',
   'charongate', 'starcrown',
+  'phobosclaw', 'dockfang', 'slagheart', 'titanbrand', 'icewisp', 'vaultmind',
+  'ringsovr', 'dreadhalo', 'stormprism', 'uranusarc', 'kuiperfang', 'voidcrown',
 ]);
 
 const VALID_ACHIEVEMENTS = new Set([

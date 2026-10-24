@@ -1,12 +1,23 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BOSSES, MAX_LEVEL, bossForLevel, isBossLevel, isSectorBoss } from '../src/lib/boss-catalog';
+import {
+  BOSSES, MAX_LEVEL, bossForLevel, isBossLevel, isSectorBoss,
+  LATE_ART_FACES, LATE_ART_PALS, lateBossArtRecipe, lateBossLevels,
+} from '../src/lib/boss-catalog';
 import { MAX_LEVEL as ECON_MAX, SHIP_PRICES, UNLOCK_SHIPS, outerSalePrice } from '../src/lib/economy';
 import { OUTER_IDS, OUTER_SHIPS, outerCombat } from '../src/lib/outer-ships';
 import { OUTER_IDS as SERVER_OUTER_IDS, OUTER_SHIPS as SERVER_OUTER, outerCombat as serverCombat } from '../server/spacetimedb/src/outer-ships';
-import { shipCombat } from '../src/lib/versus';
+import { shipCombat, shipCombatPower } from '../src/lib/versus';
+import { shipCombatPower as serverPower } from '../server/spacetimedb/src/versus';
 
 const HTML = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+
+const EARLY_SHIP_IDS = [
+  'starter', 'blitz', 'komet', 'doppel', 'eis', 'falke', 'feuer', 'stern', 'titan', 'lanze',
+  'koenig', 'nova', 'quanten', 'uni', 'rochen', 'phoenix', 'hammer', 'zwilling', 'gravitron',
+  'spektral', 'segler', 'schatten', 'drache', 'omega', 'frostwal', 'lindwurm', 'hydra',
+  'regenbogen', 'kaiserbrecher', 'beepbuggy', 'cloudcoupe', 'shadowspeeder', 'chromewasp', 'apexflash',
+];
 
 describe('outer fleet ships', () => {
   it('adds 30 distinct unlockable ships every 5 levels from 105 to 250', () => {
@@ -34,7 +45,35 @@ describe('outer fleet ships', () => {
       expect(shipCombat(id).dmg).toBe(client[id].dmg);
       expect(HTML).toContain(`id: "${id}"`);
       expect(HTML).toContain(`"${id}":`);
+      expect(HTML).toContain(`hearts: ${client[id].hearts}`);
+      expect(HTML).toContain(`price: ${SHIP_PRICES[id]}`);
     }
+  });
+
+  it('makes every Outer Fleet ship clearly stronger than every L1–100 ship', () => {
+    const earlyPower = EARLY_SHIP_IDS.map((id) => shipCombatPower(id));
+    const maxEarly = Math.max(...earlyPower);
+    const maxEarlyHearts = Math.max(...EARLY_SHIP_IDS.map((id) => shipCombat(id).hearts));
+    const maxEarlySpeed = Math.max(...EARLY_SHIP_IDS.map((id) => shipCombat(id).speed));
+    const bestGeneralDmg = shipCombat('omega').dmg;
+    expect(maxEarly).toBe(shipCombatPower('omega'));
+    for (const s of OUTER_SHIPS) {
+      const power = shipCombatPower(s.id);
+      expect(s.hearts).toBeGreaterThan(maxEarlyHearts);
+      expect(s.speed).toBeGreaterThan(maxEarlySpeed);
+      expect(s.rate).toBeLessThan(0.2);
+      expect(s.dmg).toBeGreaterThan(bestGeneralDmg);
+      expect(s.shots).toBeGreaterThanOrEqual(3);
+      expect(power).toBeGreaterThan(Math.round(maxEarly * 1.12));
+      expect(serverPower(s.id)).toBe(power);
+      const dps = (s.dmg * s.shots) / s.rate;
+      expect(dps).toBeGreaterThan((14 * 1) / 0.45);
+    }
+    expect(OUTER_SHIPS[29].hearts).toBeGreaterThan(OUTER_SHIPS[0].hearts);
+    expect(OUTER_SHIPS[29].dmg).toBeGreaterThan(OUTER_SHIPS[0].dmg);
+    expect(outerSalePrice(0)).toBeGreaterThanOrEqual(360000);
+    expect(outerSalePrice(29)).toBeGreaterThanOrEqual(outerSalePrice(0) * 6);
+    expect(outerSalePrice(28)).toBeGreaterThan(outerSalePrice(0) * 5);
   });
 });
 
@@ -62,10 +101,10 @@ describe('250-level bosses and Kaiser split', () => {
     expect(l100.hp).toBe(9000);
     expect(l100.prime).toBeFalsy();
     expect(l250.type).toBe('emperor');
-    expect(l250.hp).toBe(20000);
+    expect(l250.hp).toBe(60000);
     expect(l250.prime).toBe(true);
     expect(HTML).toMatch(/if \(L === 100\) return \{ type: "emperor", hp: 9000/);
-    expect(HTML).toMatch(/if \(L === 250\) return \{ type: "emperor", hp: 20000/);
+    expect(HTML).toMatch(/if \(L === 250\) return \{ type: "emperor", hp: PRIME_KAISER_HP/);
     expect(HTML).toContain('spec.prime');
     expect(HTML).toContain('if (b.prime)');
   });
@@ -94,6 +133,82 @@ describe('250-level bosses and Kaiser split', () => {
     const W = 1024, H = 720;
     expect(Math.round(Math.min(W * 0.5, H * 0.62, 500))).toBe(446);
     expect(Math.round(Math.min(W * 0.72, H * 0.82, 760))).toBe(590);
+  });
+
+  it('pins the L250 Star Crown Kaiser overlay and leaves L1–99 boss draws alone', () => {
+    const start = HTML.indexOf('  function drawEmperor(b) {');
+    const prime = HTML.indexOf('    if (b.prime) {', start);
+    const cracks = HTML.indexOf('    // Risse bei Schaden', prime);
+    expect(prime).toBeGreaterThan(start);
+    expect(cracks).toBeGreaterThan(prime);
+    const overlay = HTML.slice(prime, cracks);
+    expect(overlay).toContain('pulse = 0.5 + 0.5 * Math.sin(t * 5)');
+    expect(overlay).toContain('for (var pr = 0; pr < 12; pr++)');
+    expect(overlay).toContain('blade.addColorStop(1, "rgba(255,40,60,0)")');
+    expect(overlay).toContain('ctx.translate(0, -148); ctx.rotate(t * 0.55)');
+    expect(overlay).toContain('for (var or = 0; or < 5; or++)');
+    expect(HTML).toContain('function drawRobo(b) {');
+    expect(HTML).toContain('// Triebwerke (hinten = oben)');
+    expect(HTML).toContain('function drawGolem');
+    expect(HTML).toContain('function drawKraken');
+    expect(HTML).toContain('function drawSun');
+    expect(HTML).toContain('function drawGuardian');
+    expect(HTML).toContain('late-boss-art-v4');
+    expect(HTML).toContain('drawLateBossSheet: function');
+    expect(HTML).toContain('RIVET DRONE');
+    expect(HTML).toContain('VOID HERALD');
+    expect(HTML).not.toMatch(/LATE_BOSS_NAMES = \{[^}]*250:/);
+  });
+
+  it('gives every 101–249 boss a unique silhouette recipe and redesigned art', () => {
+    const levels = lateBossLevels();
+    expect(levels[0]).toBe(102);
+    expect(levels[levels.length - 1]).toBe(249);
+    expect(levels).not.toContain(100);
+    expect(levels).not.toContain(250);
+    const keys = levels.map((L) => {
+      const r = lateBossArtRecipe(L);
+      return [r.kind, r.form, r.hull, r.hue].join(':');
+    });
+    expect(new Set(keys).size).toBe(keys.length);
+    const artForms = levels.filter((L) => ![120, 150, 174, 198, 225].includes(L)).map((L) => lateBossArtRecipe(L).form);
+    expect(new Set(artForms).size).toBe(artForms.length);
+    expect(HTML).toContain('hull: a % 20');
+    expect(HTML).toContain('limbN: 3 + (a % 4)');
+    expect(HTML).toContain('late-boss-art-v4');
+    expect(HTML).toContain('function latePal(L, fl, angry)');
+    expect(HTML).toContain('function face(kind, x, y)');
+    expect(HTML).toContain('form === "rivetDrone"');
+    expect(HTML).toContain('form === "voidDelta"');
+    expect(HTML).toContain('form === "craneMech"');
+    expect(HTML).toContain('polyFill([-40, -30, 40, -30, 48, 20, -48, 20])');
+    expect(HTML).not.toContain('if (r.crown)');
+    const sector = [120, 150, 174, 198, 225];
+    const art = levels.filter((L) => !sector.includes(L));
+    expect(art).toHaveLength(45);
+    const faces = art.filter((L) => LATE_ART_FACES[L]);
+    expect(faces.length).toBeGreaterThanOrEqual(14);
+    expect(faces.length).toBeLessThanOrEqual(18);
+    expect(new Set(faces.map((L) => LATE_ART_FACES[L])).size).toBe(3);
+    const mains = art.map((L) => LATE_ART_PALS[L].a.toLowerCase());
+    expect(new Set(mains).size).toBe(mains.length);
+    for (let i = 0; i < art.length - 1; i++) {
+      expect(LATE_ART_PALS[art[i]].a).not.toBe(LATE_ART_PALS[art[i + 1]].a);
+      expect(LATE_ART_PALS[art[i]].c).not.toBe(LATE_ART_PALS[art[i + 1]].c);
+    }
+    for (const L of art) {
+      expect(HTML).toContain(LATE_ART_PALS[L].a);
+      expect(HTML).toContain(LATE_ART_PALS[L].c);
+    }
+    expect(HTML).toMatch(/function drawForgeBoss\(b\) \{[\s\S]*ctx\.rotate\(t \* 2\)/);
+    expect(HTML).toMatch(/function drawFoundryBoss\(b\) \{[\s\S]*ctx\.rotate\(t \* 0\.35\)/);
+    expect(HTML).toMatch(/function drawVaultBoss\(b\) \{[\s\S]*bezierCurveTo/);
+    expect(HTML).toMatch(/function drawRingfleetBoss\(b\) \{[\s\S]*for \(var i = 0; i < 10; i\+\+\)/);
+    expect(HTML).toMatch(/function drawStormcoreBoss\(b\) \{[\s\S]*for \(var i = 0; i < 8; i\+\+\)/);
+    expect(bossForLevel(100)?.type).toBe('emperor');
+    expect(bossForLevel(250)?.type).toBe('emperor');
+    expect(bossForLevel(100)?.hp).toBe(9000);
+    expect(bossForLevel(250)?.hp).toBe(60000);
   });
 
   it('gives every Outer Fleet ship a unique silhouette baked into HTML kits', () => {

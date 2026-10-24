@@ -206,8 +206,22 @@ const NEW_BOSSES: Record<number, { type: string; en: string; de: string; sector?
   243: { type: 'art', en: 'HALO SENTINEL', de: 'HALO-WÄCHTER' },
   246: { type: 'art', en: 'ICE DWARF MECH', de: 'EISZWERG-MECH' },
   249: { type: 'art', en: 'VOID HERALD', de: 'LEEREN-HEROLD' },
-  250: { type: 'emperor', en: 'WELTRAUM KAISER: STAR CROWN', de: 'WELTRAUM-KAISER: STERNENKRONE', sector: true, finale: true, hp: 20000, prime: true },
+  250: { type: 'emperor', en: 'WELTRAUM KAISER: STAR CROWN', de: 'WELTRAUM-KAISER: STERNENKRONE', sector: true, finale: true, hp: 60000, prime: true },
 };
+
+/** Catalog HP for the L250 prime Kaiser. In-fight HP still multiplies by heat() and TUNE_BOSS. */
+export const PRIME_KAISER_HP = 60000;
+export const PRIME_KAISER_PHASES = 10;
+/** HP fraction cutoffs: a new phase starts each time remaining HP crosses one of these. */
+export const PRIME_KAISER_THRESHOLDS = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1] as const;
+
+export function primeKaiserPhase(hpFrac: number): number {
+  const fr = Math.max(0, Math.min(1, hpFrac));
+  for (let i = 0; i < PRIME_KAISER_THRESHOLDS.length; i++) {
+    if (fr > PRIME_KAISER_THRESHOLDS[i]) return i + 1;
+  }
+  return PRIME_KAISER_PHASES;
+}
 
 function remixHp(L: number): number {
   return Math.round(330 + 17 * (L - 18));
@@ -307,6 +321,66 @@ export type ArtRecipe = {
   orbit: number;
   hue: number;
   hue2: number;
+  hue3?: number;
+  body?: number;
+  limbN?: number;
+  kind?: number;
+  form?: string;
+  face?: 'visor' | 'brows' | 'cyclops';
+  pal?: { a: string; c: string };
+};
+
+/** Small robot/alien faces on ~1/3 of late art bosses. Not on sector bosses. */
+export const LATE_ART_FACES: Record<number, 'visor' | 'brows' | 'cyclops'> = {
+  102: 'visor', 114: 'brows', 117: 'cyclops',
+  132: 'brows', 144: 'visor', 147: 'cyclops',
+  159: 'visor', 165: 'brows', 168: 'cyclops',
+  180: 'visor', 192: 'cyclops',
+  207: 'visor', 219: 'brows', 222: 'cyclops',
+  246: 'visor', 249: 'cyclops',
+};
+
+/** Per-boss vivid hull + accent. Neighbours must not share a main hue. */
+export const LATE_ART_PALS: Record<number, { a: string; c: string }> = {
+  102: { a: '#ff3344', c: '#40fff0' }, 105: { a: '#7dff1a', c: '#ff7a1a' },
+  108: { a: '#ff4ad6', c: '#ffd24a' }, 111: { a: '#2a7bff', c: '#ffc02a' },
+  114: { a: '#ff7a12', c: '#1ad8c8' }, 117: { a: '#ffe014', c: '#ff2a9a' },
+  123: { a: '#2effb0', c: '#ff3a5a' }, 126: { a: '#ff2a2a', c: '#7dffff' },
+  129: { a: '#c8ff1a', c: '#a14aff' }, 132: { a: '#2a5cff', c: '#ffd000' },
+  135: { a: '#ff6a4a', c: '#1a4aff' }, 138: { a: '#ffe8a0', c: '#ff3a2a' },
+  141: { a: '#1ad86a', c: '#ff8a2a' }, 144: { a: '#ff5a1a', c: '#3ad0ff' },
+  147: { a: '#ff2a9a', c: '#b8ff2a' }, 153: { a: '#5ac8ff', c: '#ff4ad0' },
+  156: { a: '#ffe84a', c: '#5a3aff' }, 159: { a: '#1a6aff', c: '#ff8a2a' },
+  162: { a: '#e8f0ff', c: '#ff3a4a' }, 165: { a: '#1affd0', c: '#b04aff' },
+  168: { a: '#ff5a8a', c: '#2affd0' }, 171: { a: '#d8f6ff', c: '#ffc02a' },
+  177: { a: '#ffb01a', c: '#2afff0' }, 180: { a: '#8a4aff', c: '#ffe01a' },
+  183: { a: '#3aff8a', c: '#ff3a4a' }, 186: { a: '#ffb080', c: '#2a7aff' },
+  189: { a: '#5aff2a', c: '#ff4ad6' }, 192: { a: '#ffd24a', c: '#ff2a3a' },
+  195: { a: '#3a3aff', c: '#ffd24a' }, 201: { a: '#1afff0', c: '#ff7a1a' },
+  204: { a: '#b04aff', c: '#9aff2a' }, 207: { a: '#4affc0', c: '#ff3ad0' },
+  210: { a: '#ff2a4a', c: '#7dffff' }, 213: { a: '#d48a2a', c: '#2afff0' },
+  216: { a: '#ff6ad0', c: '#2affd0' }, 219: { a: '#7dffff', c: '#ff3a4a' },
+  222: { a: '#b8ff2a', c: '#8a4aff' }, 228: { a: '#ffc02a', c: '#a04aff' },
+  231: { a: '#2ab0ff', c: '#ff6ad0' }, 234: { a: '#ff2a3a', c: '#e8e8ff' },
+  237: { a: '#7dffa0', c: '#ff7a1a' }, 240: { a: '#d07030', c: '#2affd0' },
+  243: { a: '#f0f4ff', c: '#ff4ad6' }, 246: { a: '#8ad4ff', c: '#ffd24a' },
+  249: { a: '#6a2aff', c: '#c8ff2a' },
+};
+
+/** One named body per L101–249 art boss. Sector bosses keep dedicated draw fns. */
+export const LATE_ART_FORMS: Record<number, string> = {
+  102: 'rivetDrone', 105: 'craneMech', 108: 'welderRig', 111: 'dockClamp',
+  114: 'boltHowitzer', 117: 'hullSaw', 123: 'launchClamp', 126: 'slagFurnace',
+  129: 'magmaPress', 132: 'smelterWalker', 135: 'ingotCannon', 138: 'cruciblePod',
+  141: 'forgeHammer', 144: 'lavaRail', 147: 'ashBarge', 153: 'frostProbe',
+  156: 'iceAuger', 159: 'cryoTurret', 162: 'vaultLock', 165: 'brineTank',
+  168: 'searchTurret', 171: 'crackerRig', 177: 'ringShear', 180: 'spokeDestroyer',
+  183: 'shepherdSat', 186: 'icePipe', 189: 'hexSail', 192: 'orbitScythe',
+  195: 'spokeFort', 201: 'stormCoil', 204: 'tiltGyro', 207: 'methaneWing',
+  210: 'diamondTurret', 213: 'sideCruiser', 216: 'auroraFan', 219: 'iceRam',
+  222: 'vortexTurbine', 228: 'cometRack', 231: 'plutoSpire', 234: 'charonGate',
+  237: 'oortNeedle', 240: 'pincerDeck', 243: 'haloRing', 246: 'iceWalker',
+  249: 'voidDelta',
 };
 
 export function bossArtRecipe(art: number): ArtRecipe {
@@ -321,6 +395,33 @@ export function bossArtRecipe(art: number): ArtRecipe {
     hue: (a * 47 + 18) % 360,
     hue2: (a * 47 + 18 + 130) % 360,
   };
+}
+
+/** L101–249 art bosses: unique body form per level. Keep in lockstep with HTML artRecipe(). */
+export function lateBossArtRecipe(level: number): ArtRecipe {
+  const L = Math.floor(level);
+  const a = Math.max(0, L - 101);
+  return {
+    art: a,
+    hull: a % 20,
+    limbs: Math.floor(a / 2) % 8,
+    crown: 0,
+    guns: 2 + ((a * 2 + 2) % 5),
+    orbit: 1 + ((a * 5 + 3) % 5),
+    hue: (a * 47 + 18) % 360,
+    hue2: (a * 47 + 148) % 360,
+    hue3: (a * 29 + 80) % 360,
+    body: a % 4,
+    limbN: 3 + (a % 4),
+    kind: L,
+    form: LATE_ART_FORMS[L] || `late${L}`,
+    face: LATE_ART_FACES[L],
+    pal: LATE_ART_PALS[L],
+  };
+}
+
+export function lateBossLevels(): number[] {
+  return allBossLevels().filter((L) => L >= 101 && L <= 249);
 }
 
 export function bossNamesForLang(lang: 'en' | 'de'): Record<string, string> {

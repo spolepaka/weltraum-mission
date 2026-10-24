@@ -1,6 +1,7 @@
 import type { Translations } from './types';
 import { bossNamesForLang } from '../lib/boss-catalog';
 import { outerI18n } from '../lib/outer-ships';
+import { specialI18n } from '../lib/special-ships';
 
 export const en: Translations = {
   title: 'Space Mission',
@@ -111,6 +112,7 @@ export const en: Translations = {
     apexflash: { name: 'Roadster Founders Series', perk: 'Homing volley + shield pulse', desc: 'Founders Series Tesla Roadster. Chrome-gold finish, the big rear wing from the official rocket-car still, a full SpaceX nozzle row, triple homing shots, and a shield pulse that pops nearby bombs.' },
     amelia: { name: 'Amelia', perk: 'Friend ship', desc: 'A friend ship for player 2.' },
     ...outerI18n('en'),
+    ...specialI18n('en'),
   },
   achievements: 'Achievements',
   achievementsTitle: 'Achievements',
@@ -513,6 +515,8 @@ export const en: Translations = {
     missingCoins: 'Not enough coins! You still need {n}. Play a few levels!',
     owned: 'Owned',
     free: 'Free!',
+    freeToClaim: 'Free to claim',
+    claiming: 'Claiming {name}…',
     select: 'Select',
     getFree: 'Get for free!',
     buyFor: 'Buy for',
@@ -695,6 +699,16 @@ export const en: Translations = {
     phase5e: '🟥 PHASE 5: Laser grid & missiles!',
     phase6: '🌀 PHASE 6: Gravity storm!',
     phase7: '⚡ PHASE 7: EVERYTHING AT ONCE! ⚡ Almost there – give it everything!',
+    primePhase1: 'Phase 1/10 — Barrage!',
+    primePhase2: 'Phase 2/10 — Aimed shots!',
+    primePhase3: 'Phase 3/10 — Laser sweep!',
+    primePhase4: 'Phase 4/10 — Minions!',
+    primePhase5: 'Phase 5/10 — Shield wall!',
+    primePhase6: 'Phase 6/10 — Swarm!',
+    primePhase7: 'Phase 7/10 — Crown dash!',
+    primePhase8: 'Phase 8/10 — Missile storm!',
+    primePhase9: 'Phase 9/10 — Grid lock!',
+    primePhase10: 'Phase 10/10 — Starfall!',
     gotIt: 'Got it',
     coachShop: 'You have {n} coins! Visit the Shop to get a new ship.',
     coachLosses: 'Try a stronger ship or an upgrade in the Shop.',

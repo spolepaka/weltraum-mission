@@ -9,6 +9,7 @@ import { buildLevelPayload } from './level-catalog';
 import { nameKey, validateDisplayName, type NameKind } from './display-names';
 import { plausibleLegacyUnlock } from './legacy-import';
 import { isMillionScaleGrant, maxCoinsForLevel, salePrice, UNLOCK_SHIPS, upgradeSalePrice } from './economy';
+import { unlockEarned } from './ship-ownership';
 import {
   cleanVersusMatchId,
   effectiveStrength,
@@ -73,6 +74,8 @@ const VALID_SHIPS = new Set([
   'vaultskip', 'brinefin', 'ringshear', 'spokejet', 'shepwing', 'hexsail', 'scythesk',
   'stormcoil', 'tiltwing', 'methanray', 'aurorafin', 'oortneedle', 'plutospire',
   'charongate', 'starcrown',
+  'phobosclaw', 'dockfang', 'slagheart', 'titanbrand', 'icewisp', 'vaultmind',
+  'ringsovr', 'dreadhalo', 'stormprism', 'uranusarc', 'kuiperfang', 'voidcrown',
 ]);
 
 const VALID_ACHIEVEMENTS = new Set([
@@ -644,12 +647,38 @@ function writeCoinEvent(ctx: AnyCtx, identity: AnyCtx, amount: bigint, reason: s
   });
 }
 
+function grantEarnedUnlockShips(ctx: AnyCtx): void {
+  const identity = ctx.sender;
+  const progress = ctx.db.playerProgress.identity.find(identity);
+  const unlockedLevel = progress?.unlockedLevel ?? 1;
+  const starredLevels: number[] = [];
+  for (const row of ctx.db.levelStars.identity.filter(identity)) {
+    if (row.stars > 0) starredLevels.push(row.level);
+  }
+  const achievements: string[] = [];
+  for (const a of ctx.db.playerAchievements.identity.filter(identity)) {
+    achievements.push(a.achievementId);
+  }
+  const owned = new Set<string>();
+  for (const s of ctx.db.ownedShip.identity.filter(identity)) {
+    owned.add(s.shipId);
+  }
+  for (const [shipId, rule] of Object.entries(UNLOCK_SHIPS)) {
+    if (owned.has(shipId)) continue;
+    if (!validateShip(shipId)) continue;
+    if (!unlockEarned(rule, { starredLevels, unlockedLevel, achievements })) continue;
+    ctx.db.ownedShip.insert({ identity, shipId });
+    owned.add(shipId);
+  }
+}
+
 function ensurePlayer(ctx: AnyCtx): void {
   const identity = ctx.sender;
   const now = ctx.timestamp;
   const existingPlayer = ctx.db.player.identity.find(identity);
   if (existingPlayer) {
     ctx.db.player.identity.update({ ...existingPlayer, lastSeenAt: now });
+    grantEarnedUnlockShips(ctx);
     return;
   }
   ctx.db.player.insert({
@@ -887,6 +916,7 @@ export const syncLevelStars = spacetimedb.reducer(
         bestScore: clampedScore,
       });
     }
+    grantEarnedUnlockShips(ctx);
   }
 );
 
@@ -999,6 +1029,7 @@ export const completeLevelResult = spacetimedb.reducer(
     if (updatedProgress) {
       ctx.db.playerProgress.identity.update({ ...updatedProgress, totalScore });
     }
+    grantEarnedUnlockShips(ctx);
   }
 );
 
@@ -1082,21 +1113,18 @@ export const claimUnlockShip = spacetimedb.reducer(
     if (!validateShip(shipId)) throw new Error(`Invalid ship: ${shipId}`);
     const rule = UNLOCK_SHIPS[shipId];
     if (!rule) throw new Error('Ship is not an unlock reward');
-    if (rule.level) {
-      const progress = ctx.db.playerProgress.identity.find(identity);
-      const unlocked = progress?.unlockedLevel ?? 1;
-      let starred = false;
-      for (const row of ctx.db.levelStars.identity.filter(identity)) {
-        if (row.level === rule.level && row.stars > 0) { starred = true; break; }
-      }
-      if (!starred && unlocked < rule.level) throw new Error('Unlock not earned');
+    const progress = ctx.db.playerProgress.identity.find(identity);
+    const unlockedLevel = progress?.unlockedLevel ?? 1;
+    const starredLevels: number[] = [];
+    for (const row of ctx.db.levelStars.identity.filter(identity)) {
+      if (row.stars > 0) starredLevels.push(row.level);
     }
-    if (rule.ach) {
-      let have = false;
-      for (const a of ctx.db.playerAchievements.identity.filter(identity)) {
-        if (a.achievementId === rule.ach) { have = true; break; }
-      }
-      if (!have) throw new Error('Achievement not earned');
+    const achievements: string[] = [];
+    for (const a of ctx.db.playerAchievements.identity.filter(identity)) {
+      achievements.push(a.achievementId);
+    }
+    if (!unlockEarned(rule, { starredLevels, unlockedLevel, achievements }, { allowUnlockedLevel: true })) {
+      throw new Error('Unlock not earned');
     }
     for (const s of ctx.db.ownedShip.identity.filter(identity)) {
       if (s.shipId === shipId) return;
@@ -1104,6 +1132,15 @@ export const claimUnlockShip = spacetimedb.reducer(
     ctx.db.ownedShip.insert({ identity, shipId });
     const shop = ctx.db.playerShop.identity.find(identity);
     if (shop) ctx.db.playerShop.identity.update({ ...shop, equippedShip: shipId });
+  }
+);
+
+export const claimEarnedUnlocks = spacetimedb.reducer(
+  {},
+  (ctx) => {
+    assertNotBanned(ctx);
+    ensurePlayer(ctx);
+    grantEarnedUnlockShips(ctx);
   }
 );
 
@@ -1323,6 +1360,7 @@ export const unlockAchievement = spacetimedb.reducer(
       achievementId,
       unlockedAt: ctx.timestamp,
     });
+    grantEarnedUnlockShips(ctx);
   }
 );
 

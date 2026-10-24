@@ -13,6 +13,11 @@ import { mergeCoins, coinDeltaToPush } from './coin-ledger';
 import { clampLevelCoins, maxCoinsForLevel, MAX_LEVEL, SHIP_PRICES } from './economy';
 import { salePrice } from './shop-ships';
 import {
+  canEquip,
+  ownedFromServer,
+  sanitizeEquipped,
+} from './ship-ownership';
+import {
   applyPublicRoomEvent,
   filterJoinableRooms,
   pruneStaleRooms,
@@ -890,6 +895,8 @@ class SpacetimeClient {
         heartsLeft: result.heartsLeft,
         mode: result.mode || 'normal',
       });
+      await this.claimEarnedUnlocks();
+      await this.refreshOwnedFromServer();
       this.setStatus('connected');
       return localCheck.ok ? { ok: true } : { ok: false, reason: localCheck.reason };
     } catch (error) {
@@ -985,10 +992,12 @@ class SpacetimeClient {
     if (data.ownedShips.includes(shipId)) {
       return false;
     }
-    data.coins -= cost;
-    data.ownedShips.push(shipId);
-    data.equippedShip = shipId;
-    this.saveLocalData(data);
+    if (!this.connection || !this.isConnected()) {
+      data.coins -= cost;
+      data.ownedShips.push(shipId);
+      data.equippedShip = shipId;
+      this.saveLocalData(data);
+    }
 
     this.queueOrCallReducer(() => {
       this.connection?.reducers.purchaseShip({ shipId, price: cost });
@@ -996,12 +1005,12 @@ class SpacetimeClient {
     return true;
   }
 
-  equipShip(shipId: string): void {
+  equipShip(shipId: string): boolean {
     console.log('[SpacetimeDB] equipShip:', shipId);
     const data = this.getLocalData();
-    if (!data.ownedShips.includes(shipId)) {
+    if (!canEquip(data.ownedShips, shipId)) {
       console.warn('[SpacetimeDB] Ship not owned:', shipId);
-      return;
+      return false;
     }
     data.equippedShip = shipId;
     this.saveLocalData(data);
@@ -1009,6 +1018,7 @@ class SpacetimeClient {
     this.queueOrCallReducer(() => {
       this.connection?.reducers.equipShip({ shipId });
     });
+    return true;
   }
 
   purchaseUpgrade(upgradeId: string, price: bigint): boolean {
@@ -1121,8 +1131,8 @@ class SpacetimeClient {
     next.identity = this.getIdentityHex() || '';
     next.unlockedLevel = remote.unlockedLevel;
     next.coins = remote.coins;
-    next.equippedShip = remote.equippedShip || 'starter';
-    next.ownedShips = remote.ownedShips.length ? remote.ownedShips : ['starter'];
+    next.ownedShips = ownedFromServer(remote.ownedShips);
+    next.equippedShip = sanitizeEquipped(next.ownedShips, remote.equippedShip);
     next.upgrades = { ...(remote.upgrades || {}) };
     next.achievements = [...(remote.achievements || [])];
     next.language = remote.language || next.language;
@@ -1213,15 +1223,71 @@ class SpacetimeClient {
 
   addOwnedShip(shipId: string): void {
     console.log('[SpacetimeDB] addOwnedShip:', shipId);
-    const data = this.getLocalData();
-    if (!data.ownedShips.includes(shipId)) {
-      data.ownedShips.push(shipId);
-      this.saveLocalData(data);
-    }
-
     this.queueOrCallReducer(() => {
       (this.connection?.reducers as { claimUnlockShip?: (a: { shipId: string }) => void }).claimUnlockShip?.({ shipId });
     });
+  }
+
+  async claimEarnedUnlocks(): Promise<void> {
+    if (!this.connection || !this.isConnected()) return;
+    try {
+      const reducers = this.connection.reducers as {
+        claimEarnedUnlocks?: (a: Record<string, never>) => Promise<void>;
+      };
+      if (reducers.claimEarnedUnlocks) await reducers.claimEarnedUnlocks({});
+    } catch (error) {
+      console.warn('[SpacetimeDB] claimEarnedUnlocks failed:', error);
+    }
+  }
+
+  async refreshOwnedFromServer(): Promise<RemoteProgress | null> {
+    const remote = await this.fetchMyProgress();
+    if (!remote) return null;
+    this.replaceWithServer(remote);
+    this.notifyDataListeners();
+    return remote;
+  }
+
+  async claimUnlockAndRefresh(shipId: string): Promise<boolean> {
+    console.log('[SpacetimeDB] claimUnlockAndRefresh:', shipId);
+    if (this.connection && this.isConnected()) {
+      try {
+        const reducers = this.connection.reducers as {
+          claimUnlockShip?: (a: { shipId: string }) => Promise<void>;
+        };
+        if (reducers.claimUnlockShip) await reducers.claimUnlockShip({ shipId });
+      } catch (error) {
+        console.warn('[SpacetimeDB] claimUnlockShip failed:', error);
+      }
+    } else {
+      this.addOwnedShip(shipId);
+    }
+    const remote = await this.refreshOwnedFromServer();
+    if (remote) return canEquip(remote.ownedShips, shipId);
+    const local = this.getLocalData();
+    return canEquip(local.ownedShips, shipId);
+  }
+
+  async purchaseAndRefresh(shipId: string, price: bigint): Promise<boolean> {
+    const catalog = salePrice(SHIP_PRICES, shipId);
+    if (catalog === null) return false;
+    const cost = BigInt(catalog);
+    const data = this.getLocalData();
+    if (data.coins < cost || data.ownedShips.includes(shipId)) return false;
+    if (!this.connection || !this.isConnected()) {
+      return this.purchaseShip(shipId, price);
+    }
+    try {
+      const purchase = this.connection.reducers.purchaseShip as unknown as (a: {
+        shipId: string;
+        price: bigint;
+      }) => Promise<void>;
+      await purchase({ shipId, price: cost });
+    } catch (error) {
+      console.warn('[SpacetimeDB] purchaseShip failed:', error);
+    }
+    const remote = await this.refreshOwnedFromServer();
+    return !!remote && canEquip(remote.ownedShips, shipId);
   }
 
   addCoins(amount: bigint): void {
@@ -1351,6 +1417,7 @@ class SpacetimeClient {
   }
 
   async reconcileWithServer(opts?: { replace?: boolean }): Promise<void> {
+    await this.claimEarnedUnlocks();
     const remote = await this.fetchMyProgress();
     if (!remote) return;
     if (opts?.replace || this.isSignedIn()) {
@@ -1363,8 +1430,8 @@ class SpacetimeClient {
     const delta = coinDeltaToPush(local.coins, remote.coins);
     local.coins = mergedCoins;
     local.unlockedLevel = Math.max(local.unlockedLevel, remote.unlockedLevel);
-    if (remote.equippedShip) local.equippedShip = local.equippedShip || remote.equippedShip;
-    local.ownedShips = Array.from(new Set([...(local.ownedShips || []), ...remote.ownedShips]));
+    local.ownedShips = ownedFromServer(remote.ownedShips);
+    local.equippedShip = sanitizeEquipped(local.ownedShips, local.equippedShip || remote.equippedShip);
     this.saveLocalData(local);
     if (local.unlockedLevel === remote.unlockedLevel + 1) {
       this.syncProgress(local.unlockedLevel, local.coins, local.equippedShip);

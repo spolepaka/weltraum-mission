@@ -28,11 +28,11 @@ describe('coin ship catalog', () => {
     expect(salePrice(SHIP_PRICES, 'blitz')).toBe(150);
     expect(UNLOCK_SALE_PRICES.frostwal).toBe(18000);
     expect(UNLOCK_SALE_PRICES.kaiserbrecher).toBe(90000);
-    expect(outerSalePrice(0)).toBe(180000);
-    expect(outerSalePrice(28)).toBe(740000);
-    expect(outerSalePrice(29)).toBe(900000);
-    expect(SHIP_PRICES.starcrown).toBe(900000);
-    expect(SHIP_PRICES.rivet).toBeGreaterThan(SHIP_PRICES.omega);
+    expect(outerSalePrice(0)).toBe(380000);
+    expect(outerSalePrice(28)).toBe(2060000);
+    expect(outerSalePrice(29)).toBe(2500000);
+    expect(SHIP_PRICES.starcrown).toBe(2500000);
+    expect(SHIP_PRICES.rivet).toBeGreaterThan(SHIP_PRICES.omega * 2);
     expect(SHIP_PRICES.starcrown).toBeGreaterThan(SHIP_PRICES.rivet * 4);
     for (const id of Object.keys(SHIP_PRICES)) {
       if (id === 'starter') continue;
@@ -84,6 +84,7 @@ describe('coin ship catalog', () => {
 
   it('keeps free claim for earned unlocks even when the ship is also for sale', () => {
     expect(SERVER).toContain('export const claimUnlockShip');
+    expect(SERVER).toContain('export const claimEarnedUnlocks');
     expect(SERVER).toContain('export const purchaseShip');
     expect(SERVER).not.toContain("throw new Error('Ship is for sale')");
     expect(SERVER).toContain('versusOwnsShip(owned, want)');

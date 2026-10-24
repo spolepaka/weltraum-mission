@@ -4,6 +4,7 @@
  */
 
 import { outerCombat } from './outer-ships';
+import { specialCombat } from './special-ships';
 
 export const VERSUS_ROUNDS_TO_WIN = 2;
 export const VERSUS_PRIZE = 40;
@@ -121,6 +122,7 @@ const SHIP_COMBAT: Record<string, ShipCombat> = {
   chromewasp: { hearts: 5, speed: 1.5, rate: 0.22, shots: 2, dmg: 3.6, regen: 14, perk: 'homing' },
   apexflash: { hearts: 7, speed: 1.62, rate: 0.2, shots: 3, dmg: 4.8, regen: 11, perk: 'homing', perk2: 'pulse' },
   ...outerCombat(),
+  ...specialCombat(),
 };
 
 export function emptyUpgrades(): VersusUpgrades {
