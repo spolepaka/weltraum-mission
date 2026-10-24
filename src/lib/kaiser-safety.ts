@@ -121,6 +121,13 @@ export function extractHtmlFunction(html: string, name: string): string {
 const EXTRACT_FNS = [
   'finiteN',
   'primeKaiserPhase',
+  'roomFor',
+  'keepKaiserDrone',
+  'shieldDroneOrb',
+  'bladeHaloR',
+  'cageWalls',
+  'inCageBeam',
+  'primeGuarded',
   'dropPrimeBomb',
   'spawnSpiralGalaxy',
   'startShockwave',
@@ -128,6 +135,9 @@ const EXTRACT_FNS = [
   'spawnShieldDrones',
   'spawnMirrorClones',
   'seedMineField',
+  'startCrownDash',
+  'updateCrownDash',
+  'endPrimePhase',
   'primeKaiserFight',
   'updatePrimeKaiserFx',
   'updateDrones',
@@ -183,6 +193,15 @@ type FightEnv = Record<string, unknown> & {
   dropPrimeBomb: (...args: unknown[]) => void;
   startShockwave: () => void;
   startLaserCage: () => void;
+  spawnShieldDrones: () => void;
+  startCrownDash: () => void;
+  updateCrownDash: (dt: number) => void;
+  endPrimePhase: (prev: number) => void;
+  shieldDroneOrb: (k: number) => number;
+  bladeHaloR: (k: number) => { rx: number; ry: number };
+  cageWalls: (c: Record<string, unknown>) => { left: number; right: number; gapX: number; gapW: number };
+  inCageBeam: (px: number, c: Record<string, unknown>) => boolean;
+  primeGuarded: () => boolean;
   wrapCanvasSafety?: (c: unknown) => unknown;
 };
 
@@ -296,6 +315,14 @@ export function bindKaiserHtml(html: string, viewport = { W: 768, H: 1024 }): Fi
         spawnShieldDrones: typeof spawnShieldDrones === 'function' ? spawnShieldDrones : null,
         spawnMirrorClones: typeof spawnMirrorClones === 'function' ? spawnMirrorClones : null,
         seedMineField: typeof seedMineField === 'function' ? seedMineField : null,
+        startCrownDash: typeof startCrownDash === 'function' ? startCrownDash : null,
+        updateCrownDash: typeof updateCrownDash === 'function' ? updateCrownDash : null,
+        endPrimePhase: typeof endPrimePhase === 'function' ? endPrimePhase : null,
+        shieldDroneOrb: typeof shieldDroneOrb === 'function' ? shieldDroneOrb : null,
+        bladeHaloR: typeof bladeHaloR === 'function' ? bladeHaloR : null,
+        cageWalls: typeof cageWalls === 'function' ? cageWalls : null,
+        inCageBeam: typeof inCageBeam === 'function' ? inCageBeam : null,
+        primeGuarded: typeof primeGuarded === 'function' ? primeGuarded : null,
         primeKaiserFight: typeof primeKaiserFight === 'function' ? primeKaiserFight : null,
         updatePrimeKaiserFx: typeof updatePrimeKaiserFx === 'function' ? updatePrimeKaiserFx : null,
         updateDrones: typeof updateDrones === 'function' ? updateDrones : null,
