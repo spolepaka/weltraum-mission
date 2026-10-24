@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   BOSSES, MAX_LEVEL, bossForLevel, isBossLevel, isSectorBoss,
-  lateBossArtRecipe, lateBossLevels,
+  LATE_ART_FACES, LATE_ART_PALS, lateBossArtRecipe, lateBossLevels,
 } from '../src/lib/boss-catalog';
 import { MAX_LEVEL as ECON_MAX, SHIP_PRICES, UNLOCK_SHIPS, outerSalePrice } from '../src/lib/economy';
 import { OUTER_IDS, OUTER_SHIPS, outerCombat } from '../src/lib/outer-ships';
@@ -153,7 +153,7 @@ describe('250-level bosses and Kaiser split', () => {
     expect(HTML).toContain('function drawKraken');
     expect(HTML).toContain('function drawSun');
     expect(HTML).toContain('function drawGuardian');
-    expect(HTML).toContain('late-boss-art-v3');
+    expect(HTML).toContain('late-boss-art-v4');
     expect(HTML).toContain('drawLateBossSheet: function');
     expect(HTML).toContain('RIVET DRONE');
     expect(HTML).toContain('VOID HERALD');
@@ -175,11 +175,31 @@ describe('250-level bosses and Kaiser split', () => {
     expect(new Set(artForms).size).toBe(artForms.length);
     expect(HTML).toContain('hull: a % 20');
     expect(HTML).toContain('limbN: 3 + (a % 4)');
-    expect(HTML).toContain('late-boss-art-v3');
+    expect(HTML).toContain('late-boss-art-v4');
     expect(HTML).toContain('function latePal(L, fl, angry)');
+    expect(HTML).toContain('function face(kind, x, y)');
     expect(HTML).toContain('form === "rivetDrone"');
     expect(HTML).toContain('form === "voidDelta"');
+    expect(HTML).toContain('form === "craneMech"');
+    expect(HTML).toContain('polyFill([-40, -30, 40, -30, 48, 20, -48, 20])');
     expect(HTML).not.toContain('if (r.crown)');
+    const sector = [120, 150, 174, 198, 225];
+    const art = levels.filter((L) => !sector.includes(L));
+    expect(art).toHaveLength(45);
+    const faces = art.filter((L) => LATE_ART_FACES[L]);
+    expect(faces.length).toBeGreaterThanOrEqual(14);
+    expect(faces.length).toBeLessThanOrEqual(18);
+    expect(new Set(faces.map((L) => LATE_ART_FACES[L])).size).toBe(3);
+    const mains = art.map((L) => LATE_ART_PALS[L].a.toLowerCase());
+    expect(new Set(mains).size).toBe(mains.length);
+    for (let i = 0; i < art.length - 1; i++) {
+      expect(LATE_ART_PALS[art[i]].a).not.toBe(LATE_ART_PALS[art[i + 1]].a);
+      expect(LATE_ART_PALS[art[i]].c).not.toBe(LATE_ART_PALS[art[i + 1]].c);
+    }
+    for (const L of art) {
+      expect(HTML).toContain(LATE_ART_PALS[L].a);
+      expect(HTML).toContain(LATE_ART_PALS[L].c);
+    }
     expect(HTML).toMatch(/function drawForgeBoss\(b\) \{[\s\S]*ctx\.rotate\(t \* 2\)/);
     expect(HTML).toMatch(/function drawFoundryBoss\(b\) \{[\s\S]*ctx\.rotate\(t \* 0\.35\)/);
     expect(HTML).toMatch(/function drawVaultBoss\(b\) \{[\s\S]*bezierCurveTo/);

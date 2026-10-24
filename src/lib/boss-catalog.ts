@@ -326,6 +326,45 @@ export type ArtRecipe = {
   limbN?: number;
   kind?: number;
   form?: string;
+  face?: 'visor' | 'brows' | 'cyclops';
+  pal?: { a: string; c: string };
+};
+
+/** Small robot/alien faces on ~1/3 of late art bosses. Not on sector bosses. */
+export const LATE_ART_FACES: Record<number, 'visor' | 'brows' | 'cyclops'> = {
+  102: 'visor', 114: 'brows', 117: 'cyclops',
+  132: 'brows', 144: 'visor', 147: 'cyclops',
+  159: 'visor', 165: 'brows', 168: 'cyclops',
+  180: 'visor', 192: 'cyclops',
+  207: 'visor', 219: 'brows', 222: 'cyclops',
+  246: 'visor', 249: 'cyclops',
+};
+
+/** Per-boss vivid hull + accent. Neighbours must not share a main hue. */
+export const LATE_ART_PALS: Record<number, { a: string; c: string }> = {
+  102: { a: '#ff3344', c: '#40fff0' }, 105: { a: '#7dff1a', c: '#ff7a1a' },
+  108: { a: '#ff4ad6', c: '#ffd24a' }, 111: { a: '#2a7bff', c: '#ffc02a' },
+  114: { a: '#ff7a12', c: '#1ad8c8' }, 117: { a: '#ffe014', c: '#ff2a9a' },
+  123: { a: '#2effb0', c: '#ff3a5a' }, 126: { a: '#ff2a2a', c: '#7dffff' },
+  129: { a: '#c8ff1a', c: '#a14aff' }, 132: { a: '#2a5cff', c: '#ffd000' },
+  135: { a: '#ff6a4a', c: '#1a4aff' }, 138: { a: '#ffe8a0', c: '#ff3a2a' },
+  141: { a: '#1ad86a', c: '#ff8a2a' }, 144: { a: '#ff5a1a', c: '#3ad0ff' },
+  147: { a: '#ff2a9a', c: '#b8ff2a' }, 153: { a: '#5ac8ff', c: '#ff4ad0' },
+  156: { a: '#ffe84a', c: '#5a3aff' }, 159: { a: '#1a6aff', c: '#ff8a2a' },
+  162: { a: '#e8f0ff', c: '#ff3a4a' }, 165: { a: '#1affd0', c: '#b04aff' },
+  168: { a: '#ff5a8a', c: '#2affd0' }, 171: { a: '#d8f6ff', c: '#ffc02a' },
+  177: { a: '#ffb01a', c: '#2afff0' }, 180: { a: '#8a4aff', c: '#ffe01a' },
+  183: { a: '#3aff8a', c: '#ff3a4a' }, 186: { a: '#ffb080', c: '#2a7aff' },
+  189: { a: '#5aff2a', c: '#ff4ad6' }, 192: { a: '#ffd24a', c: '#ff2a3a' },
+  195: { a: '#3a3aff', c: '#ffd24a' }, 201: { a: '#1afff0', c: '#ff7a1a' },
+  204: { a: '#b04aff', c: '#9aff2a' }, 207: { a: '#4affc0', c: '#ff3ad0' },
+  210: { a: '#ff2a4a', c: '#7dffff' }, 213: { a: '#d48a2a', c: '#2afff0' },
+  216: { a: '#ff6ad0', c: '#2affd0' }, 219: { a: '#7dffff', c: '#ff3a4a' },
+  222: { a: '#b8ff2a', c: '#8a4aff' }, 228: { a: '#ffc02a', c: '#a04aff' },
+  231: { a: '#2ab0ff', c: '#ff6ad0' }, 234: { a: '#ff2a3a', c: '#e8e8ff' },
+  237: { a: '#7dffa0', c: '#ff7a1a' }, 240: { a: '#d07030', c: '#2affd0' },
+  243: { a: '#f0f4ff', c: '#ff4ad6' }, 246: { a: '#8ad4ff', c: '#ffd24a' },
+  249: { a: '#6a2aff', c: '#c8ff2a' },
 };
 
 /** One named body per L101–249 art boss. Sector bosses keep dedicated draw fns. */
@@ -376,6 +415,8 @@ export function lateBossArtRecipe(level: number): ArtRecipe {
     limbN: 3 + (a % 4),
     kind: L,
     form: LATE_ART_FORMS[L] || `late${L}`,
+    face: LATE_ART_FACES[L],
+    pal: LATE_ART_PALS[L],
   };
 }
 
