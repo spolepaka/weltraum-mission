@@ -6,11 +6,15 @@ import { ensureLevel, parseLevelPayload, prefetchUnlocked, resetLevelRuntimeForT
 const HTML = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 
 describe('level catalog', () => {
-  it('keeps 1–3 bundled and 4–100 remote', () => {
+  it('keeps 1–3 bundled and 4–250 remote', () => {
     expect(BUNDLED_LEVELS).toBe(3);
-    expect(allRemoteLevelPayloads()).toHaveLength(97);
+    expect(allRemoteLevelPayloads()).toHaveLength(247);
     expect(allRemoteLevelPayloads()[0].level).toBe(4);
-    expect(buildLevelPayload(100).featCopy?.title).toMatch(/FINALE/);
+    expect(allRemoteLevelPayloads().at(-1)?.level).toBe(250);
+    expect(buildLevelPayload(100).featCopy?.title).toMatch(/Emperor|Kaiser|FINALE/i);
+    expect(buildLevelPayload(250).featCopy?.title).toMatch(/Kaiser/i);
+    expect(buildLevelPayload(250).boss).toMatchObject({ type: 'emperor', hp: 20000 });
+    expect(buildLevelPayload(100).boss).toMatchObject({ type: 'emperor', hp: 9000 });
   });
 
   it('does not embed locked finale copy in the HTML IIFE', () => {

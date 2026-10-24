@@ -84,7 +84,7 @@ function normalizeRoomRow(row: PublicRoomRow): PublicRoomRow {
   return {
     code: String(row.code || '').toUpperCase(),
     hostName: sanitizeListedName(row.hostName),
-    level: Math.max(1, Math.min(100, Math.floor(row.level) || 1)),
+    level: Math.max(1, Math.min(250, Math.floor(row.level) || 1)),
     players: Math.max(1, Math.min(cap, Math.floor(row.players) || 1)),
     inGame: !!row.inGame,
     versus,
@@ -163,7 +163,7 @@ export function publicRoomFromServer(row: {
   return {
     code: String(row.code || '').toUpperCase(),
     hostName: sanitizeListedName(String(row.hostName || '')),
-    level: Math.max(1, Math.min(100, Math.floor(Number(row.level) || 1))),
+    level: Math.max(1, Math.min(250, Math.floor(Number(row.level) || 1))),
     players: Math.max(1, Math.min(cap, Math.floor(Number(row.players) || 1))),
     inGame: !!row.inGame,
     versus,

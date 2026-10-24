@@ -1,11 +1,13 @@
 /**
- * Deterministic per-level payloads for levels 4–100.
+ * Deterministic per-level payloads for levels 4–250.
  * Levels 1–3 stay bundled in the HTML for instant / offline start.
  * The module seeds the same JSON into SpacetimeDB `levelData`.
  */
 
+import { isBossLevel as catalogIsBoss, bossForLevel, MAX_LEVEL as CATALOG_MAX } from './boss-catalog';
+
 export const BUNDLED_LEVELS = 3;
-export const MAX_LEVEL = 100;
+export const MAX_LEVEL = CATALOG_MAX;
 export const LEVEL_CACHE_KEY = 'spaceMissionLevelCacheV1';
 
 export type LevelFeats = {
@@ -36,7 +38,7 @@ export type LevelPayload = {
 };
 
 function isBossLevel(L: number): boolean {
-  return L % 3 === 0 || L === 100;
+  return catalogIsBoss(L);
 }
 
 function holeLevel(L: number): boolean {
@@ -71,7 +73,19 @@ const FEAT_COPY: Record<number, { title: string; desc: string }> = {
   76: { title: 'Sector 6: Shadow zone', desc: 'Black holes, cloaked UFOs and hole storms.' },
   90: { title: 'Sector boss: Black-hole guardian', desc: 'Its eye fires lasers and opens holes and grids!' },
   91: { title: 'Sector 7: Emperor realm', desc: 'Everything at once. The Robo-Emperor waits on 100!' },
-  100: { title: 'FINALE: Robo-Emperor — final form', desc: '7 phases with every trick! Only the best ships make it.' },
+  100: { title: 'Robo-Emperor — final form', desc: '7 phases with every trick! The outer galaxies still wait beyond.' },
+  101: { title: 'Galaxy 8: Phobos Shipyards', desc: 'Robot docks and crane mechs. Armor and mines come back!' },
+  120: { title: 'Sector boss: Drydock Colossus', desc: 'A shipyard titan. When the clamps glow, dodge the slam!' },
+  126: { title: 'Galaxy 9: Titan Foundry', desc: 'Molten presses and slag furnaces. Watch the meteor warnings!' },
+  150: { title: 'Sector boss: Titan Foundry King', desc: 'The smelter king hurls fire rings. Keep moving!' },
+  151: { title: 'Galaxy 10: Europa Vault', desc: 'Ice probes and vault drones. Ice rocks freeze you.' },
+  174: { title: 'Sector boss: Europa Vault Mind', desc: 'An ice AI. Red line = laser. Fly through the gaps!' },
+  176: { title: 'Galaxy 11: Saturn Ring Fleet', desc: 'Ring shears and spoke forts. Missiles chase you!' },
+  198: { title: 'Sector boss: Ring Fleet Dreadnought', desc: 'A huge ring warship. Cannons turn — stay off the red line!' },
+  201: { title: 'Galaxy 12: Uranus Stormworks', desc: 'Storm coils and sideways cruisers. Solar wind pushes hard!' },
+  225: { title: 'Sector boss: Stormworks Core', desc: 'The storm AI core. When it glows, shards and lasers fly!' },
+  226: { title: 'Galaxy 13: Kuiper Crown', desc: 'The edge of the map. Dark-matter crabs and void heralds.' },
+  250: { title: 'FINALE: Weltraum Kaiser — Star Crown', desc: 'The last boss! The same Kaiser as level 100 — bigger, stronger, more phases. You can do this!' },
 };
 
 function earlyFeats(L: number): LevelFeats {
@@ -123,16 +137,9 @@ function highFeats(L: number): LevelFeats {
 
 function bossFor(L: number): LevelPayload['boss'] | undefined {
   if (!isBossLevel(L)) return undefined;
+  const b = bossForLevel(L);
+  if (b) return { type: b.type, hp: b.hp, mods: b.mods };
   if (L === 100) return { type: 'emperor', hp: 9000, mods: [] };
-  const early: Record<number, { type: string; hp: number }> = {
-    3: { type: 'saucer', hp: 28 },
-    6: { type: 'robo', hp: 40 },
-    9: { type: 'twins', hp: 55 },
-    12: { type: 'golem', hp: 70 },
-    15: { type: 'crystal', hp: 90 },
-    18: { type: 'kraken', hp: 820 },
-  };
-  if (early[L]) return { ...early[L], mods: L === 18 ? [] : [] };
   return { type: 'remix', hp: 330 + 17 * (L - 18), mods: ['laser'] };
 }
 

@@ -1,6 +1,6 @@
 /** One-time legacy localStorage import: unlock cannot exceed what stars plausibly support. */
 
-export const DEFAULT_MAX_LEVEL = 100;
+export const DEFAULT_MAX_LEVEL = 250;
 
 export function parseStarMap(starsJson: string): { highest: number; count: number } {
   let highest = 0;

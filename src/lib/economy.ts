@@ -3,7 +3,9 @@
  * print an unbounded pile, and co-op cannot pay more per player than solo.
  */
 
-export const MAX_LEVEL = 100;
+import { OUTER_SHIPS, outerUnlockMap } from './outer-ships';
+
+export const MAX_LEVEL = 250;
 
 export const SHIP_PRICES: Record<string, number> = {
   starter: 0,
@@ -40,6 +42,7 @@ export const SHIP_PRICES: Record<string, number> = {
   shadowspeeder: 22000,
   chromewasp: 45000,
   apexflash: 148000,
+  ...Object.fromEntries(OUTER_SHIPS.map((s) => [s.id, 0])),
 };
 
 export const UPGRADE_PRICES: Record<string, number[]> = {
@@ -63,10 +66,11 @@ export const UNLOCK_SHIPS: Record<string, { level?: number; ach?: string }> = {
   hydra: { level: 60 },
   kaiserbrecher: { level: 90 },
   regenbogen: { ach: 'combo25' },
+  ...outerUnlockMap(),
 };
 
 export function isBossLevel(level: number): boolean {
-  return level > 0 && (level % 3 === 0 || level === 100);
+  return level > 0 && (level % 3 === 0 || level === 100 || level === 250);
 }
 
 export function modeCoinMult(mode?: string): number {

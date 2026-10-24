@@ -74,6 +74,12 @@ export interface Translations {
     asteroid: string;
     schatten: string;
     jenseits: string;
+    phobos: string;
+    titanw: string;
+    europa: string;
+    saturn: string;
+    uranus: string;
+    kuiper: string;
   };
   shopTitle: string;
   shipsHeading: string;

@@ -56,7 +56,7 @@ function assertTrusted(ctx: { senderAuth?: { hasJWT: boolean; isInternal?: boole
   }
 }
 
-const MAX_LEVEL = 100;
+const MAX_LEVEL = 250;
 const MAX_COINS = 10_000_000;
 const MAX_SCORE = 10_000_000;
 const MAX_UPGRADE_LEVEL = 5;
@@ -66,12 +66,18 @@ const VALID_SHIPS = new Set([
   'titan', 'lanze', 'koenig', 'nova', 'quanten', 'uni', 'rochen', 'phoenix',
   'hammer', 'zwilling', 'gravitron', 'spektral', 'segler', 'schatten',
   'drache', 'omega', 'frostwal', 'lindwurm', 'hydra', 'regenbogen', 'kaiserbrecher',
-  'beepbuggy', 'cloudcoupe', 'shadowspeeder', 'chromewasp', 'apexflash'
+  'beepbuggy', 'cloudcoupe', 'shadowspeeder', 'chromewasp', 'apexflash',
+  'rivet', 'crane', 'welder', 'dockn', 'boltfin', 'hullmite', 'slagskip', 'magmapike',
+  'smeltwing', 'ingothulk', 'crucibit', 'forgefin', 'frostbit', 'iceauger', 'cryowing',
+  'vaultskip', 'brinefin', 'ringshear', 'spokejet', 'shepwing', 'hexsail', 'scythesk',
+  'stormcoil', 'tiltwing', 'methanray', 'aurorafin', 'oortneedle', 'plutospire',
+  'charongate', 'starcrown',
 ]);
 
 const VALID_ACHIEVEMENTS = new Set([
   // Current client ACH ids (36)
   'first', 'lv10', 'lv50', 'max12', 'max25', 'max50', 'max75', 'max100',
+  'max150', 'max200', 'max250',
   'rock100', 'rock1k', 'rock10k', 'ufo25', 'ufo250',
   'boss1', 'boss10', 'boss30', 'comet5',
   'combo10', 'combo25', 'combo50',
@@ -699,8 +705,21 @@ function seedLevelCatalog(ctx: {
       };
       insert: (row: { level: number; minUnlockedLevel: number; dataJson: string }) => void;
     };
+    serverConfig?: {
+      key: {
+        find: (k: string) => MaybeRow<{ key: string; value: string }>;
+        update: (row: { key: string; value: string }) => void;
+      };
+      insert: (row: { key: string; value: string }) => void;
+    };
   };
 }): void {
+  const cfg = ctx.db.serverConfig;
+  if (cfg) {
+    const row = cfg.key.find('maxLevel');
+    if (!row) cfg.insert({ key: 'maxLevel', value: String(MAX_LEVEL) });
+    else if (row.value !== String(MAX_LEVEL)) cfg.key.update({ ...row, value: String(MAX_LEVEL) });
+  }
   for (let i = 1; i <= MAX_LEVEL; i++) {
     const dataJson = JSON.stringify(buildLevelPayload(i));
     const existing = ctx.db.levelData.level.find(i);
@@ -710,7 +729,7 @@ function seedLevelCatalog(ctx: {
         minUnlockedLevel: i,
         dataJson,
       });
-    } else if (isStubLevelJson(existing.dataJson)) {
+    } else if (isStubLevelJson(existing.dataJson) || existing.dataJson !== dataJson) {
       ctx.db.levelData.level.update({ ...existing, dataJson });
     }
   }
@@ -1245,7 +1264,7 @@ export const applySecretCode = spacetimedb.reducer(
     const identity = ctx.sender;
     const upperCode = code.toUpperCase().replace(/\s+/g, '');
     
-    // Test unlock: ALLELEVEL raises this identity's unlockedLevel to 100.
+    // Test unlock: ALLELEVEL raises this identity's unlockedLevel to MAX_LEVEL (250).
     // getLevelData then allows every level for that identity only (same anti-cheat
     // gate as normal play — other players stay locked). Use only in tests / owner QA.
     if (upperCode === 'ALLELEVEL' || upperCode === 'ALLELEVELS') {
