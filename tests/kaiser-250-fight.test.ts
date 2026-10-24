@@ -25,7 +25,7 @@ describe('L250 Kaiser freeze safety', () => {
     expect(HTML).toMatch(/function loop\(now\) \{[\s\S]*try \{[\s\S]*requestAnimationFrame\(loop\)/);
     expect(HTML).toContain('safeAtk("bossAttack"');
     expect(HTML).toContain('safeAtk("drawBoss"');
-    expect(HTML).toContain('if (prev === 15) boss.blades = null');
+    expect(HTML).toContain('if (prev === 15 || prev === 42) boss.blades = null');
     expect(HTML).toContain('function roomFor(');
     expect(HTML).toContain('function shieldDroneOrb(');
     expect(HTML).toContain('function startCrownDash(');
@@ -52,10 +52,10 @@ describe('L250 Kaiser freeze safety', () => {
     expect(env.ctx.depth()).toBe(d0);
   });
 
-  it('simulates the whole L250 fight through all 30 phases, damage, death, and forced phases', () => {
-    expect(PRIME_KAISER_PHASES).toBe(30);
-    expect(primeKaiserPhase(0.05)).toBe(29);
-    expect(primeKaiserPhase(0.02)).toBe(30);
+  it('simulates the whole L250 fight through all 50 phases, damage, death, and forced phases', () => {
+    expect(PRIME_KAISER_PHASES).toBe(50);
+    expect(primeKaiserPhase(0.05)).toBe(48);
+    expect(primeKaiserPhase(0.02)).toBe(50);
     const report = simulateKaiserFight(HTML, {
       viewport: { W: 768, H: 1024 },
       fullSeconds: 180,
@@ -63,7 +63,7 @@ describe('L250 Kaiser freeze safety', () => {
       death: true,
     });
     expect(report.seconds).toBeGreaterThan(300);
-    expect(report.phasesSeen).toEqual(Array.from({ length: 30 }, (_, i) => i + 1));
+    expect(report.phasesSeen).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
     expect(report.errors).toEqual([]);
     expect(report.ctxIssues).toEqual([]);
     expect(report.nanHits).toBe(0);
@@ -87,7 +87,7 @@ describe('L250 Kaiser freeze safety', () => {
     });
     expect(report.errors).toEqual([]);
     expect(report.nanHits).toBe(0);
-    expect(report.phasesSeen.length).toBe(30);
+    expect(report.phasesSeen.length).toBe(50);
 
     const ctx = makeStrictCtx();
     const env = bindKaiserHtml(HTML);
@@ -101,8 +101,8 @@ describe('L250 Kaiser freeze safety', () => {
 
 function fracForPhase(phase: number): number {
   if (phase <= 1) return 0.99;
-  if (phase >= 30) return 0.01;
-  return 1.01 - phase / 30;
+  if (phase >= 50) return 0.01;
+  return 1.01 - phase / 50;
 }
 
 function forcePhase(env: ReturnType<typeof bindKaiserHtml>, phase: number) {
@@ -295,7 +295,7 @@ describe('L250 Kaiser attack audit — dash, drones, cage, blades', () => {
   it('forces every phase and records a spawn, motion, or hazard signature', () => {
     const env = bindKaiserHtml(HTML, { W: 768, H: 1024 });
     const seen: Record<number, string> = {};
-    for (let ph = 1; ph <= 30; ph++) {
+    for (let ph = 1; ph <= 50; ph++) {
       env.bombs = [];
       env.drones = [];
       env.mines = [];
@@ -363,6 +363,26 @@ describe('L250 Kaiser attack audit — dash, drones, cage, blades', () => {
     expect(seen[28]).toMatch(/dstorm/);
     expect(seen[29]).toMatch(/wall/);
     expect(seen[30]).toMatch(/laser|cage|missile|bomb/);
+    expect(seen[31]).toMatch(/well/);
+    expect(seen[32]).toMatch(/missile/);
+    expect(seen[33]).toMatch(/wheel/);
+    expect(seen[34]).toMatch(/marks|bomb/);
+    expect(seen[35]).toMatch(/bomb/);
+    expect(seen[36]).toMatch(/emp/);
+    expect(seen[37]).toMatch(/tractor/);
+    expect(seen[38]).toMatch(/dstorm/);
+    expect(seen[39]).toMatch(/wall|bomb/);
+    expect(seen[40]).toMatch(/cage|wheel/);
+    expect(seen[41]).toMatch(/grid|mine/);
+    expect(seen[42]).toMatch(/blade/);
+    expect(seen[43]).toMatch(/dash/);
+    expect(seen[44]).toMatch(/shock/);
+    expect(seen[45]).toMatch(/clone/);
+    expect(seen[46]).toMatch(/missile/);
+    expect(seen[47]).toMatch(/laser|bomb/);
+    expect(seen[48]).toMatch(/mine/);
+    expect(seen[49]).toMatch(/well|emp|wheel/);
+    expect(seen[50]).toMatch(/laser|cage|dstorm|missile|bomb/);
   });
 
   it('phase 28 drone storm orbits outside the hull, staggers rapid fire, and despawns', () => {
@@ -416,21 +436,29 @@ describe('L250 Kaiser attack audit — dash, drones, cage, blades', () => {
     expect(HTML).not.toMatch(/function drawStormDrone\([\s\S]{0,900}createRadialGradient/);
   });
 
-  it('plays a 2–3s L250 death blast, clears hazards, then finishes victory', () => {
+  it('plays a ~4s L250 death blast with three rings, clears hazards, then finishes victory', () => {
     const env = bindKaiserHtml(HTML, { W: 768, H: 1024 });
     env.bombs.push({ x: 10, y: 10, vx: 0, vy: 40 });
     env.drones.push({ dstorm: true, sdrone: true, x: 20, y: 20, t: 0, warn: 0 });
     env.startPrimeDeath();
     expect(env.boss.dying).toBe(true);
+    expect(Number(env.boss.dieDur)).toBeCloseTo(4.05, 5);
     expect(env.bombs).toHaveLength(0);
     expect(env.drones).toHaveLength(0);
     expect(HTML).not.toMatch(/if \(L === 100\)[\s\S]{0,200}startPrimeDeath/);
     const d0 = env.ctx.depth();
-    for (let i = 0; i < 26; i++) env.updatePrimeDeath(0.05);
-    expect(Number(env.boss.dieT)).toBeGreaterThan(1.2);
-    expect(env.boss.dieBoom).toBe(true);
+    for (let i = 0; i < 32; i++) env.updatePrimeDeath(0.05);
+    expect(Number(env.boss.dieT)).toBeGreaterThan(1.5);
+    expect(Number(env.boss.dieBoom)).toBeGreaterThanOrEqual(1);
+    expect(Number(env.boss.dieR)).toBeGreaterThan(0);
     expect(env.particles.length).toBeGreaterThan(0);
     expect(env.particles.length).toBeLessThanOrEqual(PRIME_KAISER_CAPS.particles);
+    for (let i = 0; i < 16; i++) env.updatePrimeDeath(0.05);
+    expect(Number(env.boss.dieBoom)).toBeGreaterThanOrEqual(2);
+    expect(Number(env.boss.dieR2)).toBeGreaterThan(0);
+    for (let i = 0; i < 20; i++) env.updatePrimeDeath(0.05);
+    expect(Number(env.boss.dieBoom)).toBeGreaterThanOrEqual(3);
+    expect(Number(env.boss.dieR3)).toBeGreaterThan(0);
     env.drawPrimeKaiserFx();
     expect(env.ctx.depth()).toBe(d0);
     expect(env.ctx.issues.filter((i) => i.startsWith('color:') || i.startsWith('radial') || i.startsWith('arc'))).toEqual([]);

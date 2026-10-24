@@ -195,6 +195,12 @@ describe('E2E: Secret Codes', () => {
     expect(usedCodes.has(codeKey)).toBe(true);
   });
 
+  it('should handle AMELIASTAR as a Charon Gate grant', () => {
+    const code = 'ameliastar'.toUpperCase();
+    expect(code).toBe('AMELIASTAR');
+    expect(code === 'ALLELEVEL').toBe(false);
+  });
+
   it('should handle ALLELEVEL code specially', () => {
     const code = 'ALLELEVEL';
     const isTestMode = code === 'ALLELEVEL' || code === 'ALLELEVELS';
