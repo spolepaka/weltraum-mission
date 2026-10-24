@@ -307,6 +307,9 @@ export type ArtRecipe = {
   orbit: number;
   hue: number;
   hue2: number;
+  hue3?: number;
+  body?: number;
+  limbN?: number;
 };
 
 export function bossArtRecipe(art: number): ArtRecipe {
@@ -321,6 +324,29 @@ export function bossArtRecipe(art: number): ArtRecipe {
     hue: (a * 47 + 18) % 360,
     hue2: (a * 47 + 18 + 130) % 360,
   };
+}
+
+/** L101–249 art bosses: richer recipe, unique silhouette per level. Keep in lockstep with HTML artRecipe(). */
+export function lateBossArtRecipe(level: number): ArtRecipe {
+  const L = Math.floor(level);
+  const a = Math.max(0, L - 101);
+  return {
+    art: a,
+    hull: a % 20,
+    limbs: Math.floor(a / 2) % 8,
+    crown: (a * 3 + 1) % 10,
+    guns: 2 + ((a * 2 + 2) % 5),
+    orbit: 1 + ((a * 5 + 3) % 5),
+    hue: (a * 47 + 18) % 360,
+    hue2: (a * 47 + 148) % 360,
+    hue3: (a * 29 + 80) % 360,
+    body: a % 4,
+    limbN: 3 + (a % 4),
+  };
+}
+
+export function lateBossLevels(): number[] {
+  return allBossLevels().filter((L) => L >= 101 && L <= 249);
 }
 
 export function bossNamesForLang(lang: 'en' | 'de'): Record<string, string> {

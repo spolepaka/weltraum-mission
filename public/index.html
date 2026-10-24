@@ -3388,113 +3388,262 @@
 
   function artRecipe(L) {
     var a = Math.max(0, (L | 0) - 101);
-    return { hull: a % 24, limbs: Math.floor(a / 3) % 8, crown: (a * 3 + 1) % 8, guns: (a * 2 + 2) % 6, orbit: (a * 5 + 3) % 5, hue: (a * 47 + 18) % 360, hue2: (a * 47 + 148) % 360 };
+    return { hull: a % 20, limbs: Math.floor(a / 2) % 8, crown: (a * 3 + 1) % 10, guns: 2 + ((a * 2 + 2) % 5), orbit: 1 + ((a * 5 + 3) % 5), hue: (a * 47 + 18) % 360, hue2: (a * 47 + 148) % 360, hue3: (a * 29 + 80) % 360, body: a % 4, limbN: 3 + (a % 4) };
   }
+  // late-boss-art-v2: unique silhouettes, layered armor, glow, animated limbs for L101–249
   function drawArtBoss(b) {
     var L = (b.art | 0) || level, r = artRecipe(L), t = b.t, fl = b.flash > 0, angry = b.hp / b.maxHp < 0.4;
     ctx.save(); ctx.translate(b.x, b.y + Math.sin(t * 1.4) * 4);
-    var c1 = fl ? "#fff" : "hsl(" + r.hue + ",72%," + (angry ? 62 : 54) + "%)";
-    var c2 = fl ? "#fff" : "hsl(" + r.hue2 + ",70%,36%)";
-    ctx.strokeStyle = "hsl(" + r.hue + ",30%,12%)"; ctx.lineWidth = 3; ctx.lineJoin = "round";
-    var og = ctx.createRadialGradient(0, 0, 8, 0, 0, 110); og.addColorStop(0, "hsla(" + r.hue2 + ",90%,60%,.28)"); og.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = og; ctx.beginPath(); ctx.arc(0, 0, 110, 0, 7); ctx.fill();
-    if (r.orbit) {
-      for (var oi = 0; oi < r.orbit + 1; oi++) {
-        var oa = t * 1.2 + oi * 6.28 / (r.orbit + 1);
-        glowDot(Math.cos(oa) * 78, Math.sin(oa) * 42, 4, "hsl(" + r.hue2 + ",90%,70%)", 10);
+    var sat = angry ? 88 : 78, lit = angry ? 62 : 52;
+    var c1 = fl ? "#fff" : "hsl(" + r.hue + "," + sat + "%," + lit + "%)";
+    var c2 = fl ? "#fff" : "hsl(" + r.hue2 + ",82%,34%)";
+    var c3 = fl ? "#fff" : "hsl(" + r.hue3 + ",90%,68%)";
+    var ink = "hsl(" + r.hue + ",40%,10%)";
+    ctx.strokeStyle = ink; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    var bloom = ctx.createRadialGradient(0, 0, 6, 0, 0, 128);
+    bloom.addColorStop(0, "hsla(" + r.hue3 + ",100%,70%,.42)"); bloom.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = bloom; ctx.beginPath(); ctx.arc(0, 0, 128, 0, 7); ctx.fill();
+    var oi, oa;
+    for (oi = 0; oi < r.orbit; oi++) {
+      oa = t * (1.1 + r.orbit * 0.08) + oi * 6.28 / r.orbit;
+      ctx.save(); ctx.translate(Math.cos(oa) * 86, Math.sin(oa) * 46);
+      ctx.rotate(oa + t); ctx.fillStyle = c3;
+      ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(5, 5); ctx.lineTo(-5, 5); ctx.closePath(); ctx.fill();
+      glowDot(0, 0, 3.2, c3, 12);
+      ctx.restore();
+    }
+    function limb(kind, i, n) {
+      var span = 1.15 + n * 0.16, la = -span + i * (2 * span / Math.max(1, n - 1)), wob = Math.sin(t * 2.2 + i * 1.1) * 0.22;
+      var x0 = Math.cos(la) * 30, y0 = Math.sin(la) * 18 + 8;
+      var x1 = Math.cos(la + wob) * 88, y1 = Math.sin(la + wob) * 58 + 18;
+      var x2 = Math.cos(la + wob * 1.4) * 118, y2 = Math.sin(la + wob * 1.6) * 78 + 26;
+      ctx.save();
+      if (kind === 0) {
+        ctx.strokeStyle = c2; ctx.lineWidth = 7;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(x1 + Math.sin(t * 3 + i) * 10, y1, x2, y2); ctx.stroke();
+        ctx.strokeStyle = c3; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(x1, y1, x2, y2); ctx.stroke();
+        glowDot(x2, y2, 5, c3, 14);
+      } else if (kind === 1) {
+        ctx.fillStyle = c2; ctx.strokeStyle = ink; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 + 8, y1 - 4); ctx.lineTo(x1 - 6, y1 + 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 + 10, y2 - 8); ctx.lineTo(x2 + 2, y2 + 10); ctx.lineTo(x2 - 12, y2); ctx.closePath(); ctx.fill(); ctx.stroke();
+        glowDot(x2 + 4, y2, 4, "#ff4a3a", 12);
+      } else if (kind === 2) {
+        ctx.strokeStyle = c2; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1 + 8); ctx.lineTo(x2, y2 + 14); ctx.stroke();
+        ctx.fillStyle = c1; ctx.beginPath(); ctx.moveTo(x2 - 8, y2 + 12); ctx.lineTo(x2 + 10, y2 + 8); ctx.lineTo(x2 + 2, y2 + 22); ctx.closePath(); ctx.fill();
+      } else if (kind === 3) {
+        ctx.save(); ctx.translate(x1, y1); ctx.rotate(t * 4 + i);
+        ctx.fillStyle = c3; ctx.fillRect(-18, -3, 36, 6); ctx.fillRect(-3, -18, 6, 36);
+        glowDot(0, 0, 4, c3, 10); ctx.restore();
+        ctx.strokeStyle = c2; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      } else if (kind === 4) {
+        ctx.fillStyle = "hsla(" + r.hue2 + ",80%,50%,.85)";
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(x1 * 1.1, y1 - 24, x2, y0 - 8); ctx.quadraticCurveTo(x1, y1 + 6, x0, y0); ctx.fill();
+        ctx.strokeStyle = c3; ctx.lineWidth = 2; ctx.stroke();
+      } else if (kind === 5) {
+        ctx.save(); ctx.translate(x1, y1); ctx.rotate(t * 3.2 + i);
+        ctx.strokeStyle = c3; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(0, 0, 14, 0, 7); ctx.stroke();
+        for (var s = 0; s < 8; s++) { ctx.rotate(0.785); ctx.fillStyle = c2; ctx.fillRect(10, -2, 10, 4); }
+        ctx.restore();
+        ctx.strokeStyle = c2; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      } else if (kind === 6) {
+        ctx.strokeStyle = c2; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); ctx.lineDashOffset = -t * 20;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.bezierCurveTo(x1, y0, x1, y2, x2, y2); ctx.stroke(); ctx.setLineDash([]);
+        glowDot(x2, y2, 4.5, c3, 12);
+      } else {
+        ctx.fillStyle = c2; ctx.fillRect(x1 - 7, y1, 14, 22); ctx.strokeRect(x1 - 7, y1, 14, 22);
+        glowDot(x1, y1 + 24, 4.5 + Math.sin(t * 8 + i) * 1.2, angry ? "#ff6a2a" : c3, 12);
       }
+      ctx.restore();
     }
-    if (r.limbs) {
-      for (var li = 0; li < r.limbs; li++) {
-        var la = -0.9 + li * (1.8 / Math.max(1, r.limbs - 1)) + Math.sin(t * 2 + li) * 0.12;
-        ctx.strokeStyle = c2; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(Math.cos(la) * 34, Math.sin(la) * 18 + 10); ctx.lineTo(Math.cos(la) * 78, Math.sin(la) * 46 + 18); ctx.stroke();
-        ctx.fillStyle = c1; ctx.beginPath(); ctx.arc(Math.cos(la) * 78, Math.sin(la) * 46 + 18, 7, 0, 7); ctx.fill();
-      }
+    for (var li = 0; li < r.limbN; li++) limb(r.limbs, li, r.limbN);
+    function hullPath(h) {
+      ctx.beginPath();
+      if (h === 0) { ctx.ellipse(0, 8, 78, 34, 0, 0, 7); }
+      else if (h === 1) { ctx.moveTo(0, -56); ctx.lineTo(68, 8); ctx.lineTo(42, 46); ctx.lineTo(-42, 46); ctx.lineTo(-68, 8); ctx.closePath(); }
+      else if (h === 2) { for (var i = 0; i < 6; i++) { var a = i * Math.PI / 3 - Math.PI / 6; ctx[i ? "lineTo" : "moveTo"](Math.cos(a) * 70, Math.sin(a) * 48); } ctx.closePath(); }
+      else if (h === 3) { ctx.moveTo(0, -52); ctx.quadraticCurveTo(62, -8, 40, 48); ctx.lineTo(-40, 48); ctx.quadraticCurveTo(-62, -8, 0, -52); }
+      else if (h === 4) { ctx.moveTo(-78, 8); ctx.quadraticCurveTo(0, -70, 78, 8); ctx.quadraticCurveTo(0, 28, -78, 8); }
+      else if (h === 5) { ctx.rect(-22, -58, 44, 116); ctx.rect(-70, -16, 140, 32); }
+      else if (h === 6) { ctx.moveTo(0, -62); ctx.lineTo(58, 50); ctx.lineTo(-58, 50); ctx.closePath(); }
+      else if (h === 7) { ctx.moveTo(-28, -50); ctx.lineTo(28, -50); ctx.lineTo(58, 0); ctx.lineTo(28, 50); ctx.lineTo(-28, 50); ctx.lineTo(-58, 0); ctx.closePath(); }
+      else if (h === 8) { ctx.arc(0, 0, 56, 0, 7); }
+      else if (h === 9) { for (var k = 0; k < 8; k++) { var aa = k * Math.PI / 4, rr = k % 2 ? 36 : 72; ctx[k ? "lineTo" : "moveTo"](Math.cos(aa) * rr, Math.sin(aa) * rr * 0.78); } ctx.closePath(); }
+      else if (h === 10) { ctx.ellipse(0, 10, 84, 28, 0, 0, 7); }
+      else if (h === 11) { ctx.moveTo(-70, -20); ctx.bezierCurveTo(-20, -70, 20, 70, 70, 24); ctx.bezierCurveTo(20, 80, -20, -10, -70, -20); }
+      else if (h === 12) { ctx.moveTo(-86, -8); ctx.lineTo(-30, -36); ctx.lineTo(30, -36); ctx.lineTo(86, -8); ctx.lineTo(50, 44); ctx.lineTo(-50, 44); ctx.closePath(); }
+      else if (h === 13) { ctx.ellipse(0, 6, 58, 50, 0, 0, 7); }
+      else if (h === 14) { ctx.moveTo(0, -64); ctx.lineTo(70, 48); ctx.lineTo(-70, 48); ctx.closePath(); }
+      else if (h === 15) { ctx.ellipse(-34, 6, 36, 40, 0, 0, 7); ctx.ellipse(34, 6, 36, 40, 0, 0, 7); }
+      else if (h === 16) { ctx.moveTo(0, -18); ctx.quadraticCurveTo(90, 8, 70, 36); ctx.lineTo(-70, 36); ctx.quadraticCurveTo(-90, 8, 0, -18); }
+      else if (h === 17) { ctx.ellipse(0, -6, 50, 46, 0, 0, 7); }
+      else if (h === 18) { ctx.moveTo(-74, -8); ctx.lineTo(74, -8); ctx.lineTo(48, 18); ctx.lineTo(58, 48); ctx.lineTo(-58, 48); ctx.lineTo(-48, 18); ctx.closePath(); }
+      else { ctx.moveTo(-22, 52); ctx.lineTo(-18, -40); ctx.lineTo(0, -68); ctx.lineTo(18, -40); ctx.lineTo(22, 52); ctx.closePath(); }
     }
-    ctx.fillStyle = c1;
-    if (r.hull % 6 === 0) { ctx.beginPath(); ctx.ellipse(0, 8, 70, 36, 0, 0, 7); ctx.fill(); ctx.stroke(); }
-    else if (r.hull % 6 === 1) { ctx.beginPath(); ctx.moveTo(0, -48); ctx.lineTo(62, 10); ctx.lineTo(40, 42); ctx.lineTo(-40, 42); ctx.lineTo(-62, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-    else if (r.hull % 6 === 2) { ctx.beginPath(); ctx.rect(-52, -28, 104, 62); ctx.fill(); ctx.stroke(); }
-    else if (r.hull % 6 === 3) { ctx.beginPath(); ctx.moveTo(-48, -20); ctx.lineTo(48, -20); ctx.lineTo(68, 28); ctx.lineTo(0, 50); ctx.lineTo(-68, 28); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-    else if (r.hull % 6 === 4) { ctx.beginPath(); ctx.ellipse(0, 0, 48, 52, 0, 0, 7); ctx.fill(); ctx.stroke(); }
-    else { ctx.beginPath(); ctx.moveTo(0, -44); ctx.quadraticCurveTo(70, 0, 0, 48); ctx.quadraticCurveTo(-70, 0, 0, -44); ctx.fill(); ctx.stroke(); }
-    for (var gi = 0; gi < r.guns; gi++) {
-      var gx = (gi - (r.guns - 1) / 2) * 22;
-      ctx.fillStyle = c2; ctx.fillRect(gx - 5, 28, 10, 18); glowDot(gx, 48, 3.5, "hsl(" + r.hue2 + ",90%,65%)", 8);
+    var hg = ctx.createLinearGradient(0, -60, 0, 56);
+    hg.addColorStop(0, fl ? "#fff" : "hsl(" + r.hue + ",70%,72%)");
+    hg.addColorStop(0.45, c1);
+    hg.addColorStop(1, c2);
+    ctx.fillStyle = hg;
+    hullPath(r.hull);
+    if (r.hull === 8) { ctx.beginPath(); ctx.arc(0, 0, 56, 0, 7); ctx.arc(0, 0, 26, 0, 7, true); ctx.fill("evenodd"); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 26, 0, 7); ctx.stroke(); }
+    else { ctx.fill(); ctx.stroke(); }
+    ctx.fillStyle = "hsla(" + r.hue + ",30%,12%,.35)";
+    ctx.beginPath(); ctx.moveTo(-40, -8); ctx.lineTo(-28, 28); ctx.moveTo(40, -8); ctx.lineTo(28, 28); ctx.moveTo(-50, 10); ctx.lineTo(50, 10); ctx.stroke();
+    ctx.fillStyle = c2;
+    [[-46, -6], [46, -6], [-34, 22], [34, 22]].forEach(function (p) {
+      ctx.beginPath(); ctx.moveTo(p[0] - 10, p[1] - 6); ctx.lineTo(p[0] + 10, p[1] - 4); ctx.lineTo(p[0] + 8, p[1] + 8); ctx.lineTo(p[0] - 8, p[1] + 6); ctx.closePath(); ctx.fill(); ctx.stroke();
+    });
+    ctx.save(); ctx.rotate(t * 0.7);
+    ctx.strokeStyle = c3; ctx.lineWidth = 2; ctx.globalAlpha = 0.7; ctx.setLineDash([8, 7]); ctx.lineDashOffset = -t * 24;
+    ctx.beginPath(); ctx.ellipse(0, 4, 62, 22, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+    var pulse = 0.5 + 0.5 * Math.sin(t * 6);
+    var coreR = 16 + pulse * 5;
+    var cg = ctx.createRadialGradient(0, 6, 2, 0, 6, coreR + 8);
+    cg.addColorStop(0, "#fff"); cg.addColorStop(0.35, c3); cg.addColorStop(1, "hsla(" + r.hue3 + ",90%,60%,0)");
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 6, coreR + 8, 0, 7); ctx.fill();
+    ctx.fillStyle = "#0a0610"; ctx.beginPath(); ctx.arc(0, 6, 12, 0, 7); ctx.fill();
+    glowDot(0, 6, 7 + pulse * 3, c3, 18);
+    var gi, gx;
+    for (gi = 0; gi < r.guns; gi++) {
+      gx = (gi - (r.guns - 1) / 2) * 20;
+      ctx.fillStyle = c2; ctx.strokeStyle = ink; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(gx - 6, 30); ctx.lineTo(gx + 6, 30); ctx.lineTo(gx + 4, 52); ctx.lineTo(gx - 4, 52); ctx.closePath(); ctx.fill(); ctx.stroke();
+      glowDot(gx, 54, 3.6 + Math.sin(t * 9 + gi) * 1.1, angry ? "#ff6a2a" : c3, 10);
     }
-    ctx.fillStyle = "#14080c"; ctx.beginPath(); ctx.ellipse(0, -8, 28, 12, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "#10060c";
+    if (r.body === 0) { ctx.beginPath(); ctx.ellipse(0, -16, 30, 12, 0, 0, 7); ctx.fill(); }
+    else if (r.body === 1) { ctx.fillRect(-26, -24, 52, 16); }
+    else if (r.body === 2) { ctx.beginPath(); ctx.arc(-12, -16, 10, 0, 7); ctx.arc(12, -16, 10, 0, 7); ctx.fill(); }
+    else { ctx.beginPath(); ctx.moveTo(-28, -10); ctx.lineTo(0, -28); ctx.lineTo(28, -10); ctx.lineTo(16, -4); ctx.lineTo(-16, -4); ctx.closePath(); ctx.fill(); }
     var lx = ship ? Math.max(-6, Math.min(6, (ship.x - b.x) / 50)) : 0;
-    glowDot(-10 + lx, -8, 5, angry ? "#ff7a2a" : "#ff2a3a", 12); glowDot(10 + lx, -8, 5, angry ? "#ff7a2a" : "#ff2a3a", 12);
+    glowDot(-11 + lx, r.body === 3 ? -16 : -16, 5.2, angry ? "#ff8a2a" : "#ff2a3a", 14);
+    glowDot(11 + lx, r.body === 3 ? -16 : -16, 5.2, angry ? "#ff8a2a" : "#ff2a3a", 14);
     if (r.crown) {
-      ctx.fillStyle = "hsl(" + r.hue2 + ",85%,62%)";
-      ctx.beginPath(); ctx.moveTo(-22, -36); ctx.lineTo(-18, -52 - r.crown); ctx.lineTo(-8, -38); ctx.lineTo(0, -58 - r.crown); ctx.lineTo(8, -38); ctx.lineTo(18, -52 - r.crown); ctx.lineTo(22, -36); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = c3; ctx.strokeStyle = ink; ctx.lineWidth = 2; ctx.shadowColor = c3; ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.moveTo(-26, -34);
+      ctx.lineTo(-22, -54 - r.crown); ctx.lineTo(-10, -38);
+      ctx.lineTo(0, -62 - r.crown); ctx.lineTo(10, -38);
+      ctx.lineTo(22, -54 - r.crown); ctx.lineTo(26, -34);
+      ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+      glowDot(0, -48 - r.crown * 0.4, 3.5, "#fff", 10);
     }
     ctx.restore();
   }
   function drawForgeBoss(b) {
-    var t = b.t, fl = b.flash > 0;
+    var t = b.t, fl = b.flash > 0, pulse = 0.5 + 0.5 * Math.sin(t * 6);
     ctx.save(); ctx.translate(b.x, b.y + Math.sin(t) * 3);
-    ctx.fillStyle = fl ? "#fff" : "#c8a060"; ctx.strokeStyle = "#3a2a10"; ctx.lineWidth = 3;
+    var halo = ctx.createRadialGradient(0, 8, 10, 0, 8, 150); halo.addColorStop(0, "rgba(255,150,40,.4)"); halo.addColorStop(1, "rgba(255,80,0,0)");
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 8, 150, 0, 7); ctx.fill();
     [-1, 1].forEach(function (sd) {
       ctx.save(); ctx.scale(sd, 1);
-      ctx.beginPath(); ctx.moveTo(40, -20); ctx.lineTo(96, -70 + Math.sin(t * 2) * 6); ctx.lineTo(110, -40); ctx.lineTo(70, 10); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = "#8a6a30"; ctx.fillRect(88, -20, 16, 50); ctx.restore();
+      var swing = Math.sin(t * 2.2) * 10;
+      ctx.fillStyle = fl ? "#fff" : "#c8a060"; ctx.strokeStyle = "#3a2a10"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(36, -18); ctx.lineTo(88, -78 + swing); ctx.lineTo(118, -40 + swing * 0.4); ctx.lineTo(78, 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#8a6a30"; ctx.beginPath(); ctx.moveTo(92, -28 + swing * 0.3); ctx.lineTo(132, -8 + swing); ctx.lineTo(124, 28); ctx.lineTo(86, 16); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.save(); ctx.translate(128, 8 + swing * 0.2); ctx.rotate(t * 2);
+      ctx.fillStyle = "#ffb02a"; ctx.fillRect(-16, -4, 32, 8); ctx.fillRect(-4, -16, 8, 32); ctx.restore();
+      glowDot(128, 8 + swing * 0.2, 6 + pulse * 2, "#ff6a1a", 14);
+      ctx.restore();
     });
-    ctx.fillStyle = fl ? "#fff" : "#9a7a40"; ctx.beginPath(); ctx.moveTo(-70, -30); ctx.lineTo(70, -30); ctx.lineTo(58, 50); ctx.lineTo(-58, 50); ctx.closePath(); ctx.fill(); ctx.stroke();
-    glowDot(0, 8, 16 + Math.sin(t * 6) * 3, "#ff9a2a", 20);
-    ctx.fillStyle = "#2a2010"; ctx.fillRect(-22, -48, 44, 18); ctx.fillStyle = "#ff4a3a"; ctx.fillRect(-16, -44, 12, 8); ctx.fillRect(4, -44, 12, 8);
+    ctx.fillStyle = fl ? "#fff" : "#9a7a40"; ctx.strokeStyle = "#3a2a10"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-78, -36); ctx.lineTo(78, -36); ctx.lineTo(68, 58); ctx.lineTo(-68, 58); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#6a4a20";
+    [[-40, -8], [40, -8], [-28, 28], [28, 28]].forEach(function (p) {
+      ctx.fillRect(p[0] - 14, p[1] - 8, 28, 16); ctx.strokeRect(p[0] - 14, p[1] - 8, 28, 16);
+    });
+    glowDot(0, 10, 18 + pulse * 5, "#ff9a2a", 24);
+    ctx.fillStyle = "#2a2010"; ctx.fillRect(-26, -58, 52, 22); ctx.strokeRect(-26, -58, 52, 22);
+    ctx.fillStyle = "#ff4a3a"; ctx.fillRect(-18, -52, 14, 10); ctx.fillRect(4, -52, 14, 10);
     ctx.restore();
   }
   function drawFoundryBoss(b) {
-    var t = b.t, fl = b.flash > 0;
+    var t = b.t, fl = b.flash > 0, pulse = 0.5 + 0.5 * Math.sin(t * 7);
     ctx.save(); ctx.translate(b.x, b.y);
-    var halo = ctx.createRadialGradient(0, 0, 10, 0, 0, 130); halo.addColorStop(0, "rgba(255,80,20,.35)"); halo.addColorStop(1, "rgba(255,80,20,0)");
-    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 0, 130, 0, 7); ctx.fill();
+    var halo = ctx.createRadialGradient(0, 0, 10, 0, 0, 148); halo.addColorStop(0, "rgba(255,80,20,.42)"); halo.addColorStop(1, "rgba(255,80,20,0)");
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 0, 148, 0, 7); ctx.fill();
+    ctx.save(); ctx.rotate(t * 0.35); ctx.strokeStyle = "rgba(255,160,40,.55)"; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.arc(0, 0, 92, 0, 7); ctx.stroke();
+    ctx.rotate(-t * 0.9); ctx.lineWidth = 3; ctx.strokeStyle = "#ffd54a";
+    for (var i = 0; i < 8; i++) { ctx.rotate(Math.PI / 4); ctx.beginPath(); ctx.moveTo(70, 0); ctx.lineTo(102, 0); ctx.stroke(); }
+    ctx.restore();
     ctx.fillStyle = fl ? "#fff" : "#6a2010"; ctx.strokeStyle = "#2a0804"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(-80, -20); ctx.lineTo(80, -20); ctx.lineTo(70, 56); ctx.lineTo(-70, 56); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = fl ? "#fff" : "#c04010"; ctx.beginPath(); ctx.arc(0, -8, 36, 0, 7); ctx.fill(); ctx.stroke();
-    glowDot(0, -8, 18 + Math.sin(t * 7) * 4, "#ffd54a", 22);
-    [-1, 1].forEach(function (sd) { ctx.fillStyle = "#8a3010"; ctx.fillRect(sd * 70 - 10, -8, 20, 48); glowDot(sd * 70, 44, 6, "#ff6a1a", 10); });
-    ctx.fillStyle = "#1a0804"; ctx.fillRect(-28, -52, 56, 16); glowDot(-10, -44, 5, "#ff2a2a", 10); glowDot(10, -44, 5, "#ff2a2a", 10);
+    ctx.beginPath(); ctx.moveTo(-88, -24); ctx.lineTo(88, -24); ctx.lineTo(76, 62); ctx.lineTo(-76, 62); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = fl ? "#fff" : "#c04010"; ctx.beginPath(); ctx.arc(0, -6, 40, 0, 7); ctx.fill(); ctx.stroke();
+    glowDot(0, -6, 20 + pulse * 5, "#ffd54a", 26);
+    [-1, 1].forEach(function (sd) {
+      ctx.fillStyle = "#8a3010"; ctx.fillRect(sd * 78 - 12, -12, 24, 58); ctx.strokeRect(sd * 78 - 12, -12, 24, 58);
+      ctx.save(); ctx.translate(sd * 78, 50); ctx.rotate(sd * Math.sin(t * 3) * 0.4);
+      ctx.fillStyle = "#ff6a1a"; ctx.fillRect(-8, 0, 16, 28); glowDot(0, 30, 7, "#ffd54a", 12); ctx.restore();
+    });
+    ctx.fillStyle = "#1a0804"; ctx.fillRect(-32, -60, 64, 20); ctx.strokeRect(-32, -60, 64, 20);
+    glowDot(-12, -50, 5.5, "#ff2a2a", 12); glowDot(12, -50, 5.5, "#ff2a2a", 12);
     ctx.restore();
   }
   function drawVaultBoss(b) {
-    var t = b.t, fl = b.flash > 0;
+    var t = b.t, fl = b.flash > 0, pulse = 0.5 + 0.5 * Math.sin(t * 5);
     ctx.save(); ctx.translate(b.x, b.y + Math.sin(t * 1.1) * 3);
-    ctx.strokeStyle = "#8fe8ff"; ctx.lineWidth = 2; ctx.globalAlpha = 0.7; ctx.setLineDash([8, 6]); ctx.lineDashOffset = -t * 30;
-    ctx.beginPath(); ctx.arc(0, 0, 78, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    ctx.strokeStyle = "#8fe8ff"; ctx.lineWidth = 3; ctx.globalAlpha = 0.75; ctx.setLineDash([10, 7]); ctx.lineDashOffset = -t * 34;
+    ctx.beginPath(); ctx.arc(0, 0, 86, 0, 7); ctx.stroke();
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, 0, 110, 36, t * 0.4, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    [-1, 1].forEach(function (sd) {
+      var sway = Math.sin(t * 2 + sd) * 8;
+      ctx.strokeStyle = "#7fe0ff"; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(sd * 28, 10); ctx.quadraticCurveTo(sd * (70 + sway), 30, sd * 96, 58 + sway); ctx.stroke();
+      glowDot(sd * 96, 58 + sway, 6, "#c8ffff", 14);
+    });
     ctx.fillStyle = fl ? "#fff" : "#c8f4ff"; ctx.strokeStyle = "#1a4060"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(0, -62); ctx.lineTo(54, -18); ctx.lineTo(36, 52); ctx.lineTo(-36, 52); ctx.lineTo(-54, -18); ctx.closePath(); ctx.fill(); ctx.stroke();
-    glowDot(0, 0, 16 + Math.sin(t * 5) * 3, "#7fe0ff", 18);
-    ctx.fillStyle = "#082030"; ctx.beginPath(); ctx.arc(0, -22, 16, 0, 7); ctx.fill(); glowDot(-6, -24, 4, "#fff", 8); glowDot(6, -24, 4, "#fff", 8);
+    ctx.beginPath(); ctx.moveTo(0, -70); ctx.lineTo(58, -22); ctx.lineTo(40, 56); ctx.lineTo(-40, 56); ctx.lineTo(-58, -22); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#8fd8f0"; ctx.beginPath(); ctx.moveTo(-22, -8); ctx.lineTo(22, -8); ctx.lineTo(16, 28); ctx.lineTo(-16, 28); ctx.closePath(); ctx.fill(); ctx.stroke();
+    glowDot(0, 6, 18 + pulse * 4, "#7fe0ff", 22);
+    ctx.fillStyle = "#082030"; ctx.beginPath(); ctx.arc(0, -26, 18, 0, 7); ctx.fill();
+    glowDot(-7, -28, 4.5, "#fff", 10); glowDot(7, -28, 4.5, "#fff", 10);
     ctx.restore();
   }
   function drawRingfleetBoss(b) {
-    var t = b.t, fl = b.flash > 0;
+    var t = b.t, fl = b.flash > 0, pulse = 0.5 + 0.5 * Math.sin(t * 6);
     ctx.save(); ctx.translate(b.x, b.y);
-    ctx.strokeStyle = fl ? "#fff" : "#ffd88a"; ctx.lineWidth = 10; ctx.beginPath(); ctx.ellipse(0, 0, 110, 34, 0, 0, 7); ctx.stroke();
-    ctx.lineWidth = 4; ctx.strokeStyle = "#c09040"; ctx.stroke();
+    ctx.save(); ctx.rotate(0.18); ctx.strokeStyle = fl ? "#fff" : "#ffd88a"; ctx.lineWidth = 16;
+    ctx.beginPath(); ctx.ellipse(0, 0, 118, 38, 0, 0, 7); ctx.stroke();
+    ctx.lineWidth = 5; ctx.strokeStyle = "#c09040"; ctx.stroke();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#ffe066"; ctx.setLineDash([12, 8]); ctx.lineDashOffset = -t * 28;
+    ctx.beginPath(); ctx.ellipse(0, 0, 118, 38, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     ctx.fillStyle = fl ? "#fff" : "#e8c060"; ctx.strokeStyle = "#4a3010"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(0, 0, 48, 48, 0, 0, 7); ctx.fill(); ctx.stroke();
-    glowDot(0, 0, 12 + Math.sin(t * 6) * 2, "#ffe066", 16);
-    for (var i = 0; i < 8; i++) { var a = t * 0.6 + i * 0.785; glowDot(Math.cos(a) * 110, Math.sin(a) * 34, 4, "#ffd54a", 8); }
+    ctx.beginPath(); ctx.moveTo(-20, -56); ctx.lineTo(20, -56); ctx.lineTo(48, 8); ctx.lineTo(20, 52); ctx.lineTo(-20, 52); ctx.lineTo(-48, 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+    glowDot(0, 0, 14 + pulse * 3, "#ffe066", 18);
+    for (var i = 0; i < 10; i++) {
+      var a = t * 0.7 + i * 0.628;
+      ctx.save(); ctx.translate(Math.cos(a) * 118, Math.sin(a) * 38); ctx.rotate(a);
+      ctx.fillStyle = "#ffd54a"; ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(5, 6); ctx.lineTo(-5, 6); ctx.closePath(); ctx.fill();
+      glowDot(0, 0, 3.5, "#fff27a", 8); ctx.restore();
+    }
+    ctx.fillStyle = "#2a1808"; ctx.fillRect(-16, -28, 32, 12);
+    glowDot(-7, -22, 4, "#ff4a3a", 10); glowDot(7, -22, 4, "#ff4a3a", 10);
     ctx.restore();
   }
   function drawStormcoreBoss(b) {
-    var t = b.t, fl = b.flash > 0;
+    var t = b.t, fl = b.flash > 0, pulse = 0.5 + 0.5 * Math.sin(t * 8);
     ctx.save(); ctx.translate(b.x, b.y + Math.sin(t * 2) * 2);
-    var sg = ctx.createRadialGradient(0, 0, 6, 0, 0, 120); sg.addColorStop(0, "rgba(80,255,220,.4)"); sg.addColorStop(1, "rgba(80,255,220,0)");
-    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, 120, 0, 7); ctx.fill();
-    ctx.strokeStyle = "#7dffd0"; ctx.lineWidth = 2;
-    for (var i = 0; i < 6; i++) { var a = t * 2 + i; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 90, Math.sin(a) * 90); ctx.stroke(); }
+    var sg = ctx.createRadialGradient(0, 0, 6, 0, 0, 132); sg.addColorStop(0, "rgba(80,255,220,.46)"); sg.addColorStop(1, "rgba(80,255,220,0)");
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, 132, 0, 7); ctx.fill();
+    ctx.save(); ctx.rotate(t * 1.6); ctx.strokeStyle = "#7dffd0"; ctx.lineWidth = 2.5;
+    for (var i = 0; i < 8; i++) { ctx.rotate(Math.PI / 4); ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(98, Math.sin(t * 10 + i) * 10); ctx.stroke(); }
+    ctx.restore();
+    ctx.save(); ctx.rotate(-t * 0.8); ctx.strokeStyle = "#c8fff4"; ctx.lineWidth = 3; ctx.setLineDash([8, 10]);
+    ctx.beginPath(); ctx.arc(0, 0, 70, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+    for (var j = 0; j < 6; j++) { var ja = j * Math.PI / 3; glowDot(Math.cos(ja) * 70, Math.sin(ja) * 70, 4, "#80ffe0", 10); }
+    ctx.restore();
     ctx.fillStyle = fl ? "#fff" : "#1a4a50"; ctx.strokeStyle = "#7dffd0"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(0, 0, 44, 0, 7); ctx.fill(); ctx.stroke();
-    glowDot(0, 0, 18 + Math.sin(t * 8) * 4, "#80ffe0", 20);
-    ctx.fillStyle = "#041018"; ctx.beginPath(); ctx.arc(-10, -8, 6, 0, 7); ctx.arc(10, -8, 6, 0, 7); ctx.fill();
-    glowDot(-10, -8, 3, "#fff", 6); glowDot(10, -8, 3, "#fff", 6);
+    ctx.beginPath(); ctx.moveTo(0, -50); ctx.lineTo(46, -16); ctx.lineTo(28, 48); ctx.lineTo(-28, 48); ctx.lineTo(-46, -16); ctx.closePath(); ctx.fill(); ctx.stroke();
+    glowDot(0, 0, 20 + pulse * 5, "#80ffe0", 24);
+    ctx.fillStyle = "#041018"; ctx.beginPath(); ctx.arc(-12, -10, 7, 0, 7); ctx.arc(12, -10, 7, 0, 7); ctx.fill();
+    glowDot(-12, -10, 3.4, "#fff", 8); glowDot(12, -10, 3.4, "#fff", 8);
     ctx.restore();
   }
-
   // ---------- Neue Zeichnungen (Level 12–17) ----------
   function drawWell(w) {
     ctx.save();
@@ -5823,66 +5972,66 @@
       flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-7.2, 31, 0.85], [-2.4, 31, 0.95], [2.4, 31, 0.95], [7.2, 31, 0.85]], perkText: "Zielsuchend + Schild alle 14 s", desc: "Mitternachtssilberner Roadster-Rocket. SpaceX-Kaltgas-Cluster — vier Haupt- plus vier versenkte Düsen — Zielsuch-Schüsse und alle 14 Sekunden ein Schild. 0–60 unter 0,59 s." },
     { id: "apexflash", name: "Roadster Founders-Serie", tier: 5, price: 148000, hearts: 7, speed: 1.62, rate: 0.2, shots: 3, dmg: 4.8, regen: 11, perk: "homing", perk2: "pulse", bullet: "#ffd54a",
       flame: ["255,255,255", "140,210,255", "40,90,220"], engines: [[-7.4, 31, 0.9], [-2.5, 31, 1], [2.5, 31, 1], [7.4, 31, 0.9], [0, 34, 1.15]], perkText: "Zielsuch-Salve + Schildpuls", desc: "Tesla Roadster Founders-Serie. Chrom-Gold, der große Heckflügel vom offiziellen Raketen-Foto, volle SpaceX-Düsenreihe, dreifach zielsuchend und ein Schildpuls, der Bomben in der Nähe knallt." },
-    { id: "rivet", name: "Nieten-Drachen", tier: 6, price: 180000, unlock: { L: 105 }, hearts: 5, speed: 1.35, rate: 0.26, shots: 2, dmg: 3, regen: 0, bullet: "hsl(172,85%,70%)",
+    { id: "rivet", name: "Nieten-Drachen", tier: 6, price: 380000, unlock: { L: 105 }, hearts: 11, speed: 1.85, rate: 0.16, shots: 3, dmg: 8.2, regen: 10, bullet: "hsl(172,85%,70%)",
       flame: ["255,255,255","80,160,255","30,70,200"], engines: [[0, 30, 1]], perkText: "Doppel-Nieten", desc: "Ein Werft-Drachen mit Nietenschüssen." },
-    { id: "crane", name: "Kran-Flügel", tier: 6, price: 200000, unlock: { L: 110 }, hearts: 5, speed: 1.36, rate: 0.258, shots: 2, dmg: 3.09, regen: 0, perk: "pierce", bullet: "hsl(213,85%,70%)",
+    { id: "crane", name: "Kran-Flügel", tier: 6, price: 413000, unlock: { L: 110 }, hearts: 11, speed: 1.86, rate: 0.158, shots: 3, dmg: 8.42, regen: 10, perk: "pierce", bullet: "hsl(213,85%,70%)",
       flame: ["255,255,255","92,170,255","31,70,200"], engines: [[0, 30, 1]], perkText: "Kran-Strahl durch alles", desc: "Lange Kran-Flügel durchschlagen Gegner." },
-    { id: "welder", name: "Schweiss-Skip", tier: 6, price: 220000, unlock: { L: 115 }, hearts: 5, speed: 1.37, rate: 0.256, shots: 2, dmg: 3.18, regen: 0, perk: "burn", bullet: "hsl(254,85%,70%)",
+    { id: "welder", name: "Schweiss-Skip", tier: 6, price: 448000, unlock: { L: 115 }, hearts: 11, speed: 1.88, rate: 0.157, shots: 3, dmg: 8.64, regen: 10, perk: "burn", bullet: "hsl(254,85%,70%)",
       flame: ["255,255,255","104,180,255","32,70,200"], engines: [[0, 30, 1]], perkText: "Schweiss-Funken", desc: "Funken setzen Steine in Brand." },
-    { id: "dockn", name: "Dock-Nadel", tier: 6, price: 240000, unlock: { L: 120 }, hearts: 5, speed: 1.39, rate: 0.254, shots: 2, dmg: 3.27, regen: 0, perk: "small", perk2: "pierce", hitR: 13, bullet: "hsl(295,85%,70%)",
+    { id: "dockn", name: "Dock-Nadel", tier: 6, price: 485000, unlock: { L: 120 }, hearts: 11, speed: 1.89, rate: 0.155, shots: 3, dmg: 8.86, regen: 10, perk: "small", perk2: "pierce", hitR: 13, bullet: "hsl(295,85%,70%)",
       flame: ["255,255,255","116,190,255","33,70,200"], engines: [[0, 30, 1]], perkText: "Winzig + Durchschuss", desc: "Eine schlanke Nadel aus dem Trockendock. Schwer zu treffen!" },
-    { id: "boltfin", name: "Bolzen-Finne", tier: 6, price: 260000, unlock: { L: 125 }, hearts: 5, speed: 1.4, rate: 0.252, shots: 2, dmg: 3.36, regen: 0, perk: "homing", bullet: "hsl(336,85%,70%)",
+    { id: "boltfin", name: "Bolzen-Finne", tier: 6, price: 524000, unlock: { L: 125 }, hearts: 11, speed: 1.91, rate: 0.154, shots: 3, dmg: 9.08, regen: 12, perk: "homing", bullet: "hsl(336,85%,70%)",
       flame: ["255,255,255","128,200,255","34,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuch-Bolzen", desc: "Flossen schießen Bolzen, die das Ziel suchen." },
-    { id: "hullmite", name: "Rumpf-Milbe", tier: 6, price: 280000, unlock: { L: 130 }, hearts: 5, speed: 1.41, rate: 0.25, shots: 2, dmg: 3.45, regen: 0, perk: "split", bullet: "hsl(17,85%,70%)",
+    { id: "hullmite", name: "Rumpf-Milbe", tier: 6, price: 565000, unlock: { L: 130 }, hearts: 11, speed: 1.92, rate: 0.152, shots: 3, dmg: 9.3, regen: 12, perk: "split", bullet: "hsl(17,85%,70%)",
       flame: ["255,255,255","140,160,255","35,70,200"], engines: [[0, 30, 1]], perkText: "Splitter-Milben", desc: "Treffer zerplatzen in zwei kleine Milben." },
-    { id: "slagskip", name: "Schlacken-Skip", tier: 6, price: 300000, unlock: { L: 135 }, hearts: 5, speed: 1.42, rate: 0.248, shots: 2, dmg: 3.54, regen: 0, perk: "quake", bullet: "hsl(58,85%,70%)",
+    { id: "slagskip", name: "Schlacken-Skip", tier: 6, price: 608000, unlock: { L: 135 }, hearts: 12, speed: 1.93, rate: 0.15, shots: 3, dmg: 9.52, regen: 12, perk: "quake", bullet: "hsl(58,85%,70%)",
       flame: ["255,255,255","152,170,255","36,70,200"], engines: [[0, 30, 1]], perkText: "Schlacken-Beben", desc: "Wirft schwere Schlacke, die die Bahn bebt." },
-    { id: "magmapike", name: "Magma-Pike", tier: 6, price: 320000, unlock: { L: 140 }, hearts: 5, speed: 1.43, rate: 0.246, shots: 2, dmg: 3.63, regen: 13, perk: "burn", bullet: "hsl(99,85%,70%)",
+    { id: "magmapike", name: "Magma-Pike", tier: 6, price: 653000, unlock: { L: 140 }, hearts: 12, speed: 1.95, rate: 0.149, shots: 3, dmg: 9.74, regen: 15, perk: "burn", bullet: "hsl(99,85%,70%)",
       flame: ["255,255,255","164,180,255","37,70,200"], engines: [[0, 30, 1]], perkText: "Feuer-Pike + Schild", desc: "Eine Magma-Lanze mit langsamem Schildpuls." },
-    { id: "smeltwing", name: "Schmelz-Flügel", tier: 6, price: 340000, unlock: { L: 145 }, hearts: 6, speed: 1.45, rate: 0.244, shots: 2, dmg: 3.72, regen: 0, perk: "burn", perk2: "wing", bullet: "hsl(140,85%,70%)",
+    { id: "smeltwing", name: "Schmelz-Flügel", tier: 6, price: 700000, unlock: { L: 145 }, hearts: 12, speed: 1.96, rate: 0.147, shots: 4, dmg: 9.96, regen: 12, perk: "burn", perk2: "wing", bullet: "hsl(140,85%,70%)",
       flame: ["255,255,255","80,190,255","38,70,200"], engines: [[0, 30, 1]], perkText: "Brand + Begleiter", desc: "Zwei heiße Begleiter fliegen neben dir." },
-    { id: "ingothulk", name: "Barren-Koloss", tier: 6, price: 360000, unlock: { L: 150 }, hearts: 6, speed: 1.46, rate: 0.242, shots: 3, dmg: 3.81, regen: 0, bullet: "hsl(181,85%,70%)",
+    { id: "ingothulk", name: "Barren-Koloss", tier: 6, price: 749000, unlock: { L: 150 }, hearts: 12, speed: 1.98, rate: 0.146, shots: 4, dmg: 10.18, regen: 12, bullet: "hsl(181,85%,70%)",
       flame: ["255,255,255","92,200,255","39,70,200"], engines: [[0, 30, 1]], perkText: "Dreifach-Barren + Schild", desc: "Ein schwerer Gießerei-Panzer. Langsame Schüsse, große Herzen." },
-    { id: "crucibit", name: "Tiegel-Bit", tier: 6, price: 380000, unlock: { L: 155 }, hearts: 6, speed: 1.47, rate: 0.24, shots: 2, dmg: 3.9, regen: 14, perk: "nova", bullet: "hsl(222,85%,70%)",
+    { id: "crucibit", name: "Tiegel-Bit", tier: 6, price: 800000, unlock: { L: 155 }, hearts: 12, speed: 1.99, rate: 0.144, shots: 4, dmg: 10.4, regen: 16, perk: "nova", bullet: "hsl(222,85%,70%)",
       flame: ["255,255,255","104,160,255","40,70,200"], engines: [[0, 30, 1]], perkText: "Nova-Schmelze", desc: "Alle paar Sekunden knallt eine Schmelz-Welle." },
-    { id: "forgefin", name: "Schmiede-Finne", tier: 6, price: 400000, unlock: { L: 160 }, hearts: 6, speed: 1.48, rate: 0.238, shots: 3, dmg: 3.99, regen: 13, perk: "pierce", perk2: "orbit", drones: 1, bullet: "hsl(263,85%,70%)",
-      flame: ["255,255,255","116,170,255","41,70,200"], engines: [[0, 30, 1]], perkText: "Durchschuss + Hammer-Drohne", desc: "Ein Flossen-Schmiedeschiff mit einer Hammer-Drohne." },
-    { id: "frostbit", name: "Frost-Bit", tier: 6, price: 420000, unlock: { L: 165 }, hearts: 6, speed: 1.49, rate: 0.236, shots: 2, dmg: 4.08, regen: 0, perk: "freeze", bullet: "hsl(304,85%,70%)",
+    { id: "forgefin", name: "Schmiede-Finne", tier: 6, price: 853000, unlock: { L: 160 }, hearts: 12, speed: 2, rate: 0.142, shots: 4, dmg: 10.62, regen: 16, perk: "pierce", perk2: "orbit", drones: 2, bullet: "hsl(263,85%,70%)",
+      flame: ["255,255,255","116,170,255","41,70,200"], engines: [[0, 30, 1]], perkText: "Durchschuss + Hammer-Drohnen", desc: "Ein Flossen-Schmiedeschiff mit zwei Hammer-Drohnen." },
+    { id: "frostbit", name: "Frost-Bit", tier: 6, price: 908000, unlock: { L: 165 }, hearts: 13, speed: 2.02, rate: 0.141, shots: 4, dmg: 10.84, regen: 12, perk: "freeze", bullet: "hsl(304,85%,70%)",
       flame: ["255,255,255","128,180,255","42,70,200"], engines: [[0, 30, 1]], perkText: "Eis-Schüsse frieren", desc: "Kleine Eis-Bits frieren Steine in der Nähe." },
-    { id: "iceauger", name: "Eis-Bohrer", tier: 6, price: 440000, unlock: { L: 170 }, hearts: 6, speed: 1.51, rate: 0.234, shots: 3, dmg: 4.17, regen: 0, perk: "pierce", bullet: "hsl(345,85%,70%)",
+    { id: "iceauger", name: "Eis-Bohrer", tier: 6, price: 965000, unlock: { L: 170 }, hearts: 13, speed: 2.03, rate: 0.139, shots: 4, dmg: 11.06, regen: 12, perk: "pierce", bullet: "hsl(345,85%,70%)",
       flame: ["255,255,255","140,190,255","43,70,200"], engines: [[0, 30, 1]], perkText: "Bohr-Durchschuss", desc: "Bohrt gerade durch alle Gegner in der Bahn." },
-    { id: "cryowing", name: "Kryo-Flügel", tier: 6, price: 460000, unlock: { L: 175 }, hearts: 6, speed: 1.52, rate: 0.232, shots: 2, dmg: 4.26, regen: 0, perk: "freeze", perk2: "frostaura", bullet: "hsl(26,85%,70%)",
-      flame: ["255,255,255","152,200,255","44,70,200"], engines: [[0, 30, 1]], perkText: "Frost-Aura + 3 Schüsse", desc: "Ein Kältefeld bremst Bomben um dich." },
-    { id: "vaultskip", name: "Tresor-Skip", tier: 6, price: 480000, unlock: { L: 180 }, hearts: 6, speed: 1.53, rate: 0.23, shots: 3, dmg: 4.35, regen: 14, perk: "phase", bullet: "hsl(67,85%,70%)",
+    { id: "cryowing", name: "Kryo-Flügel", tier: 6, price: 1024000, unlock: { L: 175 }, hearts: 13, speed: 2.05, rate: 0.138, shots: 4, dmg: 11.28, regen: 12, perk: "freeze", perk2: "frostaura", bullet: "hsl(26,85%,70%)",
+      flame: ["255,255,255","152,200,255","44,70,200"], engines: [[0, 30, 1]], perkText: "Frost-Aura + 4 Schüsse", desc: "Ein Kältefeld bremst Bomben um dich." },
+    { id: "vaultskip", name: "Tresor-Skip", tier: 6, price: 1085000, unlock: { L: 180 }, hearts: 13, speed: 2.06, rate: 0.136, shots: 4, dmg: 11.5, regen: 17, perk: "phase", bullet: "hsl(67,85%,70%)",
       flame: ["255,255,255","164,160,255","45,70,200"], engines: [[0, 30, 1]], perkText: "Phasen-Tresor-Schüsse", desc: "Schüsse gleiten durch Eiswände." },
-    { id: "brinefin", name: "Laugen-Finne", tier: 6, price: 500000, unlock: { L: 185 }, hearts: 7, speed: 1.54, rate: 0.228, shots: 2, dmg: 4.44, regen: 0, perk: "homing", bullet: "hsl(108,85%,70%)",
+    { id: "brinefin", name: "Laugen-Finne", tier: 6, price: 1148000, unlock: { L: 185 }, hearts: 13, speed: 2.07, rate: 0.134, shots: 4, dmg: 11.72, regen: 12, perk: "homing", bullet: "hsl(108,85%,70%)",
       flame: ["255,255,255","80,170,255","46,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuch-Lauge", desc: "Salzige Such-Pfeile von Europa." },
-    { id: "ringshear", name: "Ring-Schere", tier: 6, price: 520000, unlock: { L: 190 }, hearts: 7, speed: 1.55, rate: 0.226, shots: 3, dmg: 4.53, regen: 0, perk: "split", bullet: "hsl(149,85%,70%)",
+    { id: "ringshear", name: "Ring-Schere", tier: 6, price: 1213000, unlock: { L: 190 }, hearts: 13, speed: 2.09, rate: 0.133, shots: 4, dmg: 11.94, regen: 12, perk: "split", bullet: "hsl(149,85%,70%)",
       flame: ["255,255,255","92,180,255","47,70,200"], engines: [[0, 30, 1]], perkText: "Splitter-Ringklingen", desc: "Jeder Treffer teilt sich in zwei Ringklingen." },
-    { id: "spokejet", name: "Speichen-Jet", tier: 6, price: 540000, unlock: { L: 195 }, hearts: 7, speed: 1.57, rate: 0.224, shots: 2, dmg: 4.62, regen: 0, bullet: "hsl(190,85%,70%)",
+    { id: "spokejet", name: "Speichen-Jet", tier: 6, price: 1280000, unlock: { L: 195 }, hearts: 14, speed: 2.1, rate: 0.131, shots: 5, dmg: 12.16, regen: 12, bullet: "hsl(190,85%,70%)",
       flame: ["255,255,255","104,190,255","48,70,200"], engines: [[0, 30, 1]], perkText: "Schnelle Speichen", desc: "Schneller Saturn-Jet. Schießt viel!" },
-    { id: "shepwing", name: "Hirten-Flügel", tier: 6, price: 560000, unlock: { L: 200 }, hearts: 7, speed: 1.58, rate: 0.222, shots: 3, dmg: 4.71, regen: 15, perk: "homing", perk2: "wing", bullet: "hsl(231,85%,70%)",
+    { id: "shepwing", name: "Hirten-Flügel", tier: 6, price: 1349000, unlock: { L: 200 }, hearts: 14, speed: 2.12, rate: 0.13, shots: 5, dmg: 12.38, regen: 17, perk: "homing", perk2: "wing", bullet: "hsl(231,85%,70%)",
       flame: ["255,255,255","116,200,255","49,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuchend + 2 Hirten", desc: "Zwei Mond-Hirten schießen mit." },
-    { id: "hexsail", name: "Hex-Segel", tier: 6, price: 580000, unlock: { L: 205 }, hearts: 7, speed: 1.59, rate: 0.22, shots: 3, dmg: 4.8, regen: 14, perk: "beam", bullet: "hsl(272,85%,70%)",
+    { id: "hexsail", name: "Hex-Segel", tier: 6, price: 1420000, unlock: { L: 205 }, hearts: 14, speed: 2.13, rate: 0.128, shots: 5, dmg: 12.6, regen: 16, perk: "beam", bullet: "hsl(272,85%,70%)",
       flame: ["255,255,255","128,160,255","50,70,200"], engines: [[0, 30, 1]], perkText: "Sonnenstrahl durch alles", desc: "Hex-Segel halten einen Dauerstrahl." },
-    { id: "scythesk", name: "Orbit-Sense", tier: 6, price: 600000, unlock: { L: 210 }, hearts: 7, speed: 1.6, rate: 0.218, shots: 3, dmg: 4.89, regen: 0, perk: "pierce", perk2: "gravity", bullet: "hsl(313,85%,70%)",
+    { id: "scythesk", name: "Orbit-Sense", tier: 6, price: 1493000, unlock: { L: 210 }, hearts: 14, speed: 2.14, rate: 0.126, shots: 5, dmg: 12.82, regen: 12, perk: "pierce", perk2: "gravity", bullet: "hsl(313,85%,70%)",
       flame: ["255,255,255","140,170,255","51,70,200"], engines: [[0, 30, 1]], perkText: "Sense + Schwerkraft", desc: "Eine Ringsense, die Gegner anzieht." },
-    { id: "stormcoil", name: "Sturm-Spule", tier: 6, price: 620000, unlock: { L: 215 }, hearts: 7, speed: 1.61, rate: 0.216, shots: 3, dmg: 4.98, regen: 0, perk: "chain", bullet: "hsl(354,85%,70%)",
+    { id: "stormcoil", name: "Sturm-Spule", tier: 6, price: 1568000, unlock: { L: 215 }, hearts: 14, speed: 2.16, rate: 0.125, shots: 5, dmg: 13.04, regen: 12, perk: "chain", bullet: "hsl(354,85%,70%)",
       flame: ["255,255,255","152,180,255","52,70,200"], engines: [[0, 30, 1]], perkText: "Kettenblitz", desc: "Treffer springen auf zwei weitere Gegner." },
-    { id: "tiltwing", name: "Kipp-Flügel", tier: 6, price: 640000, unlock: { L: 220 }, hearts: 7, speed: 1.63, rate: 0.214, shots: 3, dmg: 5.07, regen: 15, perk: "phase", perk2: "timeslow", bullet: "hsl(35,85%,70%)",
+    { id: "tiltwing", name: "Kipp-Flügel", tier: 6, price: 1645000, unlock: { L: 220 }, hearts: 14, speed: 2.17, rate: 0.123, shots: 5, dmg: 13.26, regen: 18, perk: "phase", perk2: "timeslow", bullet: "hsl(35,85%,70%)",
       flame: ["255,255,255","164,190,255","53,70,200"], engines: [[0, 30, 1]], perkText: "Phase + Zeitlupe", desc: "Kippt aus der Gefahr und bremst die Zeit." },
-    { id: "methanray", name: "Methan-Strahl", tier: 6, price: 660000, unlock: { L: 225 }, hearts: 8, speed: 1.64, rate: 0.212, shots: 3, dmg: 5.16, regen: 0, perk: "beam", bullet: "hsl(76,85%,70%)",
+    { id: "methanray", name: "Methan-Strahl", tier: 6, price: 1724000, unlock: { L: 225 }, hearts: 15, speed: 2.19, rate: 0.122, shots: 5, dmg: 13.48, regen: 12, perk: "beam", bullet: "hsl(76,85%,70%)",
       flame: ["255,255,255","80,200,255","54,70,200"], engines: [[0, 30, 1]], perkText: "Strahl + Schild", desc: "Ein cyaner Methan-Strahl von Uranus." },
-    { id: "aurorafin", name: "Aurora-Finne", tier: 6, price: 680000, unlock: { L: 230 }, hearts: 8, speed: 1.65, rate: 0.21, shots: 3, dmg: 5.25, regen: 14, perk: "prism", bullet: "hsl(117,85%,70%)",
+    { id: "aurorafin", name: "Aurora-Finne", tier: 6, price: 1805000, unlock: { L: 230 }, hearts: 15, speed: 2.2, rate: 0.12, shots: 5, dmg: 13.7, regen: 16, perk: "prism", bullet: "hsl(117,85%,70%)",
       flame: ["255,255,255","92,160,255","55,70,200"], engines: [[0, 30, 1]], perkText: "Prisma-Aurora", desc: "Fünf bunte Aurora-Schüsse." },
-    { id: "oortneedle", name: "Oort-Nadel", tier: 6, price: 700000, unlock: { L: 235 }, hearts: 8, speed: 1.66, rate: 0.208, shots: 3, dmg: 5.34, regen: 0, perk: "small", perk2: "pierce", hitR: 13, bullet: "hsl(158,85%,70%)",
+    { id: "oortneedle", name: "Oort-Nadel", tier: 6, price: 1888000, unlock: { L: 235 }, hearts: 15, speed: 2.21, rate: 0.118, shots: 5, dmg: 13.92, regen: 12, perk: "small", perk2: "pierce", hitR: 13, bullet: "hsl(158,85%,70%)",
       flame: ["255,255,255","104,170,255","56,70,200"], engines: [[0, 30, 1]], perkText: "Winzige Durchschuss-Nadel", desc: "Eine Kuiper-Nadel. Sehr klein, sehr scharf." },
-    { id: "plutospire", name: "Pluto-Turm", tier: 6, price: 720000, unlock: { L: 240 }, hearts: 8, speed: 1.67, rate: 0.206, shots: 3, dmg: 5.43, regen: 16, perk: "homing", perk2: "orbit", drones: 2, bullet: "hsl(199,85%,70%)",
-      flame: ["255,255,255","116,180,255","57,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuchend + 2 Drohnen", desc: "Ein dunkler Turm mit zwei Eis-Drohnen." },
-    { id: "charongate", name: "Charon-Tor", tier: 6, price: 740000, unlock: { L: 245 }, hearts: 8, speed: 1.69, rate: 0.204, shots: 3, dmg: 5.52, regen: 0, perk: "nova", perk2: "clone", bullet: "hsl(240,85%,70%)",
+    { id: "plutospire", name: "Pluto-Turm", tier: 6, price: 1973000, unlock: { L: 240 }, hearts: 15, speed: 2.23, rate: 0.117, shots: 5, dmg: 14.14, regen: 19, perk: "homing", perk2: "orbit", drones: 3, bullet: "hsl(199,85%,70%)",
+      flame: ["255,255,255","116,180,255","57,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuchend + 3 Drohnen", desc: "Ein dunkler Turm mit drei Eis-Drohnen." },
+    { id: "charongate", name: "Charon-Tor", tier: 6, price: 2060000, unlock: { L: 245 }, hearts: 15, speed: 2.24, rate: 0.115, shots: 5, dmg: 14.36, regen: 12, perk: "nova", perk2: "clone", bullet: "hsl(240,85%,70%)",
       flame: ["255,255,255","128,190,255","58,70,200"], engines: [[0, 30, 1]], perkText: "Nova + Klon", desc: "Öffnet einen Tor-Klon auf der anderen Seite." },
-    { id: "starcrown", name: "Sternenkrone", tier: 6, price: 900000, unlock: { L: 250 }, hearts: 8, speed: 1.7, rate: 0.202, shots: 3, dmg: 5.61, regen: 12, perk: "omega", perk2: "timeslow", drones: 2, bullet: "hsl(281,85%,70%)",
-      flame: ["255,255,255","140,200,255","59,70,200"], engines: [[0, 30, 1]], perkText: "Omega-Krone + Drohnen", desc: "Belohnung für den Weltraum-Kaiser auf 250! Kronen-Schüsse suchen und durchschlagen." }
+    { id: "starcrown", name: "Sternenkrone", tier: 6, price: 2500000, unlock: { L: 250 }, hearts: 16, speed: 2.26, rate: 0.114, shots: 5, dmg: 14.58, regen: 16, perk: "omega", perk2: "timeslow", drones: 4, bullet: "hsl(281,85%,70%)",
+      flame: ["255,255,255","140,200,255","59,70,200"], engines: [[0, 30, 1]], perkText: "Omega-Krone + 4 Drohnen", desc: "Belohnung für den Weltraum-Kaiser auf 250! Kronen-Schüsse suchen und durchschlagen." }
   ];
   var SHIP_BY = {}; SHIPS.forEach(function (d) { SHIP_BY[d.id] = d; if (d.tier === undefined) d.tier = d.price >= 3000 ? 1 : 0; });
   function shipUnlocked(d) { if (!d.unlock) return true; if (d.unlock.L) return (progress.stars[d.unlock.L] | 0) > 0; if (d.unlock.ach) return !!achDone[d.unlock.ach]; return false; }
@@ -9122,6 +9271,70 @@
       paint(320, 100, false, "Level 100 — Weltraum Kaiser");
       paint(960, 250, true, "Level 250 — Weltraum Kaiser: Star Crown");
       ctx = main; boss = sb; level = sl;
+      return cv.toDataURL("image/png");
+    },
+    drawLateBossSheet: function () {
+      var LATE_BOSS_NAMES = {102:"RIVET DRONE",105:"CRANE MECH",108:"WELDER SKULL",111:"DOCKYARD CRAB",114:"BOLT HOWITZER",117:"HULL STRIPPER",120:"DRYDOCK COLOSSUS",123:"LAUNCH CLAMP",126:"SLAG FURNACE",129:"MAGMA PRESS",132:"SMELTER SPIDER",135:"INGOT CANNON",138:"CRUCIBLE DRONE",141:"FORGE HAMMER",144:"LAVA RAIL",147:"ASH CARRIER",150:"TITAN FOUNDRY KING",153:"FROST PROBE",156:"ICE AUGER",159:"CRYO SENTINEL",162:"VAULT WARDEN",165:"BRINE JELLY",168:"SUBGLACIAL EYE",171:"CRACKER DRILL",174:"EUROPA VAULT MIND",177:"RING SHEAR",180:"SPOKE DESTROYER",183:"SHEPHERD DRONE",186:"ICE RING WORM",189:"HEX SAIL",192:"ORBITAL SCYTHE",195:"SPOKE FORT",198:"RING FLEET DREADNOUGHT",201:"STORM COIL",204:"TILT GYRO",207:"METHANE RAY",210:"DIAMOND TURRET",213:"SIDEWAYS CRUISER",216:"AURORA FAN",219:"ICE GIANT FIST",222:"VORTEX DRONE",225:"STORMWORKS CORE",228:"COMET HATCHERY",231:"PLUTO SPIRE",234:"CHARON GATE",237:"OORT NEEDLE",240:"DARK MATTER CRAB",243:"HALO SENTINEL",246:"ICE DWARF MECH",249:"VOID HERALD"};
+      var levels = [], L;
+      for (L = 102; L <= 249; L += 3) levels.push(L);
+      var cols = 10, rows = 5, cellW = 220, cellH = 240, pad = 24;
+      var cv = document.createElement("canvas");
+      cv.width = cols * cellW + pad * 2; cv.height = rows * cellH + pad * 2 + 52;
+      var main = ctx, sb = boss, sl = level; ctx = cv.getContext("2d");
+      ctx.fillStyle = "#050816"; ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.fillStyle = "#ffd54a"; ctx.font = "bold 26px Arial, sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("Bosses 101-249 — unique late-fleet silhouettes", cv.width / 2, 36);
+      function paintLate(bL, x, y) {
+        var sp = bossSpec(bL);
+        var b = { x: 0, y: 0, t: 1.35, flash: 0, hp: 1, maxHp: 1, k: 0.72, phase: 1, wind: 0, type: sp.type, final: false, prime: false, art: bL, mods: [] };
+        boss = b; level = bL;
+        ctx.save(); ctx.translate(x, y); ctx.scale(0.95, 0.95);
+        if (sp.type === "forge") drawForgeBoss(b);
+        else if (sp.type === "foundry") drawFoundryBoss(b);
+        else if (sp.type === "vault") drawVaultBoss(b);
+        else if (sp.type === "ringfleet") drawRingfleetBoss(b);
+        else if (sp.type === "stormcore") drawStormcoreBoss(b);
+        else drawArtBoss(b);
+        ctx.restore();
+        ctx.fillStyle = "#e8f0ff"; ctx.font = "bold 12px Arial, sans-serif"; ctx.textAlign = "center";
+        var nm = LATE_BOSS_NAMES[bL] || locBossForLevel(bL, sp.name);
+        if (nm.length > 24) nm = nm.slice(0, 22) + "...";
+        ctx.fillText(nm, x, y + 92);
+        ctx.fillStyle = "#7dffea"; ctx.font = "12px Arial, sans-serif";
+        ctx.fillText("L" + bL, x, y + 108);
+      }
+      levels.forEach(function (bL, i) {
+        paintLate(bL, pad + (i % cols) * cellW + cellW / 2, 70 + Math.floor(i / cols) * cellH + 70);
+      });
+      ctx = main; boss = sb; level = sl;
+      return cv.toDataURL("image/png");
+    },
+    drawOuterStatsTable: function () {
+      var ids = Object.keys(OUTER_KITS);
+      var cv = document.createElement("canvas"); cv.width = 1280; cv.height = 980;
+      var main = ctx; ctx = cv.getContext("2d");
+      ctx.fillStyle = "#070b1c"; ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.fillStyle = "#ffd54a"; ctx.font = "bold 26px Arial, sans-serif"; ctx.textAlign = "left";
+      ctx.fillText("Outer Fleet — buffed stats and shop prices", 32, 40);
+      ctx.font = "13px Arial, sans-serif"; ctx.fillStyle = "#7dffea";
+      ctx.fillText("Each ship beats every L1-100 ship on hearts, speed, fire rate, damage and shipPower.", 32, 64);
+      var heads = ["#", "Ship", "L", "HP", "Dmg", "Rate", "Spd", "Shots", "Power", "Price"];
+      var xs = [36, 70, 300, 350, 400, 470, 540, 610, 690, 800];
+      ctx.fillStyle = "#9ad4ff"; ctx.font = "bold 13px Arial, sans-serif";
+      heads.forEach(function (h, i) { ctx.fillText(h, xs[i], 94); });
+      ctx.strokeStyle = "rgba(125,255,234,.35)"; ctx.beginPath(); ctx.moveTo(32, 102); ctx.lineTo(1248, 102); ctx.stroke();
+      ids.forEach(function (id, i) {
+        var d = SHIP_BY[id], y = 122 + i * 27;
+        var fire = 1 / Math.max(0.08, d.rate);
+        var perk = (d.perk ? 35 : 0) + (d.perk2 ? 25 : 0) + (d.regen > 0 ? 20 : 0) + (d.drones || 0) * 12;
+        var pow = Math.round((d.hearts || 3) * 35 + d.dmg * 28 + fire * 8 + d.speed * 40 + d.shots * 22 + perk);
+        ctx.fillStyle = i % 2 ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.02)";
+        ctx.fillRect(32, y - 16, 1216, 27);
+        ctx.fillStyle = "#e8f0ff"; ctx.font = "13px Arial, sans-serif";
+        var cells = [String(i + 1), (OUTER_NAMES && OUTER_NAMES[id]) || d.name, String(d.unlock.L), String(d.hearts), String(d.dmg), String(d.rate), String(d.speed), String(d.shots), String(pow), String(d.price)];
+        cells.forEach(function (c, ci) { ctx.fillStyle = ci === 9 ? "#ffd54a" : ci === 8 ? "#7dffea" : "#e8f0ff"; ctx.fillText(c, xs[ci], y); });
+      });
+      ctx = main;
       return cv.toDataURL("image/png");
     },
     startLevel: function (L) { startGame(L); },

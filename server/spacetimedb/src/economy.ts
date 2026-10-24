@@ -13,10 +13,11 @@ export const UNLOCK_SALE_PRICES: Record<string, number> = {
   kaiserbrecher: 90000,
 };
 
-/** Outer Fleet: expensive early, Star Crown is the wallet-breaker. */
+/** Outer Fleet: ~2×+ the old curve, steepest for the last ships. */
 export function outerSalePrice(index: number): number {
   const i = Math.max(0, Math.floor(index) || 0);
-  return i >= 29 ? 900000 : 180000 + i * 20000;
+  if (i >= 29) return 2_500_000;
+  return 380000 + i * 32000 + i * i * 1000;
 }
 
 /** Catalog prices. 0 = starter (not for sale). Unlock ships now have a coin price too. */
