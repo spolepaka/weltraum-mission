@@ -84,6 +84,7 @@ describe('coin ship catalog', () => {
 
   it('keeps free claim for earned unlocks even when the ship is also for sale', () => {
     expect(SERVER).toContain('export const claimUnlockShip');
+    expect(SERVER).toContain('export const claimEarnedUnlocks');
     expect(SERVER).toContain('export const purchaseShip');
     expect(SERVER).not.toContain("throw new Error('Ship is for sale')");
     expect(SERVER).toContain('versusOwnsShip(owned, want)');

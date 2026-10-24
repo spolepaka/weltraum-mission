@@ -7473,11 +7473,20 @@
   var SHOP_TABS = [["🚀", "tabStart"], ["⭐", "tabPro"], ["🌌", "tabGalaxy"], ["👑", "tabLegend"], ["🎁", "tabSpecial"], ["🏎️", "tabRoadster"], ["☄️", "tabOuter"]], shopTab = 0;
   function shipSalePrice(sd) { return (sd && sd.price > 0) ? sd.price : 0; }
   function shipCanBuy(sd) { return !!(sd && shop.owned.indexOf(sd.id) < 0 && shipSalePrice(sd) > 0); }
-  function shipCardLabel(sd) {
+  function shipKind(sd) {
     var o = shop.owned.indexOf(sd.id) >= 0, e = shop.equipped === sd.id;
-    if (e) return "✅ " + tr("equipped"); if (o) return tr("tips.owned");
-    if (sd.unlock && shipUnlocked(sd)) return "🎁 " + tr("tips.free");
-    if (shipCanBuy(sd)) return "🪙 " + fmtN(sd.price);
+    if (o && e) return "equipped";
+    if (o) return "owned";
+    if (sd.unlock && shipUnlocked(sd)) return "free_to_claim";
+    if (shipCanBuy(sd)) return "buy";
+    return "locked";
+  }
+  function shipCardLabel(sd) {
+    var k = shipKind(sd);
+    if (k === "equipped") return "✅ " + tr("equipped");
+    if (k === "owned") return tr("tips.owned");
+    if (k === "free_to_claim") return "🎁 " + tr("tips.freeToClaim");
+    if (k === "buy") return "🪙 " + fmtN(sd.price);
     if (sd.unlock) return sd.unlock.L ? "🔒 " + tr("level") + " " + sd.unlock.L : "🔒 " + tr("achievements");
     return "🪙 " + fmtN(sd.price);
   }
@@ -7504,7 +7513,7 @@
     b.className = "big" + (eq ? " equipped" : owned ? " owned" : "");
     var lockd = !owned && d.unlock && !shipUnlocked(d);
     var buyP = shipSalePrice(d);
-    if (eq) b.textContent = "✅ " + tr("equipped");
+    if (eq && owned) b.textContent = "✅ " + tr("equipped");
     else if (owned) b.textContent = tr("tips.select") + " 🚀";
     else if (d.unlock && !lockd) b.textContent = "🎁 " + tr("tips.getFree");
     else if (buyP > 0) {
@@ -7547,10 +7556,10 @@
     var d = SHIP_BY[shopSel], owned = shop.owned.indexOf(shopSel) >= 0;
     if (shop.equipped === shopSel) return;
     if (!owned && d.unlock && shipUnlocked(d)) {
-      shop.owned.push(shopSel); shop.equipped = shopSel; saveShop(); curStats = shipStats();
       if (window.__weltraum && window.__weltraum.onClaimShip) window.__weltraum.onClaimShip(shopSel);
       shopBuyConfirm = "";
-      shopToast("🎁 " + tr("tips.nowYours", { name: shipNameOf(d) }), "good"); celebrate(); renderShop(); achCheck && achCheck();
+      shopToast("🎁 " + tr("tips.claiming", { name: shipNameOf(d) }), "");
+      renderShop();
       flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]')); return;
     }
     if (owned) { shop.equipped = shopSel; saveShop(); curStats = shipStats(); if (window.__weltraum && window.__weltraum.onEquipShip) window.__weltraum.onEquipShip(shopSel); refreshVersusListing(); shopBuyConfirm = ""; shopToast("✅ " + tr("tips.nowEquipped", { name: shipNameOf(d) }), "good"); SFX.level(); renderShop(); flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]')); return; }
@@ -7571,7 +7580,6 @@
     shop.coins -= price; shop.owned.push(shopSel); saveShop();
     shop.equipped = shopSel; saveShop(); curStats = shipStats();
     if (window.__weltraum && window.__weltraum.onPurchaseShip) window.__weltraum.onPurchaseShip(shopSel, price);
-    if (window.__weltraum && window.__weltraum.onEquipShip) window.__weltraum.onEquipShip(shopSel);
     trackPlay("shop_purchase");
     shopToast("🎉 " + tr("tips.bought", { name: shipNameOf(d) }), "good"); celebrate(); renderShop();
     flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]'));
@@ -9654,17 +9662,15 @@
         var unlocked = Math.max(1, Math.floor(p.unlocked) || 1);
         progress.unlocked = replace ? unlocked : Math.max(progress.unlocked || 1, unlocked);
       }
-      if (p.ships && p.ships.length) {
-        if (replace) shop.owned = p.ships.slice();
-        else {
-          var have = {};
-          (shop.owned || []).concat(p.ships).forEach(function (s) { if (s) have[s] = 1; });
-          shop.owned = Object.keys(have);
-        }
-        if (p.equipped) shop.equipped = p.equipped;
-      } else if (replace && p.equipped) {
+      if (p.ships) {
+        var nextOwned = [];
+        (p.ships || []).forEach(function (s) { if (s && nextOwned.indexOf(s) < 0) nextOwned.push(s); });
+        if (!nextOwned.length) nextOwned = ["starter"];
+        shop.owned = nextOwned;
+        if (p.equipped && shop.owned.indexOf(p.equipped) >= 0) shop.equipped = p.equipped;
+        else if (shop.owned.indexOf(shop.equipped) < 0) shop.equipped = shop.owned[0] || "starter";
+      } else if (p.equipped && shop.owned.indexOf(p.equipped) >= 0) {
         shop.equipped = p.equipped;
-        if ((shop.owned || []).indexOf(p.equipped) < 0) shop.owned.push(p.equipped);
       }
       if (replace && p.upgrades) {
         shop.up = shop.up || {};
@@ -9915,7 +9921,7 @@
     fingers: function () { return [Object.keys(fireFingers).length, !!kb.fire, fireCooldown, state]; },
     resetPerkStats: function () { shotsFired = 0; perkCount = { chill: 0, burn: 0, blast: 0, pierce: 0 }; hits = 0; },
     missionAdd: function (st, n) { missionAdd(st, n); },
-    setShip: function (id) { if (shop.owned.indexOf(id) < 0) shop.owned.push(id); shop.equipped = id; saveShop(); curStats = shipStats(); if (window.__weltraum && window.__weltraum.onEquipShip) window.__weltraum.onEquipShip(id); if (shopOpen) { shopSel = id; renderShop(); } refreshVersusListing(); },
+    setShip: function (id) { if (shop.owned.indexOf(id) < 0) shop.owned.push(id); shop.equipped = id; saveShop(); curStats = shipStats(); if (window.__weltraum && window.__weltraum.onDebugOwnShip) window.__weltraum.onDebugOwnShip(id); if (window.__weltraum && window.__weltraum.onEquipShip) window.__weltraum.onEquipShip(id); if (shopOpen) { shopSel = id; renderShop(); } refreshVersusListing(); },
     roadsterBoost: function (flip) { return requestRoadsterBoost(!!flip); },
     roadsterBoostState: function () {
       var s = myRoadsterShip();

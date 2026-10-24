@@ -515,6 +515,8 @@ export const de: Translations = {
     missingCoins: 'Nicht genug Münzen! Dir fehlen noch {n}. Spiel ein paar Level!',
     owned: 'Gekauft',
     free: 'Gratis!',
+    freeToClaim: 'Gratis holen',
+    claiming: '{name} wird geholt…',
     select: 'Auswählen',
     getFree: 'Gratis holen!',
     buyFor: 'Kaufen für',

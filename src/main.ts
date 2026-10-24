@@ -35,6 +35,7 @@ import {
   type SignInOpts,
 } from './lib/firebase-auth';
 import { mergeCoins, shouldAcceptServerCoins } from './lib/coin-ledger';
+import { canEquip, sanitizeEquipped } from './lib/ship-ownership';
 import { loadPeerConstructor } from './lib/online-peer';
 import { peerIceConfig } from './lib/peer-ice';
 import {
@@ -131,6 +132,7 @@ export interface WeltraumApi {
   onPurchaseShip: (shipId: string, price: number) => boolean;
   onEquipShip: (shipId: string) => void;
   onClaimShip: (shipId: string) => void;
+  onDebugOwnShip?: (shipId: string) => void;
   roadsters: {
     list: typeof ROADSTERS;
     draw: typeof drawRoadster;
@@ -297,7 +299,11 @@ function syncFromGame(client: SpacetimeClient): void {
   const shop = game.shop();
   const localCoins = BigInt(shop.coins || 0);
 
-  client.syncProgress(progress.unlocked || 1, localCoins, shop.equipped || 'starter');
+  const local = client.getLocalData();
+  const equipped = client.isConnected()
+    ? sanitizeEquipped(local.ownedShips || ['starter'], shop.equipped)
+    : (shop.equipped || 'starter');
+  client.syncProgress(progress.unlocked || 1, localCoins, equipped);
 
   const stars = progress.stars || {};
   for (const [levelStr, starVal] of Object.entries(stars)) {
@@ -307,11 +313,18 @@ function syncFromGame(client: SpacetimeClient): void {
     }
   }
 
-  const local = client.getLocalData();
   local.unlockedLevel = Math.max(local.unlockedLevel || 1, progress.unlocked || 1);
   local.coins = mergeCoins(local.coins, localCoins);
-  local.equippedShip = shop.equipped || 'starter';
-  local.ownedShips = shop.owned || ['starter'];
+  if (client.isConnected()) {
+    const owned = local.ownedShips || ['starter'];
+    const shopOwned = shop.owned || ['starter'];
+    local.ownedShips = shopOwned.filter((id) => owned.includes(id));
+    if (!local.ownedShips.length) local.ownedShips = ['starter'];
+    local.equippedShip = sanitizeEquipped(local.ownedShips, shop.equipped);
+  } else {
+    local.equippedShip = shop.equipped || 'starter';
+    local.ownedShips = shop.owned || ['starter'];
+  }
   if (shop.up) local.upgrades = shop.up;
   client.saveLocalData(local);
 }
@@ -364,8 +377,12 @@ function adoptGameProgress(client: SpacetimeClient): number {
   local.unlockedLevel = unlocked;
   if (shop) {
     local.coins = mergeCoins(local.coins, BigInt(shop.coins || 0));
-    local.equippedShip = shop.equipped || local.equippedShip;
-    local.ownedShips = shop.owned || local.ownedShips;
+    if (client.isConnected()) {
+      local.equippedShip = sanitizeEquipped(local.ownedShips || ['starter'], shop.equipped || local.equippedShip);
+    } else {
+      local.equippedShip = shop.equipped || local.equippedShip;
+      local.ownedShips = shop.owned || local.ownedShips;
+    }
     if (shop.up) local.upgrades = shop.up;
   }
   client.saveLocalData(local);
@@ -403,9 +420,24 @@ async function afterProgressReady(client: SpacetimeClient): Promise<void> {
   pushLocalName(client);
   await client.reconcileWithServer();
   applyHigherServerCoins(client);
+  applyHangarFromCache(client);
   const cap = Math.max(unlocked, client.getLocalData().unlockedLevel || 1);
   prefetchUnlocked(cap);
   notifyAccount();
+}
+
+function applyHangarFromCache(client: SpacetimeClient): void {
+  const local = client.getLocalData();
+  const game = window.__spaceGame;
+  game?.applyRemoteProgress?.({
+    coins: Number(local.coins),
+    unlocked: local.unlockedLevel,
+    ships: local.ownedShips,
+    equipped: sanitizeEquipped(local.ownedShips, local.equippedShip),
+    upgrades: local.upgrades,
+    achievements: local.achievements,
+    replace: true,
+  });
 }
 
 function pushLocalName(client: SpacetimeClient): void {
@@ -620,14 +652,52 @@ function installApi(client: SpacetimeClient): WeltraumApi {
         heartsLeft: result.heartsLeft,
         mode: loadDifficulty(),
       });
+      const remote = await client.fetchMyProgress();
+      if (remote) applyServerTruth(client, remote);
       showGameSync(out.ok ? 'saved' : 'error');
       return out;
     },
-    onPurchaseShip: (shipId, price) => client.purchaseShip(shipId, BigInt(price)),
-    onEquipShip: (shipId) => client.equipShip(shipId),
-    onClaimShip: (shipId) => {
-      client.addOwnedShip(shipId);
+    onPurchaseShip: (shipId, price) => {
+      void (async () => {
+        const ok = await client.purchaseAndRefresh(shipId, BigInt(price));
+        const remote = await client.fetchMyProgress();
+        if (remote) applyServerTruth(client, remote);
+        if (!ok) console.warn('[Weltraum] purchase rejected or not owned after refresh', shipId);
+      })();
+      return true;
+    },
+    onEquipShip: (shipId) => {
+      if (!canEquip(client.getLocalData().ownedShips || ['starter'], shipId)) {
+        console.warn('[Weltraum] equip skipped, not in ownedShip', shipId);
+        const local = client.getLocalData();
+        const game = window.__spaceGame;
+        game?.applyRemoteProgress?.({
+          coins: Number(local.coins),
+          unlocked: local.unlockedLevel,
+          ships: local.ownedShips,
+          equipped: sanitizeEquipped(local.ownedShips, local.equippedShip),
+          upgrades: local.upgrades,
+          achievements: local.achievements,
+          replace: true,
+        });
+        return;
+      }
       client.equipShip(shipId);
+    },
+    onClaimShip: (shipId) => {
+      void (async () => {
+        const owned = await client.claimUnlockAndRefresh(shipId);
+        const remote = await client.fetchMyProgress();
+        if (remote) applyServerTruth(client, remote);
+        if (owned) client.equipShip(shipId);
+      })();
+    },
+    onDebugOwnShip: (shipId) => {
+      const local = client.getLocalData();
+      if (!local.ownedShips.includes(shipId)) {
+        local.ownedShips.push(shipId);
+        client.saveLocalData(local);
+      }
     },
     peerIce: peerIceConfig(),
     roadsters: {

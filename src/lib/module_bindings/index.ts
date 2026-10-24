@@ -50,6 +50,7 @@ import AdminSetTestFlagReducer from "./admin_set_test_flag_reducer";
 import AdminUnbanReducer from "./admin_unban_reducer";
 import AdminUnlockLevelReducer from "./admin_unlock_level_reducer";
 import ApplySecretCodeReducer from "./apply_secret_code_reducer";
+import ClaimEarnedUnlocksReducer from "./claim_earned_unlocks_reducer";
 import ClaimUnlockShipReducer from "./claim_unlock_ship_reducer";
 import ClaimVersusQueueReducer from "./claim_versus_queue_reducer";
 import ClosePublicRoomReducer from "./close_public_room_reducer";
@@ -194,6 +195,7 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_unban", AdminUnbanReducer),
   __reducerSchema("admin_unlock_level", AdminUnlockLevelReducer),
   __reducerSchema("apply_secret_code", ApplySecretCodeReducer),
+  __reducerSchema("claim_earned_unlocks", ClaimEarnedUnlocksReducer),
   __reducerSchema("claim_unlock_ship", ClaimUnlockShipReducer),
   __reducerSchema("claim_versus_queue", ClaimVersusQueueReducer),
   __reducerSchema("close_public_room", ClosePublicRoomReducer),

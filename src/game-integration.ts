@@ -258,8 +258,11 @@ function hookGameEvents(): void {
         
         const localData = client.getLocalData();
         localData.coins = coins;
-        localData.equippedShip = equipped;
-        localData.ownedShips = shop?.owned || ['starter'];
+        const have = localData.ownedShips || ['starter'];
+        const shopOwned = shop?.owned || ['starter'];
+        localData.ownedShips = shopOwned.filter((id) => have.includes(id));
+        if (!localData.ownedShips.length) localData.ownedShips = ['starter'];
+        localData.equippedShip = have.includes(equipped) ? equipped : (localData.ownedShips[0] || 'starter');
         localData.upgrades = shop?.up || {};
         localData.language = currentLang;
         client.saveLocalData(localData);
