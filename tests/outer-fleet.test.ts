@@ -101,10 +101,10 @@ describe('250-level bosses and Kaiser split', () => {
     expect(l100.hp).toBe(9000);
     expect(l100.prime).toBeFalsy();
     expect(l250.type).toBe('emperor');
-    expect(l250.hp).toBe(20000);
+    expect(l250.hp).toBe(60000);
     expect(l250.prime).toBe(true);
     expect(HTML).toMatch(/if \(L === 100\) return \{ type: "emperor", hp: 9000/);
-    expect(HTML).toMatch(/if \(L === 250\) return \{ type: "emperor", hp: 20000/);
+    expect(HTML).toMatch(/if \(L === 250\) return \{ type: "emperor", hp: PRIME_KAISER_HP/);
     expect(HTML).toContain('spec.prime');
     expect(HTML).toContain('if (b.prime)');
   });
@@ -181,7 +181,7 @@ describe('250-level bosses and Kaiser split', () => {
     expect(bossForLevel(100)?.type).toBe('emperor');
     expect(bossForLevel(250)?.type).toBe('emperor');
     expect(bossForLevel(100)?.hp).toBe(9000);
-    expect(bossForLevel(250)?.hp).toBe(20000);
+    expect(bossForLevel(250)?.hp).toBe(60000);
   });
 
   it('gives every Outer Fleet ship a unique silhouette baked into HTML kits', () => {

@@ -206,8 +206,22 @@ const NEW_BOSSES: Record<number, { type: string; en: string; de: string; sector?
   243: { type: 'art', en: 'HALO SENTINEL', de: 'HALO-WÄCHTER' },
   246: { type: 'art', en: 'ICE DWARF MECH', de: 'EISZWERG-MECH' },
   249: { type: 'art', en: 'VOID HERALD', de: 'LEEREN-HEROLD' },
-  250: { type: 'emperor', en: 'WELTRAUM KAISER: STAR CROWN', de: 'WELTRAUM-KAISER: STERNENKRONE', sector: true, finale: true, hp: 20000, prime: true },
+  250: { type: 'emperor', en: 'WELTRAUM KAISER: STAR CROWN', de: 'WELTRAUM-KAISER: STERNENKRONE', sector: true, finale: true, hp: 60000, prime: true },
 };
+
+/** Catalog HP for the L250 prime Kaiser. In-fight HP still multiplies by heat() and TUNE_BOSS. */
+export const PRIME_KAISER_HP = 60000;
+export const PRIME_KAISER_PHASES = 10;
+/** HP fraction cutoffs: a new phase starts each time remaining HP crosses one of these. */
+export const PRIME_KAISER_THRESHOLDS = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1] as const;
+
+export function primeKaiserPhase(hpFrac: number): number {
+  const fr = Math.max(0, Math.min(1, hpFrac));
+  for (let i = 0; i < PRIME_KAISER_THRESHOLDS.length; i++) {
+    if (fr > PRIME_KAISER_THRESHOLDS[i]) return i + 1;
+  }
+  return PRIME_KAISER_PHASES;
+}
 
 function remixHp(L: number): number {
   return Math.round(330 + 17 * (L - 18));

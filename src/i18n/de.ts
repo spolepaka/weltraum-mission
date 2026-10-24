@@ -1,6 +1,7 @@
 import type { Translations } from './types';
 import { bossNamesForLang } from '../lib/boss-catalog';
 import { outerI18n } from '../lib/outer-ships';
+import { specialI18n } from '../lib/special-ships';
 
 export const de: Translations = {
   title: 'Weltraum-Mission',
@@ -111,6 +112,7 @@ export const de: Translations = {
     apexflash: { name: 'Roadster Founders-Serie', perk: 'Zielsuch-Salve + Schildpuls', desc: 'Tesla Roadster Founders-Serie. Chrom-Gold, der große Heckflügel vom offiziellen Raketen-Foto, volle SpaceX-Düsenreihe, dreifach zielsuchend und ein Schildpuls, der Bomben in der Nähe knallt.' },
     amelia: { name: 'Amelia', perk: 'Freund-Schiff', desc: 'Ein Freund-Schiff für Spieler 2.' },
     ...outerI18n('de'),
+    ...specialI18n('de'),
   },
   achievements: 'Erfolge',
   achievementsTitle: 'Erfolge',
@@ -695,6 +697,16 @@ export const de: Translations = {
     phase5e: '🟥 PHASE 5: Laser-Gitter & Raketen!',
     phase6: '🌀 PHASE 6: Schwerkraft-Sturm!',
     phase7: '⚡ PHASE 7: ALLES AUF EINMAL! ⚡ Fast geschafft – gib alles!',
+    primePhase1: 'Phase 1/10 — Sperrfeuer!',
+    primePhase2: 'Phase 2/10 — Gezielte Schüsse!',
+    primePhase3: 'Phase 3/10 — Laser-Feger!',
+    primePhase4: 'Phase 4/10 — Helfer!',
+    primePhase5: 'Phase 5/10 — Schildwand!',
+    primePhase6: 'Phase 6/10 — Schwarm!',
+    primePhase7: 'Phase 7/10 — Kronen-Sprint!',
+    primePhase8: 'Phase 8/10 — Raketensturm!',
+    primePhase9: 'Phase 9/10 — Gitter-Sperre!',
+    primePhase10: 'Phase 10/10 — Sternenfall!',
     gotIt: 'Verstanden',
     coachShop: 'Du hast {n} Münzen! Schau im Shop nach einem neuen Schiff.',
     coachLosses: 'Probier ein stärkeres Schiff oder ein Upgrade im Shop.',

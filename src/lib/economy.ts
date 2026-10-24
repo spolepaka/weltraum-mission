@@ -4,6 +4,7 @@
  */
 
 import { OUTER_SHIPS, outerUnlockMap } from './outer-ships';
+import { SPECIAL_SHIPS, specialSalePrice, specialUnlockMap } from './special-ships';
 
 export const MAX_LEVEL = 250;
 
@@ -14,6 +15,7 @@ export const UNLOCK_SALE_PRICES: Record<string, number> = {
   hydra: 42000,
   regenbogen: 36000,
   kaiserbrecher: 90000,
+  ...Object.fromEntries(SPECIAL_SHIPS.map((s, i) => [s.id, specialSalePrice(i)])),
 };
 
 /** Outer Fleet: ~2×+ the old curve, steepest for the last ships. */
@@ -59,6 +61,7 @@ export const SHIP_PRICES: Record<string, number> = {
   chromewasp: 45000,
   apexflash: 148000,
   ...Object.fromEntries(OUTER_SHIPS.map((s, i) => [s.id, outerSalePrice(i)])),
+  ...Object.fromEntries(SPECIAL_SHIPS.map((s, i) => [s.id, specialSalePrice(i)])),
 };
 
 export const UPGRADE_PRICES: Record<string, number[]> = {
@@ -83,6 +86,7 @@ export const UNLOCK_SHIPS: Record<string, { level?: number; ach?: string }> = {
   kaiserbrecher: { level: 90 },
   regenbogen: { ach: 'combo25' },
   ...outerUnlockMap(),
+  ...specialUnlockMap(),
 };
 
 export function isBossLevel(level: number): boolean {

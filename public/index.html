@@ -997,7 +997,9 @@
   function isSectorBoss(L) { return !!SECTOR_BOSS[L]; }
   // ---------- Schwierigkeit ab Level 19 ("Hitze"), per Balance-Test in 3er-Gruppen eingestellt (siehe levels-log.md) ----------
   var TUNE = { 19: 1.45, 22: 1.45, 25: 1.45, 28: 1.1, 37: 1.45, 40: 1.26, 46: 1.26, 49: 1.15, 52: 1.26, 55: 1.1, 61: 1.15, 64: 1.26, 67: 1.26, 70: 1.38, 73: 1.15, 76: 1.59, 82: 1.26, 91: 1.52, 94: 1.26, 97: 1.54 }; // Gruppe (erstes Level der 3er-Gruppe) -> Faktor
-  var TUNE_BOSS = { 33: 0.6, 57: 0.9, 60: 0.9, 72: 0.85, 81: 0.65, 84: 0.85, 90: 0.8, 100: 0.9, 120: 0.88, 150: 0.86, 174: 0.85, 198: 0.84, 225: 0.83, 250: 0.82 }; // v30: weniger Herzen → 90/100 etwas leichter; 250 etwas milder, weil der Prime-Kaiser größer und stärker ist
+  var TUNE_BOSS = { 33: 0.6, 57: 0.9, 60: 0.9, 72: 0.85, 81: 0.65, 84: 0.85, 90: 0.8, 100: 0.9, 120: 0.88, 150: 0.86, 174: 0.85, 198: 0.84, 225: 0.83, 250: 1 }; // v30: weniger Herzen → 90/100 etwas leichter; 250 full heat — 10-phase prime Kaiser
+  var PRIME_KAISER_HP = 60000, PRIME_KAISER_PHASES = 10, PRIME_KAISER_THRESHOLDS = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
+  function primeKaiserPhase(fr) { var i; for (i = 0; i < PRIME_KAISER_THRESHOLDS.length; i++) if (fr > PRIME_KAISER_THRESHOLDS[i]) return i + 1; return PRIME_KAISER_PHASES; }
   var TUNE_ATK = { 33: 0.65, 57: 0.9, 72: 0.85, 81: 0.7, 84: 0.85, 60: 0.85, 90: 0.4 }; // Sektor-Bosse: weniger Angriffe statt weniger HP
   var TUNE_MOD = { 60: 2.5, 90: 2.5 }; // + halb so viele Steine während des Kampfs // Abstand zwischen Boss-Tricks (Minen, Lenkraketen …) x Faktor // Level -> extra Boss-Faktor (Level 100: Robo-Kaiser, Ziel 20–40 % Siegchance mit dem besten Schiff)
   function heat(L) { L = L || level; if (L < 19) return 1; if (L <= 100) { var b = 19 + 3 * Math.floor((L - 19) / 3); return (1.3 + 0.5 * Math.min(1, (L - 19) / 80)) * (TUNE[b] || 1) * (TUNE_L[L] || 1); } return (1.72 + 0.48 * ((L - 100) / 150)) * (TUNE_L[L] || 1); }
@@ -1012,7 +1014,7 @@
     if (L <= 15) { var o = BOSS_TYPES[L] || ["saucer", 25 + L * 2, 90, "BOSS"]; return { type: o[0], hp: o[1], speed: o[2], name: locBossForLevel(L, o[3]), mods: [], tint: null }; }
     var sec = SECTORS[secIdx(L)];
     if (L === 100) return { type: "emperor", hp: 9000, speed: 70, name: locBossForLevel(100, "ROBO-KAISER: FINALE FORM"), mods: [], tint: null, final: true, sector: true };
-    if (L === 250) return { type: "emperor", hp: 20000, speed: 70, name: locBossForLevel(250, "WELTRAUM-KAISER: STERNENKRONE"), mods: [], tint: null, final: true, sector: true, prime: true };
+    if (L === 250) return { type: "emperor", hp: PRIME_KAISER_HP, speed: 70, name: locBossForLevel(250, "WELTRAUM-KAISER: STERNENKRONE"), mods: [], tint: null, final: true, sector: true, prime: true };
     var fixed = { 18: ["kraken", 820, "GREIFARM-MUTTERSCHIFF"], 30: ["station", 1900, "NEBEL-FESTUNG"], 45: ["scorpion", 2700, "FROST-GESCHÜTZKREUZER"], 60: ["sun", 3700, "SONNEN-TITAN"], 75: ["golem", 4300, "KRISTALL-ASTEROIDENBASIS"], 90: ["guardian", 5400, "SCHWARZLOCH-WÄCHTER"] }[L];
     var rng = srand(L * 7919 + 13);
     var mpool = sshuffle(["laser", "drones", "missiles", "minions", "rain", "holes", "grid", "wells", "snipers", "mines", "flare"], rng);
@@ -1051,6 +1053,7 @@
     curStats = shipStats(); coinsArr = []; coinsRun = 0;
     // Universums-Titan war in Level 13–17 zu stark: dort lädt sein Schild langsamer und die Drohnen treffen schwächer
     if (shop.equipped === "kaiserbrecher" && (L === 100 || L === 250)) curStats = Object.assign({}, curStats, { dmg: curStats.dmg * 1.6 }); // gebaut, um den Kaiser zu brechen
+    if (shop.equipped === "voidcrown" && L === 250) curStats = Object.assign({}, curStats, { dmg: curStats.dmg * 1.6 });
     if (shop.equipped === "uni" && L >= 13 && L <= 17) curStats = Object.assign({}, curStats, { regen: 20, orbitK: 0.6 });
     TRIPLE_TIME = 10 * curStats.dur; LASER_TIME = 6 * curStats.dur; MAGNET_TIME = 10 * curStats.dur;
     MAXLIVES = Math.max(1, curStats.hearts + modeTune().extraHearts); regenT = curStats.regen; // Herzen nie über das Maximum des Schiffs
@@ -1622,12 +1625,87 @@
   }
   function laserOrigin() { return { x: boss.x, y: boss.y + (boss.type === "emperor" ? 8 * boss.k : 30) }; }
   function laserTipX() { var L = boss.laser; return L.phase === "fire" ? L.tx0 + (L.tx1 - L.tx0) * Math.min(1, L.t / L.fireDur) : L.tx0; }
+  function primeKaiserFight(dt) {
+    var b = boss, fr = b.hp / b.maxHp, rp = primeKaiserPhase(fr), k = b.k, cy = b.y + 8 * k, tg = aimTarget(b.x, b.y);
+    b.bph = rp;
+    if (rp !== b.phase) {
+      b.phase = rp; b.laserCd = 1.2; SFX.boss(); shake = 0.45;
+      var pmsg = tr("tips.primePhase" + rp);
+      showMsg(pmsg !== ("tips.primePhase" + rp) ? pmsg : ("Phase " + rp + "/" + PRIME_KAISER_PHASES), "boss", 2.2);
+      if (rp >= 8) b.atk = Math.max(b.atk || 1, 1.35 + (rp - 8) * 0.15);
+    }
+    b.fx1 = (b.fx1 === undefined ? 2 : b.fx1) - dt;
+    b.fx2 = (b.fx2 === undefined ? 4 : b.fx2) - dt;
+    b.fx3 = (b.fx3 === undefined ? 5 : b.fx3) - dt;
+    b.dashT = (b.dashT === undefined ? 3 : b.dashT) - dt;
+    if (rp === 1) {
+      if (b.bombTimer <= 0) { b.bombTimer = 1.55; [-70, 0, 70].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 105); }); }
+    } else if (rp === 2) {
+      if (b.bombTimer <= 0) {
+        b.bombTimer = 1.05;
+        var dx = tg.x - b.x, dy = Math.max(80, tg.y - cy), d = Math.sqrt(dx * dx + dy * dy);
+        dropBomb(b.x, cy + 36 * k, dx / d * 90, 140);
+      }
+    } else if (rp === 3) {
+      if (b.laserCd <= 0) { startBossLaser(); return; }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.8; [-40, 40].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 110); }); }
+    } else if (rp === 4) {
+      if (b.bombTimer <= 0) { b.bombTimer = 1.35; [-1, 1].forEach(function (sd) { dropBomb(b.x + sd * 120 * k, b.y - 40 * k, sd * 40, 115); }); }
+      if (b.fx1 <= 0) { b.fx1 = 4.2; spawnUfo(); spawnUfo(); }
+    } else if (rp === 5) {
+      if (b.bombTimer <= 0) { b.bombTimer = 1.7; [-50, 0, 50].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 100); }); }
+    } else if (rp === 6) {
+      if (b.bombTimer <= 0) { b.bombTimer = 1.4; [-90, -30, 30, 90].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 115); }); }
+      if (b.fx1 <= 0) { b.fx1 = 3.4; spawnUfo(); spawnUfo(); spawnUfo(); }
+      if (b.fx2 <= 0 && drones.length < 5) {
+        b.fx2 = 3.2;
+        [-1, 1].forEach(function (sd) { if (drones.length < 5) drones.push({ x: b.x + sd * 125 * k, y: b.y - 30 * k, vx: sd * 40, t: 0, warn: 0.6 }); });
+      }
+    } else if (rp === 7) {
+      if (b.dashT <= 0) {
+        b.dashT = 4.4;
+        var nx = Math.max(70, Math.min(W - 70, tg.x + (tg.x < W / 2 ? 160 : -160)));
+        var di;
+        for (di = 1; di <= 4; di++) dropBomb(b.x + (nx - b.x) * (di / 5), cy + 36 * k, (di - 2.5) * 28, 125);
+        explode(b.x, b.y, 28, FIRE, 160); b.x = nx; explode(b.x, b.y, 36, ["#ffd54a", "#ffffff"], 200); tone(180, 80, 0.2, "sawtooth", 0.08);
+      }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.2; dropBomb(b.x, cy + 40 * k, (tg.x - b.x) * 0.25, 130); }
+    } else if (rp === 8) {
+      if (b.laserCd <= 0) { startBossLaser(); return; }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.15; [-80, 0, 80].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 120); }); }
+      if (b.fx2 <= 0) {
+        b.fx2 = 5.5;
+        if (drones.filter(function (d) { return d.missile; }).length < 5)
+          [0, 1, 2].forEach(function (q) { drones.push({ missile: true, x: rnd(50, W - 50), y: -20 - q * 40, vx: 0, t: 0, warn: 0.7 }); });
+      }
+    } else if (rp === 9) {
+      if (b.fx1 <= 0) { b.fx1 = 10; if (!grid && !flare) startGrid(); }
+      if (b.fx3 <= 0) { b.fx3 = 8; if (ufos.filter(function (u) { return u.sniper && !u.dead; }).length < 2) spawnSniper(); }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.0; [-110, -55, 0, 55, 110].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 120); }); }
+    } else {
+      if (b.laserCd <= 0) { startBossLaser(); return; }
+      if (b.bombTimer <= 0) { b.bombTimer = 0.72; [-120, -60, 0, 60, 120].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 130); }); }
+      if (b.fx1 <= 0) { b.fx1 = 8; if (!grid && !flare) startGrid(); }
+      if (b.fx2 <= 0) {
+        b.fx2 = 4.2;
+        if (drones.filter(function (d) { return d.missile; }).length < 6)
+          [0, 1].forEach(function (q) { drones.push({ missile: true, x: rnd(40, W - 40), y: -18 - q * 36, vx: 0, t: 0, warn: 0.55 }); });
+        spawnUfo(); spawnUfo();
+        if (drones.length < 6) [-1, 1].forEach(function (sd) { if (drones.length < 6) drones.push({ x: b.x + sd * 130 * k, y: b.y - 30 * k, vx: sd * 50, t: 0, warn: 0.45 }); });
+      }
+      if (b.dashT <= 0) {
+        b.dashT = 3.4;
+        explode(b.x, b.y, 32, FIRE, 180); b.x = Math.max(70, Math.min(W - 70, rnd(80, W - 80))); explode(b.x, b.y, 40, ["#ffd54a", "#ff3a5a"], 220);
+      }
+      if (b.fx3 <= 0) { b.fx3 = 9; if (ufos.filter(function (u) { return u.sniper && !u.dead; }).length < 3) spawnSniper(); }
+    }
+  }
   function bossAttack(dt) {
     var b = boss;
     if (b.laser) {
       var L = b.laser; L.t += dt;
       if (L.phase === "warn" && L.t >= L.warnDur) { L.phase = "fire"; L.t = 0; noise(1.1, 0.12, 3000); tone(150, 120, 1.1, "sawtooth", 0.08); }
-      else if (L.phase === "fire" && L.t >= L.fireDur) { b.laser = null; b.laserCd = b.type === "emperor" ? ((b.bph || b.phase) === 5 ? (b.phase === 7 ? 2.4 : 2.8) : (b.bph || b.phase) === 4 ? 3.1 : (b.bph || b.phase) === 3 ? 5 : 3.6) : b.type === "guardian" ? 4.6 : b.type === "crystal" ? (b.hp / b.maxHp < 0.5 ? 4 : 5.5) : 4.5; }
+      else if (L.phase === "fire" && L.t >= L.fireDur) { b.laser = null; b.laserCd = b.prime ? (b.phase >= 10 ? 1.35 : b.phase >= 9 ? 1.7 : b.phase >= 8 ? 2.1 : b.phase === 3 ? 1.9 : 3.2) : b.type === "emperor" ? ((b.bph || b.phase) === 5 ? (b.phase === 7 ? 2.4 : 2.8) : (b.bph || b.phase) === 4 ? 3.1 : (b.bph || b.phase) === 3 ? 5 : 3.6) : b.type === "guardian" ? 4.6 : b.type === "crystal" ? (b.hp / b.maxHp < 0.5 ? 4 : 5.5) : 4.5; }
       return;
     }
     b.bombTimer -= dt; b.spreadT -= dt; b.laserCd -= dt;
@@ -1716,6 +1794,8 @@
       if (holes.length === 0 && b.summonCd <= 0) { b.summonCd = gul ? 11 : 15; spawnHole(aimTarget(b.x, b.y).x < W / 2 ? W * 0.82 : W * 0.18, H * 0.48); holes[holes.length - 1].vy = 8; explode(holes[holes.length - 1].x, holes[holes.length - 1].y, 30, PURPLE, 200); tone(120, 40, 1, "sine", 0.15); }
       if (b.spreadT <= 0) { b.spreadT = gul ? 13 : 17; if (!grid && !flare) startGrid(); }
     } else if (b.type === "emperor") {
+      if (b.prime) { primeKaiserFight(dt); }
+      else {
       var fr = b.hp / b.maxHp, ph = fr > 0.8 ? 1 : fr > 0.6 ? 2 : fr > 0.4 ? 3 : fr > 0.15 ? 4 : 5, k = b.k, cy = b.y + 8 * k, rp = ph;
       if (b.final) { rp = fr > 0.86 ? 1 : fr > 0.72 ? 2 : fr > 0.58 ? 3 : fr > 0.44 ? 4 : fr > 0.3 ? 5 : fr > 0.15 ? 6 : 7; ph = [1, 2, 3, 4, 4, 5, 5][rp - 1]; }
       b.bph = ph;
@@ -1729,12 +1809,6 @@
         if (b.fx1 <= 0) { b.fx1 = 17; if (!grid && !flare) startGrid(); }
         if (b.fx2 <= 0) { b.fx2 = 8; if (drones.filter(function (d) { return d.missile; }).length < ((b.modK || 1) > 1 ? 2 : 3)) ((b.modK || 1) > 1 ? [0] : [0, 1]).forEach(function (q) { drones.push({ missile: true, x: rnd(60, W - 60), y: -20 - q * 50, vx: 0, t: 0, warn: 1 }); }); }
         if (rp >= 6 && b.fx3 <= 0) { b.fx3 = rp === 7 ? 10 : 13; if (rp === 6) startStorm(); else if (ufos.filter(function (u) { return u.sniper && !u.dead; }).length < 2) spawnSniper(); }
-      }
-      if (b.prime) {
-        b.fx4 = (b.fx4 === undefined ? 4 : b.fx4) - dt; b.fx5 = (b.fx5 === undefined ? 7 : b.fx5) - dt;
-        if (b.fx4 <= 0) { b.fx4 = rp >= 6 ? 6 : 9; [-90, 0, 90].forEach(function (vx) { dropBomb(b.x + vx * 0.4, cy + 50 * k, vx * 0.6, 120); }); }
-        if (b.fx5 <= 0) { b.fx5 = 11; if (drones.filter(function (d) { return d.missile; }).length < 4) drones.push({ missile: true, x: rnd(50, W - 50), y: -24, vx: 0, t: 0, warn: 0.8 }); }
-        if (rp >= 7) b.atk = Math.max(b.atk || 1, 1.45);
       }
       if (ph === 1) { if (b.bombTimer <= 0) { b.bombTimer = 1.9; [-50, 0, 50].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 100); }); } }
       else {
@@ -1762,6 +1836,7 @@
             tone(900, 500, 0.25, "square", 0.05);
           }
         }
+      }
       }
     } else if (b.type === "art" || b.type === "forge" || b.type === "foundry" || b.type === "vault" || b.type === "ringfleet" || b.type === "stormcore") {
       var late = b.hp / b.maxHp < 0.5;
@@ -2056,8 +2131,9 @@
     // Energie-Schild: erst Warnung (blinkt), dann 3 s an
     if (b.shield) {
       b.shield.t += dt;
+      var onDur = b.prime ? (b.phase === 5 ? 4.4 : b.phase >= 9 ? 3.6 : 3.4) : 3;
       if (b.shield.phase === "warn" && b.shield.t >= 1.4) { b.shield.phase = "on"; b.shield.t = 0; tone(500, 900, 0.3, "sine", 0.08); }
-      else if (b.shield.phase === "on" && b.shield.t >= 3) { b.shield = null; b.shieldCd = b.phase >= 4 ? 6.5 : 8.5; tone(900, 400, 0.3, "sine", 0.06); }
+      else if (b.shield.phase === "on" && b.shield.t >= onDur) { b.shield = null; b.shieldCd = b.prime ? (b.phase === 5 ? 3.2 : b.phase >= 8 ? 4.2 : 5.5) : (b.phase >= 4 ? 6.5 : 8.5); tone(900, 400, 0.3, "sine", 0.06); }
     } else {
       b.shieldCd -= dt;
       if (b.shieldCd <= 0) { b.shield = { phase: "warn", t: 0 }; showMsg("🛡️ " + tr("tips.empShield"), "bad", 1.4); tone(700, 700, 0.15, "square", 0.05); }
@@ -3168,9 +3244,9 @@
     ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.fillRect(bx - 3, by - 3, bw + 6, bh + 6);
     ctx.fillStyle = "#5a1a2a"; ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = b.hp / b.maxHp > 0.35 ? (big ? "#ffb02a" : "#ff4a7a") : "#ff5a3a"; ctx.fillRect(bx, by, bw * Math.max(0, b.hp / b.maxHp), bh);
-    if (big) { ctx.fillStyle = "#fff"; (b.final ? [0.15, 0.3, 0.44, 0.58, 0.72, 0.86] : [0.15, 0.4, 0.6, 0.8]).forEach(function (f) { ctx.fillRect(bx + bw * f - 1, by, 2, bh); }); if (b.shield && b.shield.phase === "on") { ctx.strokeStyle = "#7dffea"; ctx.lineWidth = 3; ctx.strokeRect(bx - 4, by - 4, bw + 8, bh + 8); } }
+    if (big) { ctx.fillStyle = "#fff"; (b.prime ? PRIME_KAISER_THRESHOLDS : b.final ? [0.15, 0.3, 0.44, 0.58, 0.72, 0.86] : [0.15, 0.4, 0.6, 0.8]).forEach(function (f) { ctx.fillRect(bx + bw * f - 1, by, 2, bh); }); if (b.shield && b.shield.phase === "on") { ctx.strokeStyle = "#7dffea"; ctx.lineWidth = 3; ctx.strokeRect(bx - 4, by - 4, bw + 8, bh + 8); } }
     ctx.fillStyle = "#fff"; ctx.font = "bold " + (big ? 15 : 13) + "px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText((big ? "👑 " : "") + (b.name || tr("canvas.boss")) + (big ? "  ·  " + tr("game.phase") + " " + b.phase + "/" + (b.final ? 7 : 5) + (b.shield && b.shield.phase === "on" ? " 🛡️" : "") : ""), W / 2, by + bh / 2);
+    ctx.fillText((big ? "👑 " : "") + (b.name || tr("canvas.boss")) + (big ? "  ·  " + tr("game.phase") + " " + b.phase + "/" + (b.prime ? PRIME_KAISER_PHASES : b.final ? 7 : 5) + (b.shield && b.shield.phase === "on" ? " 🛡️" : "") : ""), W / 2, by + bh / 2);
   }
   function drawTwinMark(x, y) {
     ctx.save(); ctx.strokeStyle = "rgba(125,255,170,.7)"; ctx.lineWidth = 2; ctx.setLineDash([4, 5]);
@@ -6031,7 +6107,31 @@
     { id: "charongate", name: "Charon-Tor", tier: 6, price: 2060000, unlock: { L: 245 }, hearts: 15, speed: 2.24, rate: 0.115, shots: 5, dmg: 14.36, regen: 12, perk: "nova", perk2: "clone", bullet: "hsl(240,85%,70%)",
       flame: ["255,255,255","128,190,255","58,70,200"], engines: [[0, 30, 1]], perkText: "Nova + Klon", desc: "Öffnet einen Tor-Klon auf der anderen Seite." },
     { id: "starcrown", name: "Sternenkrone", tier: 6, price: 2500000, unlock: { L: 250 }, hearts: 16, speed: 2.26, rate: 0.114, shots: 5, dmg: 14.58, regen: 16, perk: "omega", perk2: "timeslow", drones: 4, bullet: "hsl(281,85%,70%)",
-      flame: ["255,255,255","140,200,255","59,70,200"], engines: [[0, 30, 1]], perkText: "Omega-Krone + 4 Drohnen", desc: "Belohnung für den Weltraum-Kaiser auf 250! Kronen-Schüsse suchen und durchschlagen." }
+      flame: ["255,255,255","140,200,255","59,70,200"], engines: [[0, 30, 1]], perkText: "Omega-Krone + 4 Drohnen", desc: "Belohnung für den Weltraum-Kaiser auf 250! Kronen-Schüsse suchen und durchschlagen." },
+    { id: "phobosclaw", name: "Phobos-Klaue", tier: 4, price: 240000, unlock: { L: 108 }, hearts: 12, speed: 1.9, rate: 0.15, shots: 3, dmg: 8.8, regen: 12, perk: "quake", perk2: "pulse", bullet: "#ff8a40",
+      flame: ["255,230,200","255,120,50","140,30,10"], engines: [[0, 30, 1]], perkText: "Beben-Klaue + Schildpuls", desc: "Spezial-Belohnung nach den ersten Außen-Docks. Zwillingsklauen erschüttern die Bahn und stoßen einen Schildpuls aus." },
+    { id: "dockfang", name: "Dock-Fangzahn", tier: 4, price: 356000, unlock: { L: 123 }, hearts: 12, speed: 1.94, rate: 0.146, shots: 3, dmg: 9.38, regen: 12, perk: "beam", drones: 2, bullet: "#fff27a",
+      flame: ["255,255,220","255,210,80","40,70,220"], engines: [[0, 30, 1]], perkText: "Sonnenstrahl + 2 Dock-Drohnen", desc: "Ein Trockendock-Fangzahn mit Dauerstrahl und zwei Kran-Drohnen." },
+    { id: "slagheart", name: "Schlackenherz", tier: 4, price: 484000, unlock: { L: 141 }, hearts: 13, speed: 1.97, rate: 0.143, shots: 3, dmg: 9.96, regen: 13, perk: "nova", perk2: "breath", bullet: "#ff6a2a",
+      flame: ["255,240,200","255,90,30","160,20,10"], engines: [[0, 30, 1]], perkText: "Nova-Herz + Feuer-Welle", desc: "Ein schmelzendes Herz aus der Titan-Gießerei. Nova-Schüsse, dann eine Feuer-Welle." },
+    { id: "titanbrand", name: "Titan-Brand", tier: 4, price: 624000, unlock: { L: 153 }, hearts: 13, speed: 2.01, rate: 0.139, shots: 4, dmg: 10.54, regen: 13, perk: "omega", perk2: "breath", bullet: "#ffb02a",
+      flame: ["255,255,220","255,176,42","180,40,10"], engines: [[0, 30, 1]], perkText: "Omega-Brand + Feuer-Welle", desc: "Gießerei-Königs-Spezial. Omega-Schüsse plus eine riesige Feuer-Welle." },
+    { id: "icewisp", name: "Eisgeist", tier: 4, price: 776000, unlock: { L: 162 }, hearts: 14, speed: 2.04, rate: 0.136, shots: 4, dmg: 11.12, regen: 14, perk: "phase", perk2: "frostaura", bullet: "#bff4ff",
+      flame: ["255,255,255","180,240,255","80,160,220"], engines: [[0, 30, 1]], perkText: "Phasen-Gleiten + Frost-Aura", desc: "Ein Europa-Geist. Schüsse gleiten durch Eis, ein Kältefeld bremst Bomben." },
+    { id: "vaultmind", name: "Tresor-Geist", tier: 4, price: 940000, unlock: { L: 174 }, hearts: 14, speed: 2.08, rate: 0.132, shots: 4, dmg: 11.7, regen: 14, perk: "pierce", perk2: "gravity", drones: 2, bullet: "#ffe066",
+      flame: ["255,250,220","255,213,74","80,200,180"], engines: [[0, 30, 1]], perkText: "Durchschuss + Schwerkraft + 2 Geist-Drohnen", desc: "Belohnung für den Europa-Tresor-Geist! Ein denkender Tresor, der Gegner anzieht." },
+    { id: "ringsovr", name: "Ring-Souverän", tier: 4, price: 1116000, unlock: { L: 186 }, hearts: 15, speed: 2.12, rate: 0.128, shots: 4, dmg: 12.28, regen: 15, perk: "split", perk2: "wing", bullet: "#ffe066",
+      flame: ["255,255,230","255,213,74","200,140,40"], engines: [[0, 30, 1]], perkText: "Splitter-Ringe + 2 Begleiter", desc: "Saturn-Adel. Jeder Treffer teilt sich in zwei Klingen, zwei Begleiter fliegen mit." },
+    { id: "dreadhalo", name: "Schreckens-Heiligenschein", tier: 4, price: 1304000, unlock: { L: 198 }, hearts: 15, speed: 2.15, rate: 0.125, shots: 5, dmg: 12.86, regen: 15, perk: "homing", perk2: "orbit", drones: 3, bullet: "#c08cff",
+      flame: ["255,240,255","192,140,255","80,40,160"], engines: [[0, 30, 1]], perkText: "Zielsuchend + 3 Heiligenschein-Drohnen", desc: "Belohnung für den Ringflotten-Dreadnought! Ein drehender Heiligenschein mit drei Jäger-Drohnen." },
+    { id: "stormprism", name: "Sturm-Prisma", tier: 4, price: 1504000, unlock: { L: 216 }, hearts: 16, speed: 2.19, rate: 0.121, shots: 5, dmg: 13.44, regen: 16, perk: "prism", perk2: "pulse", bullet: "#ffffff",
+      flame: ["255,255,255","125,255,234","80,160,255"], engines: [[0, 30, 1]], perkText: "Regenbogen-Sturm + Schildpuls", desc: "Ein Uranus-Kristall. Fünf bunte Schüsse und ein Puls, der Bomben in der Nähe knallt." },
+    { id: "uranusarc", name: "Uranus-Bogen", tier: 4, price: 1716000, unlock: { L: 228 }, hearts: 16, speed: 2.22, rate: 0.118, shots: 5, dmg: 14.02, regen: 16, perk: "beam", perk2: "timeslow", bullet: "#7dffff",
+      flame: ["230,255,255","80,230,220","20,90,100"], engines: [[0, 30, 1]], perkText: "Strahl + Zeitlupe", desc: "Ein seitlicher Blitzbogen. Hält einen Strahl und bremst die Zeit, wenn Gefahr nah ist." },
+    { id: "kuiperfang", name: "Kuiper-Fangzahn", tier: 4, price: 1940000, unlock: { L: 237 }, hearts: 17, speed: 2.26, rate: 0.114, shots: 5, dmg: 14.6, regen: 17, perk: "pierce", perk2: "timeslow", bullet: "#d8e8ff",
+      flame: ["255,255,255","180,210,255","80,80,160"], engines: [[0, 30, 1]], perkText: "Durchschuss + Zeitlupen-Fangzahn", desc: "Ein Kuiper-Eis-Fangzahn. Durchschlägt alles und bremst die Bahn." },
+    { id: "voidcrown", name: "Leeren-Krone", tier: 4, price: 2176000, unlock: { L: 248 }, hearts: 17, speed: 2.3, rate: 0.11, shots: 5, dmg: 15.2, regen: 17, perk: "omega", perk2: "clone", drones: 4, bullet: "#ffd54a",
+      flame: ["255,255,255","200,140,255","255,213,74"], engines: [[0, 30, 1]], perkText: "Omega + Klon + 4 Drohnen + 1,6x gegen den Sternenkronen-Kaiser", desc: "Gebaut, um den Level-250-Kaiser zu besiegen. Kronen-Schüsse suchen und durchschlagen, ein Leeren-Klon schießt mit, vier Drohnen, extra Biss gegen die Sternenkrone." }
   ];
   var SHIP_BY = {}; SHIPS.forEach(function (d) { SHIP_BY[d.id] = d; if (d.tier === undefined) d.tier = d.price >= 3000 ? 1 : 0; });
   function shipUnlocked(d) { if (!d.unlock) return true; if (d.unlock.L) return (progress.stars[d.unlock.L] | 0) > 0; if (d.unlock.ach) return !!achDone[d.unlock.ach]; return false; }
@@ -6788,6 +6888,114 @@
       ctx.beginPath(); ctx.arc(0, -2, 20 + p * 3, 0, 7); ctx.stroke(); ctx.restore();
       return true;
     }
+    if (sh === "claw") {
+      poly([0, -40, 10, -18, 8, 20, 0, 28, -8, 20, -10, -18]); paint(lgH(-10, 10, [c[2], c[0], c[2]]));
+      mirror(function (sd) {
+        ctx.beginPath(); ctx.moveTo(sd * 8, -8); ctx.quadraticCurveTo(sd * 38, -28, sd * 46, 4); ctx.quadraticCurveTo(sd * 34, 10, sd * 18, 8); ctx.lineTo(sd * 8, 12); ctx.closePath();
+        paint(lgH(sd * 8, sd * 46, [c[0], c[1], c[2]]));
+        ctx.fillStyle = acc; poly([sd * 40, -4, sd * 50, 8, sd * 36, 6]); ctx.fill();
+        glowDot(sd * 44, 2, 2.4, acc, 10);
+      });
+      canopy(0, -16, 4.5, 7); return true;
+    }
+    if (sh === "fang") {
+      poly([0, -52, 9, -16, 7, 18, 16, 30, 0, 22, -16, 30, -7, 18, -9, -16]);
+      paint(lgH(-9, 9, [c[2], c[0], c[2]]));
+      mirror(function (sd) {
+        poly([sd * 6, -22, sd * 28, -36, sd * 34, -18, sd * 14, -8]); paint(c[1]);
+        gun(sd * 22, -20, 18);
+      });
+      ctx.strokeStyle = acc; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -48); ctx.lineTo(0, 16); ctx.stroke();
+      canopy(0, -20, 3.8, 7); glowDot(0, -48, 2.6, acc, 12); return true;
+    }
+    if (sh === "heart") {
+      ctx.beginPath(); ctx.moveTo(0, 26); ctx.bezierCurveTo(28, 8, 30, -22, 0, -16); ctx.bezierCurveTo(-30, -22, -28, 8, 0, 26); ctx.closePath();
+      paint(lgV(-22, 26, [c[0], c[1], c[2]]));
+      var hg = ctx.createRadialGradient(0, -2, 2, 0, 4, 16); hg.addColorStop(0, "#fff"); hg.addColorStop(0.45, acc); hg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = hg; ctx.beginPath(); ctx.ellipse(0, 2, 12, 10, 0, 0, 7); ctx.fill();
+      canopy(0, -12, 5, 5); glowDot(-16, -8, 2.2, acc, 8); glowDot(16, -8, 2.2, acc, 8); return true;
+    }
+    if (sh === "brand") {
+      poly([-8, 10, -30, 4, -34, 24, -10, 32, 10, 32, 34, 24, 30, 4, 8, 10]); paint(lgV(4, 32, [c[0], c[1], c[2]]));
+      poly([0, -50, 12, -18, 8, 8, 0, 16, -8, 8, -12, -18]); paint(lgH(-12, 12, [c[2], c[0], c[2]]));
+      mirror(function (sd) { poly([sd * 8, -14, sd * 32, -28, sd * 28, -8, sd * 10, 0]); paint(acc); });
+      canopy(0, -8, 4.5, 6); glowDot(0, -44, 3 + p, acc, 14); return true;
+    }
+    if (sh === "wisp") {
+      var wa = 0.7 + 0.25 * Math.sin(t * 4);
+      ctx.save(); ctx.globalAlpha = wa;
+      ctx.beginPath(); ctx.moveTo(0, -42); ctx.bezierCurveTo(24, -38, 28, -4, 22, 16);
+      for (var wi = 0; wi <= 5; wi++) ctx.lineTo(22 - wi * 9, 22 + (wi % 2 ? -7 : 5) + Math.sin(t * 3 + wi) * 3);
+      ctx.bezierCurveTo(-28, -4, -24, -38, 0, -42); ctx.closePath();
+      paint(lgV(-42, 24, [c[0], c[1], "rgba(125,220,255,.45)"]));
+      ctx.restore();
+      canopy(0, -14, 5, 7); glowDot(-12, 2, 2.2, acc, 10); glowDot(12, 2, 2.2, acc, 10); return true;
+    }
+    if (sh === "mind") {
+      poly([0, -28, 20, -12, 20, 18, 0, 32, -20, 18, -20, -12]); paint(lgV(-28, 32, [c[0], c[1], c[2]]));
+      ctx.beginPath(); ctx.ellipse(0, -22, 16, 14, 0, 0, 7); paint(lgV(-36, -8, [c[0], acc]));
+      ctx.strokeStyle = acc; ctx.lineWidth = 1.6;
+      for (var mi = 0; mi < 4; mi++) { ctx.beginPath(); ctx.arc(0, -22, 5 + mi * 3, 0.4, 2.6); ctx.stroke(); }
+      glowDot(0, -22, 3 + p, acc, 14); canopy(0, 4, 5, 6); return true;
+    }
+    if (sh === "sovereign") {
+      ctx.lineWidth = 10; ctx.strokeStyle = lgH(-32, 32, [c[2], c[0], c[1], c[2]]);
+      ctx.beginPath(); ctx.ellipse(0, -4, 28, 28, 0, 0, 7); ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = edge; ctx.beginPath(); ctx.ellipse(0, -4, 28, 28, 0, 0, 7); ctx.stroke();
+      poly([-8, 10, 8, 10, 7, 30, -7, 30]); paint(c[1]);
+      for (var so = 0; so < 6; so++) {
+        var soa = -Math.PI / 2 + so * Math.PI / 3;
+        poly([Math.cos(soa) * 20, Math.sin(soa) * 20 - 4, Math.cos(soa) * 36, Math.sin(soa) * 36 - 4, Math.cos(soa + 0.12) * 20, Math.sin(soa + 0.12) * 20 - 4]);
+        paint(so % 2 ? acc : c[0]);
+      }
+      canopy(0, -6, 5, 6); return true;
+    }
+    if (sh === "halo") {
+      ctx.save(); ctx.rotate(t * 0.8);
+      ctx.lineWidth = 8; ctx.strokeStyle = lgH(-34, 34, [c[2], acc, c[0], c[2]]);
+      ctx.beginPath(); ctx.ellipse(0, 0, 34, 14, 0, 0, 7); ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = edge; ctx.beginPath(); ctx.ellipse(0, 0, 34, 14, 0, 0, 7); ctx.stroke();
+      ctx.restore();
+      poly([0, -36, 9, -8, 8, 22, 0, 28, -8, 22, -9, -8]); paint(lgH(-9, 9, [c[2], c[0], c[2]]));
+      for (var ha = 0; ha < 8; ha++) { var haa = t * 1.6 + ha * Math.PI / 4; glowDot(Math.cos(haa) * 34, Math.sin(haa) * 14, 2.2, acc, 8); }
+      canopy(0, -12, 4.5, 6); return true;
+    }
+    if (sh === "prism") {
+      poly([0, -46, 18, -8, 12, 22, 0, 30, -12, 22, -18, -8]); paint(lgV(-46, 30, [c[0], c[1], c[2]]));
+      ctx.strokeStyle = acc; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(0, -40); ctx.lineTo(0, 22); ctx.moveTo(-12, -6); ctx.lineTo(12, -6); ctx.moveTo(-10, 10); ctx.lineTo(10, 10); ctx.stroke();
+      ["#ff6a8a", "#ffe066", "#7dffea"].forEach(function (col, pi) { glowDot((pi - 1) * 10, -8, 2.4, col, 10); });
+      canopy(0, -20, 4, 6); return true;
+    }
+    if (sh === "arc") {
+      ctx.lineCap = "round";
+      ctx.lineWidth = 10; ctx.strokeStyle = c[1];
+      ctx.beginPath(); ctx.arc(0, 6, 36, 3.5, 5.9); ctx.stroke();
+      ctx.lineWidth = 3; ctx.strokeStyle = acc;
+      ctx.beginPath(); ctx.arc(0, 6, 36, 3.5, 5.9); ctx.stroke();
+      ctx.lineCap = "butt";
+      poly([0, -28, 8, 4, 6, 26, -6, 26, -8, 4]); paint(lgH(-8, 8, [c[2], c[0], c[2]]));
+      if (Math.sin(t * 10) > 0.4) { ctx.save(); ctx.strokeStyle = "#ffffff"; ctx.shadowColor = acc; ctx.shadowBlur = 12; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-30, -8); ctx.lineTo(-18, -20); ctx.lineTo(-8, -6); ctx.stroke(); ctx.restore(); }
+      canopy(0, -8, 4.5, 6); glowDot(-32, -6, 2.8, acc, 12); glowDot(32, -6, 2.8, acc, 12); return true;
+    }
+    if (sh === "kuiper") {
+      poly([0, -50, 7, -18, 6, 16, 18, 28, 0, 20, -18, 28, -6, 16, -7, -18]); paint(lgH(-7, 7, [c[2], c[0], c[2]]));
+      mirror(function (sd) {
+        ctx.beginPath(); ctx.moveTo(sd * 6, -10); ctx.quadraticCurveTo(sd * 28, -24, sd * 40, 6); ctx.quadraticCurveTo(sd * 22, 8, sd * 8, 6); ctx.closePath();
+        paint(c[1]);
+        ctx.fillStyle = acc; poly([sd * 34, 0, sd * 46, 10, sd * 30, 8]); ctx.fill();
+      });
+      canopy(0, -18, 3.6, 6); glowDot(0, -46, 2.6, acc, 12); return true;
+    }
+    if (sh === "void") {
+      poly([-10, 8, -26, 2, -32, 22, -8, 32, 8, 32, 32, 22, 26, 2, 10, 8]); paint(lgV(2, 32, [c[0], c[1], c[2]]));
+      poly([-26, -6, -12, -40, -4, -12, 0, -52, 4, -12, 12, -40, 26, -6, 10, 6, -10, 6]);
+      paint(lgV(-52, 6, [c[0], c[1], c[2]]));
+      ctx.save(); ctx.globalAlpha = 0.5 + p * 0.35; ctx.strokeStyle = acc; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, -8, 18 + p * 4, 0, 7); ctx.stroke(); ctx.restore();
+      for (var vo = 0; vo < 5; vo++) { var va = t * 1.8 + vo * 1.256; glowDot(Math.cos(va) * 20, Math.sin(va) * 14 - 8, 2.2, acc, 9); }
+      canopy(0, -8, 5.5, 7); glowDot(0, 12, 4 + p * 2, acc, 16); return true;
+    }
     return false;
   }
 
@@ -7205,6 +7413,11 @@
   var OUTER_NAMES = {"rivet":"Rivet Kite","crane":"Crane Wing","welder":"Welder Skip","dockn":"Drydock Needle","boltfin":"Bolt Fin","hullmite":"Hull Mite","slagskip":"Slag Skip","magmapike":"Magma Pike","smeltwing":"Smelter Wing","ingothulk":"Ingot Hulk","crucibit":"Crucible Bit","forgefin":"Forge Fin","frostbit":"Frost Bit","iceauger":"Ice Auger","cryowing":"Cryo Wing","vaultskip":"Vault Skip","brinefin":"Brine Fin","ringshear":"Ring Shear","spokejet":"Spoke Jet","shepwing":"Shepherd Wing","hexsail":"Hex Sail","scythesk":"Orbital Scythe","stormcoil":"Storm Coil","tiltwing":"Tilt Wing","methanray":"Methane Ray","aurorafin":"Aurora Fin","oortneedle":"Oort Needle","plutospire":"Pluto Spire","charongate":"Charon Gate","starcrown":"Star Crown"};
   Object.keys(OUTER_KITS).forEach(function (id) {
     DESIGNS[id] = function (t, d, fx) { shipKit(t, d, fx, OUTER_KITS[id]); };
+  });
+  var SPECIAL_KITS = {"phobosclaw":{"shape":"claw","wing":[38,8],"c":["#f0b090","#8a3a20","#2a1008"],"edge":"#ffd0a0","acc":"#ff6a2a","glass":"#ffd54a","eng":[[0,30,20,7]],"core":"#ff6a2a","len":42,"bw":12,"aura":[56,"#ff6a2a38","#2a100800"]},"dockfang":{"shape":"fang","wing":[40,8],"c":["#ffe066","#8a7018","#241808"],"edge":"#fff6c8","acc":"#2330ff","glass":"#8090ff","eng":[[0,30,20,7]],"core":"#2330ff","len":42,"bw":12,"aura":[56,"#2330ff38","#24180800"]},"slagheart":{"shape":"heart","wing":[42,8],"c":["#ff7040","#7a1810","#220808"],"edge":"#ffc090","acc":"#ff5020","glass":"#ffd54a","eng":[[0,30,20,7]],"core":"#ff5020","len":43,"bw":12,"aura":[56,"#ff502038","#22080800"]},"titanbrand":{"shape":"brand","wing":[44,8],"c":["#ffb060","#a03010","#2a0c08"],"edge":"#ffe0a0","acc":"#ffd54a","glass":"#fff0c0","eng":[[0,30,20,7]],"core":"#ffd54a","len":43,"bw":12,"aura":[60,"#ffd54a38","#2a0c0800"]},"icewisp":{"shape":"wisp","wing":[38,8],"c":["#e0f4ff","#3a7aa0","#0a2030"],"edge":"#ffffff","acc":"#7dffff","glass":"#c8f6ff","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#7dffff","len":44,"bw":13,"aura":[60,"#7dffff38","#0a203000"]},"vaultmind":{"shape":"mind","wing":[40,8],"c":["#c0a870","#4a3820","#181008"],"edge":"#ffe8b0","acc":"#ffd54a","glass":"#7dffe0","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#ffd54a","len":44,"bw":13,"aura":[60,"#ffd54a38","#18100800"]},"ringsovr":{"shape":"sovereign","wing":[42,8],"c":["#f0d080","#6a4a18","#201408"],"edge":"#fff4c8","acc":"#ffd54a","glass":"#ffffff","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#ffd54a","len":45,"bw":13,"aura":[64,"#ffd54a38","#20140800"]},"dreadhalo":{"shape":"halo","wing":[44,8],"c":["#e0c8ff","#5a3a9a","#1a0a30"],"edge":"#ffffff","acc":"#c08cff","glass":"#ffe066","eng":[[-10,30,16,6],[10,30,16,6]],"core":"#c08cff","len":45,"bw":13,"aura":[64,"#c08cff38","#1a0a3000"]},"stormprism":{"shape":"prism","wing":[38,8],"c":["#b0e0ff","#2050a0","#081830"],"edge":"#ffffff","acc":"#7dffff","glass":"#fff27a","eng":[[-14,30,16,6],[14,30,16,6],[0,34,22,8]],"core":"#7dffff","len":46,"bw":14,"aura":[64,"#7dffff38","#08183000"]},"uranusarc":{"shape":"arc","wing":[40,8],"c":["#7dffff","#1a6a6a","#082028"],"edge":"#e8fffb","acc":"#4ec3ff","glass":"#ffffff","eng":[[-14,30,16,6],[14,30,16,6],[0,34,22,8]],"core":"#4ec3ff","len":46,"bw":14,"aura":[68,"#4ec3ff38","#08202800"]},"kuiperfang":{"shape":"kuiper","wing":[42,8],"c":["#c0c8e0","#2a3050","#0a0c18"],"edge":"#ffffff","acc":"#7dffff","glass":"#c08cff","eng":[[-14,30,16,6],[14,30,16,6],[0,34,22,8]],"core":"#7dffff","len":47,"bw":14,"aura":[68,"#7dffff38","#0a0c1800"]},"voidcrown":{"shape":"void","wing":[44,8],"c":["#e0d0ff","#3a2060","#140828"],"edge":"#ffffff","acc":"#c08cff","glass":"#ffd54a","eng":[[-14,30,16,6],[14,30,16,6],[0,34,22,8]],"core":"#c08cff","len":47,"bw":14,"aura":[68,"#c08cff38","#14082800"]}};
+  var SPECIAL_NAMES = {"phobosclaw":"Phobos Claw","dockfang":"Dock Fang","slagheart":"Slag Heart","titanbrand":"Titan Brand","icewisp":"Ice Wisp","vaultmind":"Vault Mind","ringsovr":"Ring Sovereign","dreadhalo":"Dread Halo","stormprism":"Storm Prism","uranusarc":"Uranus Arc","kuiperfang":"Kuiper Fang","voidcrown":"Void Crown"};
+  Object.keys(SPECIAL_KITS).forEach(function (id) {
+    DESIGNS[id] = function (t, d, fx) { shipKit(t, d, fx, SPECIAL_KITS[id]); };
   });
   function drawShipModel(id, x, y, t, fx, skin) {
     var d = SHIP_BY[id] || (id === "amelia" ? AMELIA_DEF : SHIPS[0]);
@@ -9307,6 +9520,29 @@
         paintLate(bL, pad + (i % cols) * cellW + cellW / 2, 70 + Math.floor(i / cols) * cellH + 70);
       });
       ctx = main; boss = sb; level = sl;
+      return cv.toDataURL("image/png");
+    },
+    drawSpecialSheet: function () {
+      var early = ["frostwal", "lindwurm", "hydra", "regenbogen", "kaiserbrecher"];
+      var late = Object.keys(SPECIAL_KITS);
+      var ids = early.concat(late), cols = 6, rows = 3, cell = 210, pad = 18;
+      var cv = document.createElement("canvas"); cv.width = cols * cell + pad * 2; cv.height = rows * cell + pad * 2 + 48;
+      var main = ctx; ctx = cv.getContext("2d");
+      ctx.fillStyle = "#070b1c"; ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.fillStyle = "#ffd54a"; ctx.font = "bold 22px Trebuchet MS, sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("Special tab — 5 classic + 12 late (L108–L248)", cv.width / 2, 30);
+      ids.forEach(function (id, i) {
+        var x = pad + (i % cols) * cell + cell / 2, y = 58 + Math.floor(i / cols) * cell + 78;
+        ctx.save(); ctx.translate(x, y); ctx.scale(1.22, 1.22);
+        try { drawShipModel(id, 0, 0, 1.35, true); } catch (e) { DESIGNS.starter(1.2, SHIP_BY.starter, true); }
+        ctx.restore();
+        ctx.fillStyle = "#e8f0ff"; ctx.font = "bold 13px Trebuchet MS, sans-serif";
+        ctx.fillText((SPECIAL_NAMES && SPECIAL_NAMES[id]) || (SHIP_BY[id] && shipNameOf(SHIP_BY[id])) || id, x, y + 72);
+        ctx.fillStyle = "#7dffea"; ctx.font = "12px Trebuchet MS, sans-serif";
+        var ul = SHIP_BY[id] && SHIP_BY[id].unlock;
+        ctx.fillText(ul && ul.L ? "L" + ul.L : (ul && ul.ach ? "combo" : "—"), x, y + 88);
+      });
+      ctx = main;
       return cv.toDataURL("image/png");
     },
     drawOuterStatsTable: function () {

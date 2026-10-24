@@ -119,7 +119,7 @@ function highFeats(L: number): LevelFeats {
 }
 
 function lateBossHp(L: number): number {
-  if (L === 250) return 20000;
+  if (L === 250) return 60000;
   if (L === 225) return 11000;
   if (L === 198) return 10000;
   if (L === 174) return 9000;
@@ -130,7 +130,7 @@ function lateBossHp(L: number): number {
 
 function bossFor(L: number): LevelPayload['boss'] | undefined {
   if (!isBossLevel(L)) return undefined;
-  if (L === 250) return { type: 'emperor', hp: 20000, mods: [] };
+  if (L === 250) return { type: 'emperor', hp: 60000, mods: [] };
   if (L === 100) return { type: 'emperor', hp: 9000, mods: [] };
   const early: Record<number, { type: string; hp: number }> = {
     3: { type: 'saucer', hp: 28 },
