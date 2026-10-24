@@ -18,7 +18,7 @@ export const UNLOCK_SALE_PRICES: Record<string, number> = {
 /** Outer Fleet: ~2×+ the old curve, steepest for the last ships. */
 export function outerSalePrice(index: number): number {
   const i = Math.max(0, Math.floor(index) || 0);
-  if (i >= 29) return 50_000_000;
+  if (i >= 29) return 3_000_000;
   return 380000 + i * 32000 + i * i * 1000;
 }
 
