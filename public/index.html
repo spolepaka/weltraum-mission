@@ -997,11 +997,12 @@
   function isSectorBoss(L) { return !!SECTOR_BOSS[L]; }
   // ---------- Schwierigkeit ab Level 19 ("Hitze"), per Balance-Test in 3er-Gruppen eingestellt (siehe levels-log.md) ----------
   var TUNE = { 19: 1.45, 22: 1.45, 25: 1.45, 28: 1.1, 37: 1.45, 40: 1.26, 46: 1.26, 49: 1.15, 52: 1.26, 55: 1.1, 61: 1.15, 64: 1.26, 67: 1.26, 70: 1.38, 73: 1.15, 76: 1.59, 82: 1.26, 91: 1.52, 94: 1.26, 97: 1.54 }; // Gruppe (erstes Level der 3er-Gruppe) -> Faktor
-  var TUNE_BOSS = { 33: 0.6, 57: 0.9, 60: 0.9, 72: 0.85, 81: 0.65, 84: 0.85, 90: 0.8, 100: 0.9, 120: 0.88, 150: 0.86, 174: 0.85, 198: 0.84, 225: 0.83, 250: 1 }; // 250 full heat — 20-phase prime Kaiser
-  var PRIME_KAISER_HP = 120000, PRIME_KAISER_PHASES = 20, PRIME_KAISER_THRESHOLDS = [0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05];
+  var TUNE_BOSS = { 33: 0.6, 57: 0.9, 60: 0.9, 72: 0.85, 81: 0.65, 84: 0.85, 90: 0.8, 100: 0.9, 120: 0.88, 150: 0.86, 174: 0.85, 198: 0.84, 225: 0.83, 250: 1 }; // 250 full heat — 30-phase prime Kaiser
+  var PRIME_KAISER_HP = 180000, PRIME_KAISER_PHASES = 30, PRIME_KAISER_THRESHOLDS = [0.967, 0.933, 0.9, 0.867, 0.833, 0.8, 0.767, 0.733, 0.7, 0.667, 0.633, 0.6, 0.567, 0.533, 0.5, 0.467, 0.433, 0.4, 0.367, 0.333, 0.3, 0.267, 0.233, 0.2, 0.167, 0.133, 0.1, 0.067, 0.033];
   var ENT_CAP = { bombs: 80, mines: 24, drones: 16, wells: 6, particles: 240, ufos: 12, rocks: 48, bullets: 120 };
   function primeKaiserPhase(fr) { var i; for (i = 0; i < PRIME_KAISER_THRESHOLDS.length; i++) if (fr > PRIME_KAISER_THRESHOLDS[i]) return i + 1; return PRIME_KAISER_PHASES; }
   function finiteN(n, fb) { n = +n; return isFinite(n) ? n : (fb || 0); }
+  function safeCol(c, fb) { return (typeof c === "string" && c && !/NaN|undefined/i.test(c)) ? c : (fb || "#ffd54a"); }
   var _atkErr = {};
   function safeAtk(name, fn) {
     try { fn(); } catch (e) {
@@ -1023,7 +1024,7 @@
       else i++;
     }
   }
-  function keepKaiserDrone(d) { return !!(d && (d.sdrone || d.clone) && !d.dead); }
+  function keepKaiserDrone(d) { return !!(d && (d.sdrone || d.dstorm || d.clone) && !d.dead); }
   function clampKaiserEntities() {
     function trim(arr, n) { if (arr && arr.length > n) arr.splice(0, arr.length - n); }
     if (drones && drones.length > ENT_CAP.drones) {
@@ -1418,14 +1419,86 @@
     u.dead = true; hits++; missionAdd("ufos", 1); comboKill(u.x, u.y); dropCoin(u.x, u.y, u.sniper ? 0.75 : 0.55, 5); addScore(u.sniper ? 40 : 25); explode(u.x, u.y, 30, GREEN); SFX.boom(); maybeDrop(u.x, u.y, 0.25); }
   function killComet(c) { c.dead = true; hits++; recAdd("comets"); comboKill(c.x, c.y); dropCoin(c.x, c.y, 1, 10); addScore(50); explode(c.x, c.y, 40, CYAN, 320); SFX.star(); SFX.boom(); showMsg("☄️ " + tr("tips.comet"), "good", 1.2); }
   function damageBoss(n, x, y) {
+    if (!boss || boss.dying) return;
     if (primeGuarded()) { explode(x, y, 8, CYAN, 120); return; }
     boss.hp -= n; boss.flash = 0.08; addScore(Math.round(2 * n));
     tone(300, 200, 0.05, "square", 0.03);
     particles.push({ x: x, y: y, vx: rnd(-60, 60), vy: rnd(-60, 0), life: 0.3, max: 0.3, r: 3, c: "#ffffff" });
     if (boss.hp <= 0) defeatBoss(null);
   }
+  function clearPrimeHazards() {
+    bullets = []; bombs = []; drones = []; mines = []; wells = []; ufos = [];
+    grid = null; shower = null; flare = null;
+    if (!boss) return;
+    boss.laser = null; boss.shock = null; boss.cage = null; boss.blades = null;
+    boss.dash = null; boss.wheel = null; boss.marks = null; boss.emp = null;
+    boss.tractor = null; boss.wall = null;
+  }
+  function startPrimeDeath() {
+    var b = boss;
+    if (!b || !b.prime || b.dying) return;
+    b.dying = true; b.hp = 0; b.dieT = 0; b.dieDur = 2.55; b.dieNext = 0; b.dieBoom = false;
+    b.dieR = 0; b.dieJx = 0; b.dieJy = 0; b.flash = 0.22;
+    primeFlash = 0.12;
+    clearPrimeHazards();
+    invuln = 4;
+    SFX.bigBoom();
+    tone(160, 50, 0.35, "sawtooth", 0.07);
+  }
+  function finishPrimeDeath() {
+    var bx = finiteN(boss && boss.x, W / 2), by = finiteN(boss && boss.y, H / 3);
+    showMsg(tr("bossDefeated") + " 🏆<br><span style='font-size:24px'>" + tr("game.bossScore") + "</span>", "boss", 2.5);
+    spawnPower(bx, by);
+    addScore(500); bossesBeaten++; missionAdd("boss", 1);
+    var ci;
+    for (ci = 0; ci < 10; ci++) { dropCoin(bx + rnd(-90, 90), by + rnd(-30, 30), 1, 5); if (coinsArr.length) coinsArr[coinsArr.length - 1].vx = rnd(-60, 60); }
+    setTimeout(SFX.win, 200);
+    boss = null;
+  }
+  function updatePrimeDeath(dt) {
+    var b = boss; if (!b || !b.dying) return false;
+    var k = finiteN(b.k, 1), t = finiteN(b.dieT, 0) + dt, bx = finiteN(b.x, W / 2), by = finiteN(b.y, 220);
+    b.dieT = t; b.flash = 0.2;
+    b.dieJx = (Math.sin(t * 42) * 7 + Math.sin(t * 71) * 4) * k;
+    b.dieJy = Math.cos(t * 37) * 5 * k;
+    if (!isFinite(b.dieJx)) b.dieJx = 0; if (!isFinite(b.dieJy)) b.dieJy = 0;
+    if (t < 1.2 && t >= finiteN(b.dieNext, 0) && particles.length < ENT_CAP.particles) {
+      b.dieNext = t + 0.1;
+      explode(bx + Math.sin(t * 9.1) * 88 * k, by + Math.cos(t * 7.7) * 70 * k - 8 * k, 8, FIRE, 150);
+      tone(200 + t * 90, 70, 0.05, "square", 0.03);
+    }
+    if (!b.dieBoom && t >= 1.2) {
+      b.dieBoom = true; b.dieR = 24; primeFlash = 0.72; shake = 0.28;
+      explode(bx, by, 28, ["#ffd54a", "#ffffff", "#ff5a3a"], 280);
+      var i, a;
+      for (i = 0; i < 12 && particles.length < ENT_CAP.particles; i++) {
+        a = i * 0.5236;
+        particles.push({
+          x: bx, y: by - 42 * k, vx: Math.cos(a) * 170, vy: Math.sin(a) * 110 - 90,
+          life: 0.85, max: 0.85, r: 4, c: i % 2 ? "#ffd54a" : "#e8eef6", shard: true
+        });
+      }
+      for (i = 0; i < 10 && particles.length < ENT_CAP.particles; i++) {
+        particles.push({
+          x: bx + rnd(-20, 20) * k, y: by + rnd(-16, 16) * k, vx: rnd(-140, 140), vy: rnd(-180, -20),
+          life: 0.55, max: 0.55, r: 2, c: "#fff3a8"
+        });
+      }
+      SFX.bigBoom(); tone(80, 28, 0.45, "sawtooth", 0.09);
+    }
+    if (b.dieBoom) {
+      b.dieR = finiteN(b.dieR, 24) + 500 * dt;
+      if (!isFinite(b.dieR)) b.dieR = 24;
+      if (primeFlash > 0) primeFlash = Math.max(0, primeFlash - dt * 1.2);
+      if (shake > 0) shake = Math.max(0, shake - dt * 0.85);
+    }
+    if (t >= finiteN(b.dieDur, 2.55)) finishPrimeDeath();
+    return true;
+  }
   // Boss besiegt – entweder durch Schüsse (Explosion) oder vom Schwarzen Loch verschluckt (Spirale)
   function defeatBoss(hole) {
+    if (boss && boss.dying) return;
+    if (!hole && boss && boss.prime && !trainOn) { startPrimeDeath(); return; }
     if (hole) {
       var dx = boss.x - hole.x, dy = boss.y - hole.y;
       swallows.push({ b: boss, hole: hole, ang: Math.atan2(dy, dx), rad: Math.sqrt(dx * dx + dy * dy), rad0: Math.sqrt(dx * dx + dy * dy), t: 0, dur: 1.6 });
@@ -1695,7 +1768,7 @@
   }
   function laserOrigin() { return { x: boss.x, y: boss.y + (boss.type === "emperor" ? 8 * boss.k : 30) }; }
   function laserTipX() { var L = boss.laser; return L.phase === "fire" ? L.tx0 + (L.tx1 - L.tx0) * Math.min(1, L.t / L.fireDur) : L.tx0; }
-  function primeGuarded() { return !!(boss && boss.prime && drones.some(function (d) { return d.sdrone && !d.dead; })); }
+  function primeGuarded() { return !!(boss && boss.prime && drones.some(function (d) { return d.sdrone && !d.dstorm && !d.dead; })); }
   function dropPrimeBomb(x, y, vx, vy, extra) {
     roomFor(bombs, ENT_CAP.bombs, 1);
     var hk = (0.75 + 0.25 * heat()) * 1.25;
@@ -1776,6 +1849,87 @@
       mx = x0 + i * gap; if (mx > 36 && mx < W - 36) mines.push({ x: mx, y: -28 - (i % 2) * 36, vy: 46 * speedScale(), r: 15, t: 0 });
     }
   }
+  function spawnDroneStorm() {
+    drones = drones.filter(function (d) { return !d.dstorm; });
+    roomFor(drones, ENT_CAP.drones, 10, keepKaiserDrone);
+    var k = finiteN(boss && boss.k, 1), orb = Math.max(shieldDroneOrb(k), 118 * k + 52), i, a;
+    for (i = 0; i < 10; i++) {
+      a = i * 0.6283;
+      drones.push({
+        dstorm: true, sdrone: true, a: a, orb: orb, hp: 2, hp0: 2, t: 0, warn: 0.55,
+        x: finiteN(boss.x, W / 2) + Math.cos(a) * orb,
+        y: finiteN(boss.y, 220) + Math.sin(a) * orb * 0.55,
+        burstT: 0.35 + i * 0.11, burstN: 0, eye: 0, muzzle: 0
+      });
+    }
+  }
+  function droneStormShoot(d, dt) {
+    d.eye = Math.max(0, (d.eye || 0) - dt);
+    d.muzzle = Math.max(0, (d.muzzle || 0) - dt);
+    d.burstT = (d.burstT === undefined ? 0.4 : d.burstT) - dt;
+    if (d.burstT > 0.16 && d.burstT < 0.34) { d.eye = 0.16; }
+    if (d.burstT > 0) return;
+    var tg = aimTarget(d.x, d.y), dx = tg.x - d.x, dy = Math.max(28, tg.y - d.y);
+    var len = Math.sqrt(dx * dx + dy * dy) || 1, spr = ((d.burstN || 0) - 2) * 0.055;
+    var c = Math.cos(spr), s = Math.sin(spr), ux = dx / len, uy = dy / len, spd = 118;
+    roomFor(bombs, ENT_CAP.bombs, 1);
+    dropPrimeBomb(d.x, d.y, (ux * c - uy * s) * spd, (ux * s + uy * c) * spd, { storm: true, r: 6 });
+    var shot = bombs[bombs.length - 1], cur = Math.sqrt(shot.vx * shot.vx + shot.vy * shot.vy) || 1;
+    if (cur > spd) { shot.vx *= spd / cur; shot.vy *= spd / cur; }
+    d.muzzle = 0.07; d.burstN = (d.burstN || 0) + 1;
+    if (d.burstN >= 5) { d.burstN = 0; d.burstT = 0.78; } else d.burstT = 0.07;
+  }
+  function startVoidWell() {
+    if (wells.length >= ENT_CAP.wells) roomFor(wells, ENT_CAP.wells, 1);
+    var tg = aimTarget(boss.x, boss.y);
+    wells.push({ mini: true, voidWell: true, x: tg.x < W / 2 ? W * 0.72 : W * 0.28, y: H * 0.5, r: 24, vx: 0, vy: 8, t: 0, warn: 1.15, side: 0, hue: 280 });
+    var i, ang;
+    for (i = 0; i < 6; i++) {
+      ang = i * 1.047;
+      dropPrimeBomb(wells[wells.length - 1].x + Math.cos(ang) * 70, wells[wells.length - 1].y + Math.sin(ang) * 40, Math.cos(ang) * 40, 70 + Math.sin(ang) * 20, { debris: true, r: 7 });
+    }
+  }
+  function spawnSplitSwarm() {
+    roomFor(drones, ENT_CAP.drones, 3, keepKaiserDrone);
+    [0, 1, 2].forEach(function (q) {
+      drones.push({ missile: true, splitSwarm: true, x: rnd(70, W - 70), y: -18 - q * 38, vx: 0, t: 0, warn: 0.65 });
+    });
+  }
+  function startPinwheel() {
+    boss.wheel = { phase: "warn", t: 0, a: 0, n: 3, warnDur: 1.05, fireDur: 2.2, hit: false };
+  }
+  function startAmbush() {
+    var tg = aimTarget(boss.x, boss.y), gx = finiteN(tg.x, W / 2), gy = finiteN(tg.y, H * 0.72);
+    boss.marks = {
+      phase: "warn", t: 0, warnDur: 1.05, hit: false,
+      spots: [
+        { x: Math.max(50, Math.min(W - 50, gx)), y: Math.max(H * 0.48, Math.min(H - 70, gy)) },
+        { x: Math.max(50, Math.min(W - 50, gx - 150)), y: Math.max(H * 0.52, Math.min(H - 70, gy - 30)) },
+        { x: Math.max(50, Math.min(W - 50, gx + 150)), y: Math.max(H * 0.52, Math.min(H - 70, gy - 30)) }
+      ]
+    };
+  }
+  function rainCrownShards() {
+    var gapX = finiteN(aimTarget(boss.x, boss.y).x, W / 2), i, x;
+    roomFor(bombs, ENT_CAP.bombs, 8);
+    for (i = 0; i < 9; i++) {
+      x = 36 + i * (W - 72) / 8;
+      if (Math.abs(x - gapX) < 72) continue;
+      dropPrimeBomb(x, -16, (i - 4) * 8, 168, { shard: true, r: 7 });
+    }
+  }
+  function startEmpPulse() {
+    var tg = aimTarget(boss.x, boss.y);
+    boss.emp = { phase: "warn", t: 0, r: 46, warnDur: 1.05, gapA: Math.atan2(tg.y - boss.y, tg.x - boss.x), gapW: 1.15, hit: false };
+  }
+  function startTractor() {
+    var tg = aimTarget(boss.x, boss.y);
+    boss.tractor = { phase: "warn", t: 0, x: Math.max(90, Math.min(W - 90, finiteN(tg.x, W / 2))), warnDur: 1.05, fireDur: 1.9, hit: false };
+  }
+  function startMeteorWall() {
+    var tg = aimTarget(boss.x, boss.y);
+    boss.wall = { phase: "warn", t: 0, y: -30, gapX: Math.max(140, Math.min(W - 140, finiteN(tg.x, W / 2))), gapW: 200, warnDur: 1.1, hit: false };
+  }
   function startCrownDash() {
     var b = boss, tg = aimTarget(finiteN(b.x, W / 2), finiteN(b.y, 0));
     var px = finiteN(tg.x, W / 2), py = finiteN(tg.y, H * 0.75);
@@ -1830,12 +1984,21 @@
     }
     if (prev === 15) boss.blades = null;
     if (prev === 16) shower = null;
-    if (prev === 17 || prev === 20) boss.cage = null;
+    if (prev === 17 || prev === 20 || prev === 30) boss.cage = null;
     if (prev === 12) drones = drones.filter(function (d) { return !d.sdrone; });
     if (prev === 13) drones = drones.filter(function (d) { return !d.clone; });
+    if (prev === 21) wells = wells.filter(function (w) { return !w.voidWell; });
+    if (prev === 22) drones = drones.filter(function (d) { return !d.splitSwarm; });
+    if (prev === 23) boss.wheel = null;
+    if (prev === 24) boss.marks = null;
+    if (prev === 26) boss.emp = null;
+    if (prev === 27) boss.tractor = null;
+    if (prev === 28) drones = drones.filter(function (d) { return !d.dstorm; });
+    if (prev === 29) boss.wall = null;
+    if (prev === 30) boss.laser = null;
   }
   function primeKaiserFight(dt) {
-    var b = boss; if (!b || !isFinite(b.hp) || !isFinite(b.maxHp) || b.maxHp <= 0) return;
+    var b = boss; if (!b || b.dying || !isFinite(b.hp) || !isFinite(b.maxHp) || b.maxHp <= 0) return;
     var fr = Math.max(0, Math.min(1, b.hp / b.maxHp)), rp = primeKaiserPhase(fr), k = finiteN(b.k, 1), cy = finiteN(b.y, 0) + 8 * k;
     var tg = aimTarget(finiteN(b.x, W / 2), finiteN(b.y, 0));
     if (!isFinite(tg.x)) tg.x = W / 2; if (!isFinite(tg.y)) tg.y = H * 0.75;
@@ -1844,8 +2007,8 @@
       endPrimePhase(b.phase);
       b.phase = rp; b.laserCd = 1.2; SFX.boss(); shake = 0.45;
       var pmsg = tr("tips.primePhase" + rp);
-      showMsg(pmsg !== ("tips.primePhase" + rp) ? pmsg : ("Phase " + rp + "/" + PRIME_KAISER_PHASES), "boss", 2.2);
-      if (rp >= 18) b.atk = Math.max(b.atk || 1, 2.45);
+      showMsg(pmsg !== ("tips.primePhase" + rp) ? pmsg : ("Phase " + rp + "/" + PRIME_KAISER_PHASES), "boss", rp >= 21 ? 1.55 : 2.0);
+      if (rp >= 18) b.atk = Math.max(b.atk || 1, rp >= 21 ? 2.7 : 2.45);
     }
     b.fx1 = (b.fx1 === undefined ? 2 : b.fx1) - dt;
     b.fx2 = (b.fx2 === undefined ? 4 : b.fx2) - dt;
@@ -1944,7 +2107,7 @@
       if (!b.dash && b.dashT <= 0) { b.dashT = 3.8; startCrownDash(); }
       if (b.bombTimer <= 0) { b.bombTimer = 1.1; [-90, 0, 90].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 124); }); }
     });
-    else safeAtk("starfall", function () {
+    else if (rp === 20) safeAtk("starfall", function () {
       if (b.laserCd <= 0) { startBossLaser(); return; }
       if (b.fx1 <= 0 && !b.cage) { b.fx1 = 7.2; startLaserCage(); }
       if (b.fx2 <= 0) { b.fx2 = 2.8; spawnSpiralGalaxy(); }
@@ -1956,6 +2119,46 @@
         }
       }
       if (b.bombTimer <= 0) { b.bombTimer = 0.85; [-110, -40, 40, 110].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 128); }); }
+    });
+    else if (rp === 21) safeAtk("voidWell", function () {
+      if (b.fx1 <= 0) { b.fx1 = 5.4; startVoidWell(); }
+    });
+    else if (rp === 22) safeAtk("splitSwarm", function () {
+      if (b.fx2 <= 0) { b.fx2 = 3.6; spawnSplitSwarm(); }
+    });
+    else if (rp === 23) safeAtk("pinwheel", function () {
+      if (!b.wheel && b.fx1 <= 0) { b.fx1 = 4.2; startPinwheel(); }
+    });
+    else if (rp === 24) safeAtk("ambush", function () {
+      if (!b.marks && b.fx1 <= 0) { b.fx1 = 3.4; startAmbush(); }
+    });
+    else if (rp === 25) safeAtk("shards", function () {
+      if (b.bombTimer <= 0) { b.bombTimer = 1.15; rainCrownShards(); }
+    });
+    else if (rp === 26) safeAtk("emp", function () {
+      if (!b.emp && b.fx1 <= 0) { b.fx1 = 3.8; startEmpPulse(); }
+    });
+    else if (rp === 27) safeAtk("tractor", function () {
+      if (!b.tractor && b.fx1 <= 0) { b.fx1 = 3.6; startTractor(); }
+    });
+    else if (rp === 28) safeAtk("droneStorm", function () {
+      if (b.fx1 <= 0 && !drones.some(function (d) { return d.dstorm && !d.dead; })) { b.fx1 = 7.2; spawnDroneStorm(); }
+    });
+    else if (rp === 29) safeAtk("meteorWall", function () {
+      if (!b.wall && b.fx1 <= 0) { b.fx1 = 4.0; startMeteorWall(); }
+    });
+    else safeAtk("overdrive", function () {
+      if (b.laserCd <= 0) { startBossLaser(); return; }
+      if (b.fx1 <= 0 && !b.cage) { b.fx1 = 5.6; startLaserCage(); }
+      if (b.fx2 <= 0) { b.fx2 = 2.2; spawnSpiralGalaxy(); }
+      if (b.fx3 <= 0) {
+        b.fx3 = 3.8;
+        if (drones.filter(function (d) { return d.missile; }).length < 3) {
+          roomFor(drones, ENT_CAP.drones, 2, keepKaiserDrone);
+          [0, 1].forEach(function (q) { drones.push({ missile: true, x: rnd(50, W - 50), y: -18 - q * 36, vx: 0, t: 0, warn: 0.55 }); });
+        }
+      }
+      if (b.bombTimer <= 0) { b.bombTimer = 0.72; [-110, -40, 40, 110].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 132); }); }
     });
   }
   function bossAttack(dt) {
@@ -2381,7 +2584,7 @@
     }
   }
   function updatePrimeKaiserFx(dt) {
-    var b = boss; if (!b || !b.prime) return;
+    var b = boss; if (!b || !b.prime || b.dying) return;
     safeAtk("fxShock", function () {
       if (!b.shock) return;
       b.shock.t += dt;
@@ -2442,12 +2645,89 @@
         });
       }
     });
+    safeAtk("fxWheel", function () {
+      if (!b.wheel) return;
+      var w = b.wheel; w.t += dt;
+      if (w.phase === "warn" && w.t >= (w.warnDur || 1.05)) { w.phase = "fire"; w.t = 0; w.hit = false; noise(0.3, 0.08, 1800); }
+      else if (w.phase === "fire") {
+        w.a = finiteN(w.a, 0) + dt * 1.35;
+        if (state === "play" && !w.hit) eachPlayer(function () {
+          if (w.hit || ship.down || roadsterSafe()) return;
+          var i, ang, reach = Math.max(W, H), hitR = 13;
+          for (i = 0; i < (w.n || 3); i++) {
+            ang = w.a + i * Math.PI * 2 / (w.n || 3);
+            if (segDist(ship.x, ship.y, b.x, b.y, b.x + Math.cos(ang) * reach, b.y + Math.sin(ang) * reach) < hitR) { w.hit = true; hurt(ship.x, ship.y); return; }
+          }
+        });
+        if (w.t >= (w.fireDur || 2.2)) b.wheel = null;
+      }
+    });
+    safeAtk("fxMarks", function () {
+      if (!b.marks) return;
+      var m = b.marks; m.t += dt;
+      if (m.phase === "warn" && m.t >= (m.warnDur || 1.05)) {
+        m.phase = "boom"; m.t = 0; m.hit = false;
+        (m.spots || []).forEach(function (s) { dropPrimeBomb(finiteN(s.x, W / 2), finiteN(s.y, H * 0.7), 0, 40, { mark: true, r: 10 }); });
+      } else if (m.phase === "boom") {
+        if (state === "play" && !m.hit) eachPlayer(function () {
+          if (m.hit || ship.down || roadsterSafe()) return;
+          (m.spots || []).forEach(function (s) {
+            if (m.hit) return;
+            if (Math.abs(ship.x - finiteN(s.x, 0)) < 28 && Math.abs(ship.y - finiteN(s.y, 0)) < 24) { m.hit = true; hurt(ship.x, ship.y); }
+          });
+        });
+        if (m.t >= 0.45) b.marks = null;
+      }
+    });
+    safeAtk("fxEmp", function () {
+      if (!b.emp) return;
+      var e = b.emp; e.t += dt;
+      if (e.phase === "warn" && e.t >= (e.warnDur || 1.05)) { e.phase = "go"; e.t = 0; noise(0.28, 0.08, 500); shake = 0.16; }
+      else if (e.phase === "go") {
+        e.r = finiteN(e.r, 46) + 360 * dt;
+        if (!isFinite(e.r) || e.r > 520) { b.emp = null; return; }
+        if (state === "play" && !e.hit) eachPlayer(function () {
+          if (e.hit || ship.down || roadsterSafe()) return;
+          var dx = ship.x - b.x, dy = ship.y - b.y, dist = Math.sqrt(dx * dx + dy * dy), ang = Math.atan2(dy, dx);
+          var da = Math.atan2(Math.sin(ang - e.gapA), Math.cos(ang - e.gapA));
+          if (Math.abs(dist - e.r) < 16 && Math.abs(da) > e.gapW / 2) { e.hit = true; frozen = Math.max(frozen, 0.55); hurt(ship.x, ship.y); }
+        });
+      }
+    });
+    safeAtk("fxTractor", function () {
+      if (!b.tractor) return;
+      var trc = b.tractor; trc.t += dt;
+      if (trc.phase === "warn" && trc.t >= (trc.warnDur || 1.05)) { trc.phase = "fire"; trc.t = 0; trc.hit = false; }
+      else if (trc.phase === "fire") {
+        var tx = finiteN(trc.x, W / 2);
+        if (state === "play") eachPlayer(function () {
+          if (ship.down || roadsterSafe()) return;
+          ship.x += (tx - ship.x) * Math.min(1, dt * 1.8);
+          if (!trc.hit && Math.abs(ship.x - tx) < 28) { trc.hit = true; hurt(ship.x, ship.y); }
+        });
+        if (trc.t >= (trc.fireDur || 1.9)) b.tractor = null;
+      }
+    });
+    safeAtk("fxWall", function () {
+      if (!b.wall) return;
+      var w = b.wall; w.t += dt;
+      if (w.phase === "warn" && w.t >= (w.warnDur || 1.1)) { w.phase = "fall"; w.t = 0; w.hit = false; }
+      else if (w.phase === "fall") {
+        w.y = finiteN(w.y, -30) + 220 * dt;
+        if (state === "play" && !w.hit) eachPlayer(function () {
+          if (w.hit || ship.down || roadsterSafe()) return;
+          if (ship.y < w.y + 18 && Math.abs(ship.x - finiteN(w.gapX, W / 2)) > finiteN(w.gapW, 200) / 2 - 16) { w.hit = true; hurt(ship.x, ship.y); }
+        });
+        if (w.y > H + 40) b.wall = null;
+      }
+    });
   }
   // ---------- Robo-Kaiser: Schild, Drohnen, Power-ups, Rauch ----------
   var drones = [];
   function emperorExtras(dt) {
     var b = boss, k = b.k;
     if (b.immuneT > 0) b.immuneT -= dt;
+    if (b.dying) return;
     if (state !== "play" || b.y < b.targetY - 2) return;
     if (b.prime) updatePrimeKaiserFx(dt);
     if (!b.prime) {
@@ -2484,9 +2764,17 @@
       }
       if (d.sdrone && boss) {
         d.orb = finiteN(d.orb, shieldDroneOrb(boss.k));
-        d.a += dt * (d.warn > 0 ? 0.75 : 1.35);
+        d.a += dt * (d.warn > 0 ? 0.75 : (d.dstorm ? 1.55 : 1.35));
         d.x = boss.x + Math.cos(d.a) * d.orb;
         d.y = boss.y + Math.sin(d.a) * d.orb * 0.55;
+        if (d.dstorm && d.warn <= 0) droneStormShoot(d, dt);
+        return;
+      }
+      if (d.splitSwarm && !d.didSplit && d.y > H * 0.38) {
+        d.didSplit = true; d.dead = true;
+        roomFor(drones, ENT_CAP.drones, 2, keepKaiserDrone);
+        drones.push({ missile: true, x: d.x - 18, y: d.y, vx: -50, t: 0, warn: 0 });
+        drones.push({ missile: true, x: d.x + 18, y: d.y, vx: 50, t: 0, warn: 0 });
         return;
       }
       if (d.clone) {
@@ -2506,7 +2794,7 @@
   function killDrone(d) {
     if ((d.sdrone || d.clone) && d.hp > 1) { d.hp--; d.flash = 0.12; explode(d.x, d.y, 10, CYAN, 120); tone(900, 500, 0.06, "square", 0.04); return; }
     d.dead = true; dropCoin(d.x, d.y, 0.5, 3); addScore(20); explode(d.x, d.y, 18, FIRE, 160); tone(600, 200, 0.12, "square", 0.05);
-    if (d.sdrone && boss && boss.prime && !drones.some(function (o) { return o !== d && o.sdrone && !o.dead; })) showMsg("🛡️ " + tr("tips.satDown"), "good", 1.2);
+    if (d.sdrone && !d.dstorm && boss && boss.prime && !drones.some(function (o) { return o !== d && o.sdrone && !o.dstorm && !o.dead; })) showMsg("🛡️ " + tr("tips.satDown"), "good", 1.2);
   }
   function updateFeatures(dt) {
     var F = feats(), playing = state === "play", calm = !boss;
@@ -2736,7 +3024,7 @@
   }
 
   // ---------- Vom Schwarzen Loch verschluckt: sofort vorbei (egal ob Herzen, Schild oder Blinken) ----------
-  var sucked = null, holeFlash = 0;
+  var sucked = null, holeFlash = 0, primeFlash = 0;
   function suckIntoHole(h) {
     if (trainOn) return;
     if (state !== "play") return;
@@ -3183,8 +3471,9 @@
       });
     } });
     if (boss) {
-      boss.t += dt; if (boss.flash > 0) boss.flash -= dt;
-      if (boss.dash) { /* crown dash owns x/y — patrol must not fight it */ }
+      boss.t += dt; if (boss.flash > 0 && !boss.dying) boss.flash -= dt;
+      if (boss.dying) { updatePrimeDeath(dt); }
+      else if (boss.dash) { /* crown dash owns x/y — patrol must not fight it */ }
       else if (boss.y < boss.targetY && !boss.pulled) boss.y += 60 * dt;
       else {
         if (boss.y > boss.targetY + 2 && !boss.pulled) boss.y -= 40 * dt;
@@ -3412,6 +3701,10 @@
       var fg2 = ctx.createRadialGradient(W / 2, H / 2, 10, W / 2, H / 2, Math.max(W, H) * 0.75);
       fg2.addColorStop(0, "rgba(120,40,200," + (holeFlash * 0.35) + ")"); fg2.addColorStop(1, "rgba(10,0,30," + Math.min(0.85, holeFlash) + ")");
       ctx.fillStyle = fg2; ctx.fillRect(0, 0, W, H);
+    }
+    if (primeFlash > 0) {
+      var pfa = Math.min(0.72, finiteN(primeFlash, 0));
+      if (pfa > 0) { ctx.fillStyle = "rgba(255,248,230," + pfa + ")"; ctx.fillRect(0, 0, W, H); }
     }
     if (state === "play" || state === "dying") { drawCombo(); drawBossIntro(); }
   }
@@ -3663,7 +3956,7 @@
   }
   function drawEmperor(b) {
     var k = b.k, fl = b.flash > 0, t = b.t, fr = b.hp / b.maxHp, rage = b.phase >= 4;
-    ctx.save(); ctx.translate(b.x, b.y + Math.sin(t * 1.3) * 4); ctx.scale(k, k);
+    ctx.save(); ctx.translate(b.x + (b.prime && b.dying ? finiteN(b.dieJx, 0) : 0), b.y + Math.sin(t * 1.3) * 4 + (b.prime && b.dying ? finiteN(b.dieJy, 0) : 0)); ctx.scale(k, k);
     function metal(y0, y1, light) { var g = ctx.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, fl ? "#fff" : (light || "#dfe6f0")); g.addColorStop(0.55, fl ? "#fff" : "#8a96a8"); g.addColorStop(1, "#3a4252"); return g; }
     ctx.lineJoin = "round"; ctx.strokeStyle = "#1a202c"; ctx.lineWidth = 3;
     // Triebwerk-Glühen hinter dem Rücken
@@ -4481,8 +4774,42 @@
     if (b.wind > 0) { ctx.fillStyle = "rgba(200,255,250," + (0.5 + 0.5 * Math.sin(t * 30)) + ")"; ctx.beginPath(); ctx.arc(0, 36, 10, 0, 7); ctx.fill(); }
     ctx.restore();
   }
+  function drawStormDrone(d) {
+    var x = finiteN(d.x, 0), y = finiteN(d.y, 0), t = finiteN(d.t, 0), a = finiteN(d.a, 0);
+    var gold = safeCol("#ffd54a"), steel = safeCol("#8a96a8"), dark = safeCol("#1c2430");
+    var red = safeCol("#ff3a3a"), core = safeCol("#ff6a2a"), trail = safeCol("#ff9a2a"), rim = safeCol("#c8d0dc");
+    ctx.save(); ctx.translate(x, y); ctx.scale(2.05, 2.05);
+    if (d.warn > 0) ctx.globalAlpha = 0.42 + 0.42 * Math.sin(t * 16);
+    var tx = Math.sin(a), ty = -Math.cos(a) * 0.55;
+    ctx.fillStyle = trail; ctx.globalAlpha = d.warn > 0 ? 0.22 : 0.55;
+    ctx.beginPath(); ctx.moveTo(-tx * 5, -ty * 5); ctx.lineTo(-tx * 26, -ty * 16); ctx.lineTo(-tx * 10 + 4, -ty * 7); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = core; ctx.globalAlpha = d.warn > 0 ? 0.2 : 0.34;
+    ctx.beginPath(); ctx.arc(-tx * 14, -ty * 9, 6, 0, 7); ctx.fill();
+    ctx.globalAlpha = d.warn > 0 ? 0.42 + 0.42 * Math.sin(t * 16) : 1;
+    ctx.rotate(a + t * 2.6);
+    ctx.strokeStyle = gold; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(0, 0, 15, t * 7, t * 7 + 4.1); ctx.stroke();
+    ctx.strokeStyle = rim; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(0, 0, 15, t * 7 + 3.2, t * 7 + 4.6); ctx.stroke();
+    ctx.fillStyle = steel;
+    ctx.beginPath(); ctx.moveTo(-18, -3); ctx.lineTo(-11, 0); ctx.lineTo(-18, 3); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(18, -3); ctx.lineTo(11, 0); ctx.lineTo(18, 3); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-3, -18); ctx.lineTo(0, -11); ctx.lineTo(3, -18); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = d.flash > 0 ? "#fff" : dark; ctx.strokeStyle = gold; ctx.lineWidth = 1.7;
+    ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(11, -4); ctx.lineTo(8, 10); ctx.lineTo(-8, 10); ctx.lineTo(-11, -4); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = rim; ctx.fillRect(-7, 8, 14, 3);
+    ctx.fillStyle = core; ctx.beginPath(); ctx.arc(0, 1, 3.8, 0, 7); ctx.fill();
+    if ((d.eye || 0) > 0) { ctx.fillStyle = red; ctx.beginPath(); ctx.arc(0, -5, 2.8, 0, 7); ctx.fill(); }
+    else { ctx.fillStyle = safeCol("#5a1824"); ctx.fillRect(-2.2, -6, 4.4, 2.2); }
+    if ((d.muzzle || 0) > 0) {
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, 12, 3.6, 0, 7); ctx.fill();
+      ctx.fillStyle = gold; ctx.fillRect(-1.8, 10, 3.6, 10);
+    }
+    ctx.restore();
+  }
   function drawDrone(d) {
     if (d.missile) { drawMissile(d); return; }
+    if (d.dstorm) { drawStormDrone(d); return; }
     if (d.sdrone) {
       ctx.save(); ctx.translate(d.x, d.y);
       if (d.warn > 0) ctx.globalAlpha = 0.45 + 0.45 * Math.sin(d.t * 20);
@@ -4510,6 +4837,19 @@
   }
   function drawPrimeKaiserFx() {
     var b = boss; if (!b) return;
+    if (b.dying && b.dieBoom) {
+      var dr = finiteN(b.dieR, 24), bx = finiteN(b.x, W / 2), by = finiteN(b.y, 220);
+      if (dr > 0 && isFinite(dr)) {
+        ctx.save();
+        var blastA = Math.max(0, 0.42 - Math.max(0, finiteN(b.dieT, 0) - 1.2) * 0.7);
+        if (blastA > 0) { ctx.fillStyle = "rgba(255,220,140," + blastA + ")"; ctx.beginPath(); ctx.arc(bx, by, Math.min(dr, 160), 0, 7); ctx.fill(); }
+        ctx.strokeStyle = safeCol("rgba(255,213,74,.9)"); ctx.lineWidth = 10;
+        ctx.beginPath(); ctx.arc(bx, by, dr, 0, 7); ctx.stroke();
+        ctx.strokeStyle = safeCol("rgba(255,80,50,.5)"); ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(bx, by, dr * 0.62, 0, 7); ctx.stroke();
+        ctx.restore();
+      }
+    }
     if (primeGuarded()) {
       var gk = finiteN(b.k, 1), pulseG = 0.5 + 0.5 * Math.sin(time * 8);
       ctx.save(); ctx.translate(b.x, b.y);
@@ -4558,6 +4898,56 @@
         ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-8, -6); ctx.lineTo(-8, 6); ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.restore();
       }
+    }
+    if (b.wheel) {
+      var ww = b.wheel, wi, wang, wr = Math.max(W, H), wwarn = ww.phase === "warn", wpulse = 0.4 + 0.4 * Math.sin(time * 14);
+      ctx.save();
+      ctx.strokeStyle = wwarn ? "rgba(255,213,74," + wpulse + ")" : "rgba(255,60,50,.8)";
+      ctx.lineWidth = wwarn ? 3 : 6; ctx.setLineDash(wwarn ? [10, 8] : []);
+      for (wi = 0; wi < (ww.n || 3); wi++) {
+        wang = finiteN(ww.a, 0) + wi * Math.PI * 2 / (ww.n || 3);
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + Math.cos(wang) * wr, b.y + Math.sin(wang) * wr); ctx.stroke();
+      }
+      ctx.setLineDash([]); ctx.restore();
+    }
+    if (b.marks) {
+      (b.marks.spots || []).forEach(function (s) {
+        var mp = 0.4 + 0.4 * Math.sin(time * 16);
+        ctx.save();
+        ctx.strokeStyle = b.marks.phase === "warn" ? "rgba(255,213,74," + mp + ")" : "rgba(255,80,50,.8)";
+        ctx.lineWidth = 3; ctx.setLineDash(b.marks.phase === "warn" ? [8, 6] : []);
+        ctx.beginPath(); ctx.arc(finiteN(s.x, 0), finiteN(s.y, 0), 26, 0, 7); ctx.stroke();
+        ctx.setLineDash([]);
+        if (b.marks.phase === "warn") { ctx.font = "bold 22px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd54a"; ctx.fillText("⚠️", finiteN(s.x, 0), finiteN(s.y, 0) - 34); }
+        ctx.restore();
+      });
+    }
+    if (b.emp) {
+      var ew = b.emp.phase === "warn", ep = 0.45 + 0.45 * Math.sin(time * 14);
+      ctx.save(); ctx.translate(b.x, b.y); ctx.strokeStyle = ew ? "rgba(120,220,255," + ep + ")" : "rgba(80,180,255,.85)";
+      ctx.lineWidth = ew ? 5 : 9; ctx.setLineDash(ew ? [12, 8] : []);
+      ctx.beginPath(); ctx.arc(0, 0, ew ? 64 : finiteN(b.emp.r, 46), b.emp.gapA + b.emp.gapW / 2, b.emp.gapA + Math.PI * 2 - b.emp.gapW / 2); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    }
+    if (b.tractor) {
+      var tw = b.tractor.phase === "warn", tpx = finiteN(b.tractor.x, W / 2), tp = 0.35 + 0.35 * Math.sin(time * 12);
+      ctx.save(); ctx.fillStyle = tw ? "rgba(125,255,234," + (0.08 + tp * 0.08) + ")" : "rgba(80,220,255,.16)";
+      ctx.fillRect(tpx - 30, 0, 60, H);
+      ctx.strokeStyle = tw ? "rgba(255,213,74," + tp + ")" : "rgba(125,255,234,.7)";
+      ctx.lineWidth = 3; ctx.setLineDash(tw ? [10, 8] : []);
+      ctx.beginPath(); ctx.moveTo(tpx - 30, 0); ctx.lineTo(tpx - 30, H); ctx.moveTo(tpx + 30, 0); ctx.lineTo(tpx + 30, H); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    }
+    if (b.wall) {
+      var wl = b.wall, wy = finiteN(wl.y, -30), gx = finiteN(wl.gapX, W / 2), gw = finiteN(wl.gapW, 200), wp = 0.4 + 0.4 * Math.sin(time * 12);
+      ctx.save(); ctx.fillStyle = wl.phase === "warn" ? "rgba(255,140,60," + (0.12 + wp * 0.1) + ")" : "rgba(255,90,40,.45)";
+      ctx.fillRect(0, wy - 18, Math.max(0, gx - gw / 2), 36);
+      ctx.fillRect(gx + gw / 2, wy - 18, Math.max(0, W - (gx + gw / 2)), 36);
+      ctx.strokeStyle = wl.phase === "warn" ? "rgba(255,213,74," + wp + ")" : "#ffd54a";
+      ctx.lineWidth = 3; ctx.setLineDash(wl.phase === "warn" ? [10, 8] : []);
+      ctx.strokeRect(0, wy - 18, Math.max(0, gx - gw / 2), 36);
+      ctx.strokeRect(gx + gw / 2, wy - 18, Math.max(0, W - (gx + gw / 2)), 36);
+      ctx.setLineDash([]); ctx.restore();
     }
   }
   function drawBossLaser() {
@@ -10178,9 +10568,9 @@
           try { update(dt); if (!opts.noDraw) draw(); } catch (e) { errors.push(String(e && e.message || e)); }
           snap();
         }
-        for (ph = 1; ph <= 20; ph++) {
+        for (ph = 1; ph <= 30; ph++) {
           if (!boss) break;
-          boss.hp = boss.maxHp * (ph === 20 ? 0.04 : 1.01 - ph * 0.05);
+          boss.hp = boss.maxHp * (ph <= 1 ? 0.99 : ph >= 30 ? 0.01 : 1.01 - ph / 30);
           boss.phase = Math.max(1, ph - 1); boss.laser = null;
           for (i = 0; i < Math.ceil(2 / dt); i++) {
             try { update(dt); if (!opts.noDraw) draw(); } catch (e) { errors.push(String(e && e.message || e)); }
@@ -10197,7 +10587,7 @@
       return { errors: errors, nan: nan, max: max, phases: Object.keys(phases).map(Number).sort(function (a, b) { return a - b; }), died: died, depth: ctx.__depth || 0 };
     },
     forcePrimePhase: function (ph) {
-      ph = Math.max(1, Math.min(20, ph || 1));
+      ph = Math.max(1, Math.min(30, ph || 1));
       if (!boss || !boss.prime) {
         if (typeof startGame === "function") startGame(250);
         spawnBoss();
@@ -10207,20 +10597,49 @@
       if (ship) { ship.y = H - 80; }
       lives = Math.max(lives, 2); invuln = 2;
       if (!boss) return null;
+      boss.y = finiteN(boss.targetY, boss.y);
       endPrimePhase(boss.phase);
       boss.shock = null; boss.cage = null; boss.blades = null; boss.dash = null; shower = null;
-      drones = drones.filter(function (d) { return !d.sdrone && !d.clone; });
-      boss.hp = boss.maxHp * (ph <= 1 ? 0.99 : ph >= 20 ? 0.02 : 1.01 - ph * 0.05);
+      boss.wheel = null; boss.marks = null; boss.emp = null; boss.tractor = null; boss.wall = null;
+      boss.dying = false; primeFlash = 0;
+      drones = drones.filter(function (d) { return !d.sdrone && !d.clone && !d.dstorm; });
+      wells = wells.filter(function (w) { return !w.voidWell; });
+      boss.hp = boss.maxHp * (ph <= 1 ? 0.99 : ph >= 30 ? 0.01 : 1.01 - ph / 30);
       boss.phase = ph === 1 ? 1 : ph - 1;
-      boss.laser = null; boss.fx1 = 0; boss.fx2 = 0; boss.dashT = 0; boss.bombTimer = 0;
+      boss.laser = null; boss.fx1 = 0; boss.fx2 = 0; boss.fx3 = 0; boss.dashT = 0; boss.bombTimer = 0;
+      boss.t = 5;
       primeKaiserFight(0.05);
       return {
         phase: boss.phase, k: boss.k,
-        sdrones: drones.filter(function (d) { return d.sdrone && !d.dead; }).length,
+        sdrones: drones.filter(function (d) { return d.sdrone && !d.dstorm && !d.dead; }).length,
+        dstorm: drones.filter(function (d) { return d.dstorm && !d.dead; }).length,
+        storm: drones.filter(function (d) { return d.dstorm && !d.dead; }).map(function (d) { return { x: finiteN(d.x, 0), y: finiteN(d.y, 0) }; }),
         dash: boss.dash ? boss.dash.phase : null,
         cage: boss.cage ? boss.cage.phase : null,
-        blades: !!(boss.blades && boss.blades.n)
+        blades: !!(boss.blades && boss.blades.n),
+        wheel: boss.wheel ? boss.wheel.phase : null,
+        dying: !!boss.dying
       };
+    },
+    startPrimeDeath: function () {
+      if (!boss || !boss.prime) {
+        if (typeof startGame === "function") startGame(250);
+        spawnBoss();
+        if (boss) { boss.y = boss.targetY; }
+      }
+      state = "play"; lives = Math.max(lives, 2); invuln = 4;
+      startPrimeDeath();
+      return { dying: !!(boss && boss.dying), t: boss && boss.dieT };
+    },
+    stormDrones: function () {
+      return drones.filter(function (d) { return d.dstorm && !d.dead; }).map(function (d) {
+        return { x: finiteN(d.x, 0), y: finiteN(d.y, 0), eye: finiteN(d.eye, 0), muzzle: finiteN(d.muzzle, 0) };
+      });
+    },
+    stepPrimeDeath: function (sec) {
+      var s = finiteN(sec, 0.05), n = Math.max(1, Math.ceil(s / 0.05)), i;
+      for (i = 0; i < n; i++) { if (!boss || !boss.dying) break; updatePrimeDeath(0.05); }
+      return { dying: !!(boss && boss.dying), t: boss && +finiteN(boss.dieT, 0).toFixed(2), boom: !!(boss && boss.dieBoom), flash: +finiteN(primeFlash, 0).toFixed(2), shake: +finiteN(shake, 0).toFixed(2) };
     },
     cometAboveShip: function () { comets.push({ x: ship.x, y: ship.y - 250, vx: 0, vy: 0, r: 14, t: 0 }); },
     clear: function () { rocks = []; ufos = []; holes = []; comets = []; stars = []; powers = []; },
