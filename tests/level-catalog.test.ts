@@ -13,7 +13,7 @@ describe('level catalog', () => {
     expect(allRemoteLevelPayloads().at(-1)?.level).toBe(250);
     expect(buildLevelPayload(100).featCopy?.title).toMatch(/Emperor|Kaiser|FINALE/i);
     expect(buildLevelPayload(250).featCopy?.title).toMatch(/Kaiser/i);
-    expect(buildLevelPayload(250).boss).toMatchObject({ type: 'emperor', hp: 270000 });
+    expect(buildLevelPayload(250).boss).toMatchObject({ type: 'emperor', hp: 810000 });
     expect(buildLevelPayload(100).boss).toMatchObject({ type: 'emperor', hp: 9000 });
   });
 

@@ -998,7 +998,7 @@
   // ---------- Schwierigkeit ab Level 19 ("Hitze"), per Balance-Test in 3er-Gruppen eingestellt (siehe levels-log.md) ----------
   var TUNE = { 19: 1.45, 22: 1.45, 25: 1.45, 28: 1.1, 37: 1.45, 40: 1.26, 46: 1.26, 49: 1.15, 52: 1.26, 55: 1.1, 61: 1.15, 64: 1.26, 67: 1.26, 70: 1.38, 73: 1.15, 76: 1.59, 82: 1.26, 91: 1.52, 94: 1.26, 97: 1.54 }; // Gruppe (erstes Level der 3er-Gruppe) -> Faktor
   var TUNE_BOSS = { 33: 0.6, 57: 0.9, 60: 0.9, 72: 0.85, 81: 0.65, 84: 0.85, 90: 0.8, 100: 0.9, 120: 0.88, 150: 0.86, 174: 0.85, 198: 0.84, 225: 0.83, 250: 1 }; // 250 full heat — 50-phase prime Kaiser
-  var PRIME_KAISER_HP = 270000, PRIME_KAISER_PHASES = 50, PRIME_KAISER_THRESHOLDS = [0.98, 0.96, 0.94, 0.92, 0.9, 0.88, 0.86, 0.84, 0.82, 0.8, 0.78, 0.76, 0.74, 0.72, 0.7, 0.68, 0.66, 0.64, 0.62, 0.6, 0.58, 0.56, 0.54, 0.52, 0.5, 0.48, 0.46, 0.44, 0.42, 0.4, 0.38, 0.36, 0.34, 0.32, 0.3, 0.28, 0.26, 0.24, 0.22, 0.2, 0.18, 0.16, 0.14, 0.12, 0.1, 0.08, 0.06, 0.04, 0.02];
+  var PRIME_KAISER_HP = 810000, PRIME_KAISER_PHASES = 50, PRIME_KAISER_THRESHOLDS = [0.98, 0.96, 0.94, 0.92, 0.9, 0.88, 0.86, 0.84, 0.82, 0.8, 0.78, 0.76, 0.74, 0.72, 0.7, 0.68, 0.66, 0.64, 0.62, 0.6, 0.58, 0.56, 0.54, 0.52, 0.5, 0.48, 0.46, 0.44, 0.42, 0.4, 0.38, 0.36, 0.34, 0.32, 0.3, 0.28, 0.26, 0.24, 0.22, 0.2, 0.18, 0.16, 0.14, 0.12, 0.1, 0.08, 0.06, 0.04, 0.02];
   var ENT_CAP = { bombs: 80, mines: 24, drones: 16, wells: 6, particles: 240, ufos: 12, rocks: 48, bullets: 120 };
   function primeKaiserPhase(fr) { var i; for (i = 0; i < PRIME_KAISER_THRESHOLDS.length; i++) if (fr > PRIME_KAISER_THRESHOLDS[i]) return i + 1; return PRIME_KAISER_PHASES; }
   function finiteN(n, fb) { n = +n; return isFinite(n) ? n : (fb || 0); }
@@ -1342,10 +1342,10 @@
   }
   var BOSS_TYPES = { 3: ["saucer", 28, 90, "UFO-MUTTERSCHIFF"], 6: ["robo", 58, 80, "ROBO-SCHLACHTSCHIFF"], 9: ["twins", 72, 70, "ZWILLINGS-UFOs"], 12: ["golem", 250, 64, "ASTEROIDEN-BASIS"], 15: ["crystal", 400, 85, "KRISTALL-KREUZER"], 18: ["emperor", 880, 60, "ROBO-WELTRAUM-KAISER"] };
   function spawnBoss() {
-    var spec = bossSpec(level), bt = [spec.type, Math.round(spec.hp * (level >= 19 ? heat() * (TUNE_BOSS[level] || 1) : 1) * (typeof teamScale === "function" ? teamScale() : 1) * modeTune().bossHp), spec.speed, spec.name];
+    var spec = bossSpec(level), bt = [spec.type, finiteN(Math.round(spec.hp * (level >= 19 ? heat() * (TUNE_BOSS[level] || 1) : 1) * (typeof teamScale === "function" ? teamScale() : 1) * modeTune().bossHp), spec.hp || 1), spec.speed, spec.name];
     var esz = spec.prime ? Math.min(W * 0.72, H * 0.82, 760) : Math.min(W * 0.5, H * 0.62, 500), ek = esz / 360;
     boss = { type: bt[0], name: bt[3], mods: spec.mods, tint: spec.tint, final: !!spec.final, sector: !!spec.sector, prime: !!spec.prime, atk: (level >= 19 ? Math.min(2.2, (1 + (level - 18) * 0.006) * (0.55 + 0.45 * heat()) * Math.sqrt(TUNE_BOSS[level] || 1) * (TUNE_ATK[level] || 1)) : 1) * (typeof teamAtk === "function" ? teamAtk() : 1), modK: TUNE_MOD[level] || 1, holeImmune: level >= 18, modT: {}, x: W / 2, y: bt[0] === "emperor" ? -140 * ek : -80, targetY: bt[0] === "emperor" ? 132 + 120 * ek : 210, k: ek, sz: esz,
-      shield: null, shieldCd: 6, droneT: 3, powerT: 9, immuneT: 0, blocks: 0, vx: bt[2] * (Math.random() < 0.5 ? -1 : 1), hp: bt[1], maxHp: bt[1],
+      shield: null, shieldCd: 6, droneT: 3, powerT: 9, immuneT: 0, blocks: 0, vx: bt[2] * (Math.random() < 0.5 ? -1 : 1), hp: finiteN(bt[1], 1), maxHp: finiteN(bt[1], 1),
       bombTimer: 2.5, spreadT: 3.2, laserCd: 3.5, summonCd: 0, phase: 1, laser: null, t: 0, flash: 0 };
     hideMsg(); SFX.boss(); tone(90, 45, 0.9, "sawtooth", 0.07, 0.2); tone(90, 45, 0.9, "sawtooth", 0.07, 1.1);
     if (!trainOn) showJit("boss");
@@ -4035,15 +4035,82 @@
     for (var i = -3; i <= 3; i++) { ctx.fillStyle = (Math.floor(b.t * 5) + i) % 2 ? "#ffd54a" : "#7dffea"; ctx.beginPath(); ctx.arc(i * 20, 6, 4, 0, 7); ctx.fill(); }
     ctx.restore();
   }
+  function primePhaseBand(ph) {
+    ph = Math.max(1, Math.min(PRIME_KAISER_PHASES, ph || 1));
+    if (ph <= 1) return { a: 0.98, b: 1 };
+    if (ph >= PRIME_KAISER_PHASES) return { a: 0, b: 0.02 };
+    return { a: PRIME_KAISER_THRESHOLDS[ph - 1], b: PRIME_KAISER_THRESHOLDS[ph - 2] };
+  }
+  function drawPrimeBossBar(b) {
+    var margin = Math.max(16, Math.min(28, W * 0.032)), stack = W < 700, tall = H >= W;
+    var labelW = stack ? 0 : Math.min(136, Math.max(112, W * 0.15));
+    var bw = finiteN(W - margin * 2 - (labelW ? labelW + 10 : 0), 200), bh = tall ? 34 : 30;
+    var bx = margin, by = tall ? 124 : 114;
+    var maxHp = finiteN(b.maxHp, 1); if (maxHp <= 0) maxHp = 1;
+    var fr = Math.max(0, Math.min(1, finiteN(b.hp, 0) / maxHp));
+    var band = primePhaseBand(b.phase || 1), i, f, x, major, num, filled;
+    var segX = finiteN(bx + bw * finiteN(band.a, 0), bx), segW = Math.max(5, finiteN(bw * (finiteN(band.b, 0) - finiteN(band.a, 0)), 5));
+    ctx.save();
+    ctx.fillStyle = "rgba(5,8,22,.82)"; ctx.fillRect(bx - 5, by - 6, bw + 10, bh + 12);
+    ctx.fillStyle = "#2a0c16"; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = fr > 0.35 ? "#ffb02a" : "#ff5a3a";
+    ctx.fillRect(bx, by, bw * fr, bh);
+    ctx.fillStyle = "rgba(255,255,220,.48)";
+    ctx.fillRect(segX, by - 3, segW, bh + 6);
+    ctx.shadowColor = "#ffd54a"; ctx.shadowBlur = 12;
+    ctx.strokeStyle = "#fff6c8"; ctx.lineWidth = 3;
+    ctx.strokeRect(segX + 0.5, by - 3.5, segW - 1, bh + 6);
+    ctx.shadowBlur = 0;
+    for (i = 0; i < PRIME_KAISER_THRESHOLDS.length; i++) {
+      f = PRIME_KAISER_THRESHOLDS[i];
+      major = (i === 8 || i === 18 || i === 28 || i === 38);
+      x = bx + bw * f;
+      filled = f <= fr + 0.001;
+      if (major) {
+        ctx.fillStyle = "#1a0a00";
+        ctx.fillRect(x - 2.2, by - 5, 4.4, bh + 10);
+        ctx.fillStyle = "#fff3b0";
+        ctx.fillRect(x - 1.1, by - 4, 2.2, bh + 8);
+        num = i + 2;
+        ctx.font = "bold 13px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(5,8,22,.88)";
+        ctx.strokeText(String(num), x, by + bh + 7);
+        ctx.fillStyle = "#ffd54a";
+        ctx.fillText(String(num), x, by + bh + 7);
+      } else {
+        ctx.fillStyle = filled ? "rgba(40,16,0,.75)" : "rgba(255,246,200,.9)";
+        ctx.fillRect(x - 0.7, by, 1.4, bh);
+      }
+    }
+    if (tall) {
+      ctx.fillStyle = "#fff6c8";
+      ctx.font = "bold 13px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif";
+      ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+      ctx.fillText("👑 " + (b.name || tr("canvas.boss")), bx, by - 6);
+    }
+    var lx = stack ? bx : bx + bw + 10, ly = stack ? by + bh + 30 : by + bh / 2;
+    var pill = tr("game.phase") + " " + b.phase + "/" + PRIME_KAISER_PHASES;
+    ctx.font = "bold " + (stack ? 14 : 16) + "px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif";
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    var tw = ((ctx.measureText && ctx.measureText(pill).width) || 88) + 16, th = stack ? 22 : 26;
+    var px = lx, py = ly - th / 2;
+    ctx.fillStyle = "rgba(5,8,22,.88)"; ctx.strokeStyle = "#ffd54a"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.rect(px, py, Math.min(tw, W - px - margin), th); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#fff6c8";
+    ctx.fillText(pill, px + 8, ly);
+    ctx.restore();
+  }
   function drawBossBar() {
     var b = boss, big = b.type === "emperor";
+    if (b.prime) { drawPrimeBossBar(b); return; }
     var bw = Math.min(big ? 480 : 320, W * (big ? 0.6 : 0.7)), bx = W / 2 - bw / 2, by = big ? (W < 900 ? 120 : 58) : 170, bh = big ? 22 : 16; // Hochformat: unter die Knöpfe, damit nichts verdeckt wird
     ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.fillRect(bx - 3, by - 3, bw + 6, bh + 6);
     ctx.fillStyle = "#5a1a2a"; ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = b.hp / b.maxHp > 0.35 ? (big ? "#ffb02a" : "#ff4a7a") : "#ff5a3a"; ctx.fillRect(bx, by, bw * Math.max(0, b.hp / b.maxHp), bh);
-    if (big) { ctx.fillStyle = "#fff"; (b.prime ? PRIME_KAISER_THRESHOLDS : b.final ? [0.15, 0.3, 0.44, 0.58, 0.72, 0.86] : [0.15, 0.4, 0.6, 0.8]).forEach(function (f) { ctx.fillRect(bx + bw * f - 1, by, 2, bh); }); if (b.shield && b.shield.phase === "on") { ctx.strokeStyle = "#7dffea"; ctx.lineWidth = 3; ctx.strokeRect(bx - 4, by - 4, bw + 8, bh + 8); } }
+    if (big) { ctx.fillStyle = "#fff"; (b.final ? [0.15, 0.3, 0.44, 0.58, 0.72, 0.86] : [0.15, 0.4, 0.6, 0.8]).forEach(function (f) { ctx.fillRect(bx + bw * f - 1, by, 2, bh); }); if (b.shield && b.shield.phase === "on") { ctx.strokeStyle = "#7dffea"; ctx.lineWidth = 3; ctx.strokeRect(bx - 4, by - 4, bw + 8, bh + 8); } }
     ctx.fillStyle = "#fff"; ctx.font = "bold " + (big ? 15 : 13) + "px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText((big ? "👑 " : "") + (b.name || tr("canvas.boss")) + (big ? "  ·  " + tr("game.phase") + " " + b.phase + "/" + (b.prime ? PRIME_KAISER_PHASES : b.final ? 7 : 5) + (b.shield && b.shield.phase === "on" ? " 🛡️" : "") : ""), W / 2, by + bh / 2);
+    ctx.fillText((big ? "👑 " : "") + (b.name || tr("canvas.boss")) + (big ? "  ·  " + tr("game.phase") + " " + b.phase + "/" + (b.final ? 7 : 5) + (b.shield && b.shield.phase === "on" ? " 🛡️" : "") : ""), W / 2, by + bh / 2);
   }
   function drawTwinMark(x, y) {
     ctx.save(); ctx.strokeStyle = "rgba(125,255,170,.7)"; ctx.lineWidth = 2; ctx.setLineDash([4, 5]);
@@ -7343,7 +7410,7 @@
       flame: ["255,255,255","116,180,255","57,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuchend + 3 Drohnen", desc: "Ein dunkler Turm mit drei Eis-Drohnen." },
     { id: "charongate", name: "Charon-Tor", tier: 6, price: 2060000, unlock: { L: 245 }, hearts: 15, speed: 2.24, rate: 0.115, shots: 5, dmg: 14.36, regen: 12, perk: "nova", perk2: "clone", bullet: "hsl(240,85%,70%)",
       flame: ["255,255,255","128,190,255","58,70,200"], engines: [[0, 30, 1]], perkText: "Nova + Klon", desc: "Öffnet einen Tor-Klon auf der anderen Seite." },
-    { id: "starcrown", name: "Sternenkrone", tier: 6, price: 50000000, unlock: { L: 250 }, hearts: 16, speed: 2.26, rate: 0.114, shots: 5, dmg: 14.58, regen: 16, perk: "omega", perk2: "timeslow", drones: 4, bullet: "hsl(281,85%,70%)",
+    { id: "starcrown", name: "Sternenkrone", tier: 6, price: 3000000, unlock: { L: 250 }, hearts: 16, speed: 2.26, rate: 0.114, shots: 5, dmg: 14.58, regen: 16, perk: "omega", perk2: "timeslow", drones: 4, bullet: "hsl(281,85%,70%)",
       flame: ["255,255,255","140,200,255","59,70,200"], engines: [[0, 30, 1]], perkText: "Omega-Krone + 4 Drohnen", desc: "Belohnung für den Weltraum-Kaiser auf 250! Kronen-Schüsse suchen und durchschlagen." },
     { id: "phobosclaw", name: "Phobos-Klaue", tier: 4, price: 240000, unlock: { L: 108 }, hearts: 12, speed: 1.9, rate: 0.15, shots: 3, dmg: 8.8, regen: 12, perk: "quake", perk2: "pulse", bullet: "#ff8a40",
       flame: ["255,230,200","255,120,50","140,30,10"], engines: [[0, 30, 1]], perkText: "Beben-Klaue + Schildpuls", desc: "Spezial-Belohnung nach den ersten Außen-Docks. Zwillingsklauen erschüttern die Bahn und stoßen einen Schildpuls aus." },

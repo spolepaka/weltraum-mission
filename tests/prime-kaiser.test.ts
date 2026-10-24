@@ -29,7 +29,7 @@ describe('L250 prime Kaiser — 50 phases', () => {
     expect(PRIME_KAISER_THRESHOLDS).toHaveLength(49);
     expect([...PRIME_KAISER_THRESHOLDS]).toEqual(THRESHOLDS);
     expect(HTML).toContain('PRIME_KAISER_PHASES = 50');
-    expect(HTML).toContain('PRIME_KAISER_HP = 270000');
+    expect(HTML).toContain('PRIME_KAISER_HP = 810000');
     expect(HTML).toMatch(/PRIME_KAISER_THRESHOLDS = \[0\.98, 0\.96, 0\.94, 0\.92, 0\.9, 0\.88/);
     expect(HTML).toContain('function primeKaiserPhase(fr)');
     expect(HTML).toContain('function primeKaiserFight(dt)');
@@ -66,13 +66,13 @@ describe('L250 prime Kaiser — 50 phases', () => {
     expect([...seen].sort((a, b) => a - b)).toEqual(Array.from({ length: 50 }, (_, n) => n + 1));
   });
 
-  it('raises catalog HP to 270k and keeps L100 Kaiser at 9000 / 7 phases', () => {
-    expect(PRIME_KAISER_HP).toBe(270000);
-    expect(bossForLevel(250)?.hp).toBe(270000);
+  it('raises catalog HP to 810k and keeps L100 Kaiser at 9000 / 7 phases', () => {
+    expect(PRIME_KAISER_HP).toBe(810000);
+    expect(bossForLevel(250)?.hp).toBe(810000);
     expect(bossForLevel(250)?.prime).toBe(true);
     expect(bossForLevel(100)?.hp).toBe(9000);
     expect(bossForLevel(100)?.prime).toBeFalsy();
-    expect(buildLevelPayload(250).boss?.hp).toBe(270000);
+    expect(buildLevelPayload(250).boss?.hp).toBe(810000);
     expect(buildLevelPayload(100).boss?.hp).toBe(9000);
     expect(HTML).toMatch(/if \(L === 100\) return \{ type: "emperor", hp: 9000/);
     expect(HTML).toContain('if (b.prime) { primeKaiserFight(dt); }');
@@ -86,8 +86,17 @@ describe('L250 prime Kaiser — 50 phases', () => {
       expect(en.tips[`primePhase${n}`]).toMatch(new RegExp(`Phase ${n}/50`));
       expect(de.tips[`primePhase${n}`]).toMatch(new RegExp(`Phase ${n}/50`));
     }
-    expect(HTML).toContain('tr("game.phase") + " " + b.phase + "/" + (b.prime ? PRIME_KAISER_PHASES');
+    expect(HTML).toContain('tr("game.phase") + " " + b.phase + "/" + PRIME_KAISER_PHASES');
     expect(HTML).toContain('"Phase " + rp + "/" + PRIME_KAISER_PHASES');
+    expect(HTML).toContain('function drawPrimeBossBar');
+    expect(HTML).toContain('function primePhaseBand');
+    expect(HTML).toMatch(/labelW \? labelW \+ 10/);
+    expect(HTML).toContain('i === 8 || i === 18 || i === 28 || i === 38');
+    expect(HTML).toContain('rgba(255,255,220,.48)');
+    expect(HTML).toContain('finiteN(b.hp, 0)');
+    expect(HTML).toContain('if (b.prime) { drawPrimeBossBar(b); return; }');
+    expect(HTML).toContain('var bw = Math.min(big ? 480 : 320, W * (big ? 0.6 : 0.7))');
+    expect(HTML).not.toMatch(/PRIME_PHASE_MIN|phaseBreak|clampPrimeBossHp/);
   });
 
   it('does not rewrite L250 or L100 Kaiser art', () => {
@@ -102,7 +111,7 @@ describe('L250 prime Kaiser — 50 phases', () => {
     const heat250 = 1.72 + 0.48;
     const fightHp = PRIME_KAISER_HP * heat250;
     expect(heat250).toBeCloseTo(2.2, 5);
-    expect(fightHp).toBeCloseTo(594000, 0);
+    expect(fightHp).toBeCloseTo(1782000, 0);
     const star = OUTER_SHIPS.find((s) => s.id === 'starcrown');
     const voidc = SPECIAL_SHIPS.find((s) => s.id === 'voidcrown');
     expect(star).toBeTruthy();
@@ -114,9 +123,9 @@ describe('L250 prime Kaiser — 50 phases', () => {
     }
     const starDps = gunDps(star!.dmg, star!.rate, star!.shots) + 4 * 1.5 * ((star!.dmg * 2.25) / 2.9) / 0.55;
     const voidDps = gunDps(voidc!.dmg, voidc!.rate, voidc!.shots, 1.6) * 1.7;
-    expect(fightHp / starDps).toBeGreaterThan(140);
-    expect(fightHp / starDps).toBeLessThan(270);
-    expect(fightHp / voidDps).toBeGreaterThan(50);
-    expect(fightHp / voidDps).toBeLessThan(160);
+    expect(fightHp / starDps).toBeGreaterThan(420);
+    expect(fightHp / starDps).toBeLessThan(810);
+    expect(fightHp / voidDps).toBeGreaterThan(150);
+    expect(fightHp / voidDps).toBeLessThan(480);
   });
 });

@@ -206,11 +206,11 @@ const NEW_BOSSES: Record<number, { type: string; en: string; de: string; sector?
   243: { type: 'art', en: 'HALO SENTINEL', de: 'HALO-WÄCHTER' },
   246: { type: 'art', en: 'ICE DWARF MECH', de: 'EISZWERG-MECH' },
   249: { type: 'art', en: 'VOID HERALD', de: 'LEEREN-HEROLD' },
-  250: { type: 'emperor', en: 'WELTRAUM KAISER: STAR CROWN', de: 'WELTRAUM-KAISER: STERNENKRONE', sector: true, finale: true, hp: 270000, prime: true },
+  250: { type: 'emperor', en: 'WELTRAUM KAISER: STAR CROWN', de: 'WELTRAUM-KAISER: STERNENKRONE', sector: true, finale: true, hp: 810000, prime: true },
 };
 
 /** Catalog HP for the L250 prime Kaiser. In-fight HP still multiplies by heat() and TUNE_BOSS. */
-export const PRIME_KAISER_HP = 270000;
+export const PRIME_KAISER_HP = 810000;
 export const PRIME_KAISER_PHASES = 50;
 /** HP fraction cutoffs: a new phase starts about every 2% remaining HP. */
 export const PRIME_KAISER_THRESHOLDS = [
