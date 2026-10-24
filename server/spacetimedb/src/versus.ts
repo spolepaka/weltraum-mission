@@ -148,6 +148,16 @@ export function shipPower(shipId: string, rawUps?: Partial<VersusUpgrades> | nul
   return shipCombatPower(shipId, rawUps);
 }
 
+/** 1v1 may use a ship if it is owned (bought or unlocked). Level gates do not apply. */
+export function versusOwnsShip(owned: Iterable<string> | null | undefined, shipId: string): boolean {
+  const id = String(shipId || 'starter');
+  if (id === 'starter') return true;
+  for (const s of owned || []) {
+    if (s === id) return true;
+  }
+  return false;
+}
+
 export function fallbackStrength(_unlockedLevel: number, shipId: string, rawUps?: Partial<VersusUpgrades> | null): number {
   return pairingScore(shipCombatPower(shipId || 'starter', rawUps), VERSUS_ELO_START);
 }

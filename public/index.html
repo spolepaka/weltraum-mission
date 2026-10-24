@@ -98,6 +98,12 @@
     background: rgba(20,30,70,.75); border: 2px solid #7dffea; border-radius: 16px; padding: 6px 16px; font-size: 18px; }
   #worldPager { position: absolute; top: calc(92px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; zoom: var(--s); pointer-events: auto; z-index: 5; }
   #worldLabel { background: rgba(20,30,70,.9); border: 2px solid #ffd54a; border-radius: 14px; padding: 6px 14px; font-size: 15px; min-width: 210px; text-align: center; color: #ffe9a0; }
+  #worldDots { position: absolute; top: calc(142px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; zoom: var(--s); pointer-events: auto; z-index: 5; }
+  #worldDots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.28); border: 1px solid rgba(255,213,74,.45); cursor: pointer; display: inline-block; }
+  #worldDots i.on { background: #ffd54a; box-shadow: 0 0 8px #ffd54a; }
+  #worldDots i.far { opacity: .4; }
+  #pvBtn.buy { background: linear-gradient(180deg, #ffe066, #ff9f1a); color: #3a1a00; }
+  .scard.buyable canvas { filter: none; }
   #worldPrev, #worldNext { position: relative; top: auto; left: auto; right: auto; font-size: 22px; width: 48px; height: 48px; padding: 0; }
   .mapBtn { position: absolute; pointer-events: auto; zoom: var(--s); border-radius: 18px; border: 2px solid #8fb0ff; background: rgba(40,60,140,.75); color: #fff; font-size: 16px; padding: 8px 12px; cursor: pointer; font-family: inherit; }
   #resetBtn { bottom: calc(14px + env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); font-size: 14px; background: rgba(90,30,50,.75); border-color: #ff9a9a; }
@@ -429,6 +435,7 @@
 <div id="mapHud" class="hidden">
   <div id="mapTitle"><h1 id="gameTitle">🚀 Space Mission</h1><div class="sub"><span id="lblTotalScore">Total Score</span>: <b id="totalScore">0</b> &nbsp;·&nbsp; <span id="lblRecord">Record</span>: <b id="bestStart">0</b> &nbsp;·&nbsp; 🪙 <b id="mapCoins">0</b></div><div id="onlineNowMap" class="hidden">🟢 0 online</div></div>
   <div id="worldPager"><button id="worldPrev" class="mapBtn" aria-label="Previous galaxy">◀</button><div id="worldLabel">🏠 Galaxy 1</div><button id="worldNext" class="mapBtn" aria-label="Next galaxy">▶</button></div>
+  <div id="worldDots" aria-label="Galaxy pages"></div>
   <div id="mapHint">👆 Tap on a planet!</div>
   <div id="mapColL">
     <div id="mapColLTop">
@@ -1331,7 +1338,7 @@
     if (r.armor) { addScore(20); explode(r.x, r.y, 36, STEEL, 280); SFX.boom(); maybeDrop(r.x, r.y, 0.1); return; }
     if (r.big) {
       addScore(20); explode(r.x, r.y, 30, PURPLE); SFX.boom();
-      [-1, 1].forEach(function (s) { var k = makeRock(r.x + s * 14, r.y, r.r * 0.5, false); k.vx = s * rnd(50, 80); k.vy = r.vy * 1.1; k.hue = 280; newRocks.push(k); });
+      [-1, 1].forEach(function (s) { var k = makeRock(r.x + s * 14, r.y, r.r * 0.5, false); k.vx = s * rnd(50, 80); k.vy = r.vy * 1.1; k.hue = 280; if (r.side != null) { k.side = r.side; k.hue = r.hue; } newRocks.push(k); });
     } else { addScore(10); explode(r.x, r.y, 22, FIRE); SFX.boom(); maybeDrop(r.x, r.y, 0.04); }
   }
   function killUfo(u) {
@@ -1377,7 +1384,7 @@
     beams.push({ x: x, y0: y0, life: 0.18 });
     function inBeam(o, r) { return o.y < y0 && Math.abs(o.x - x) < r + 7; }
     holes.forEach(function (h) { if (inBeam(h, h.r * 1.6)) feedHole(h); });
-    rocks.forEach(function (r) { if (!r.dead && inBeam(r, r.r)) killRock(r); });
+    rocks.forEach(function (r) { if (!r.dead && !versusShotIgnores(r, curPid) && inBeam(r, r.r)) killRock(r); });
     ufos.forEach(function (u) { if (!u.dead && inBeam(u, u.r)) killUfo(u); });
     comets.forEach(function (c) { if (!c.dead && inBeam(c, c.r + 6)) killComet(c); });
     mines.forEach(function (m) { if (!m.dead && inBeam(m, m.r)) mineBoom(m); });
@@ -2547,6 +2554,7 @@
       var sr = curStats.hitR || 22;
       rocks.forEach(function (r) {
         if (!r.dead && hit(r.x, r.y, r.r * 0.85, ship.x, ship.y, sr)) {
+          if (!versusRockHurts(r, curPid)) return;
           if (roadsterSafe()) { /* pass through while rolling */ }
           else if (r.ice) { r.dead = true; freezeShip(); }
           else { r.dead = true; hurt(r.x, r.y); }
@@ -2790,7 +2798,7 @@
       }
       for (var h = 0; h < holes.length; h++) if (hit(b.x, b.y, 3, holes[h].x, holes[h].y, holes[h].r * 1.6)) { b.dead = true; feedHole(holes[h]); return; }
       for (var mI = 0; mI < mines.length; mI++) { var mm = mines[mI]; if (!mm.dead && hit(b.x, b.y, b.rad || 4, mm.x, mm.y, mm.r + 3)) { b.dead = true; mineBoom(mm); return; } }
-      for (var i = 0; i < rocks.length; i++) { var r = rocks[i]; if (!r.dead && !seenBy(b, r) && hit(b.x, b.y, b.rad || 4, r.x, r.y, r.r)) { if (versusOn()) versusNudgeRock(r, b.pid || 1); perkHit(b, r.x, r.y, r); killRock(r, b.dmg); if (!b.pierce) { b.dead = true; return; } } }
+      for (var i = 0; i < rocks.length; i++) { var r = rocks[i]; if (!r.dead && !versusShotIgnores(r, b.pid || 1) && !seenBy(b, r) && hit(b.x, b.y, b.rad || 4, r.x, r.y, r.r)) { if (versusOn()) versusNudgeRock(r, b.pid || 1); perkHit(b, r.x, r.y, r); killRock(r, b.dmg); if (!b.pierce) { b.dead = true; return; } } }
       for (var j = 0; j < ufos.length; j++) { var u = ufos[j]; if (!u.dead && !(u.cloak && cloakVis(u) < 0.45) && !seenBy(b, u) && hit(b.x, b.y, b.rad || 4, u.x, u.y, u.r)) { perkHit(b, u.x, u.y, u); killUfo(u); if (!b.pierce) { b.dead = true; return; } } }
       for (var c = 0; c < comets.length; c++) { var k = comets[c]; if (!k.dead && !seenBy(b, k) && hit(b.x, b.y, b.rad || 4, k.x, k.y, k.r + 6)) { perkHit(b, k.x, k.y, k); killComet(k); if (!b.pierce) { b.dead = true; return; } } }
       if (!b.hitBoss && bossHit(b.x, b.y)) { var bb = boss; damageBoss(b.dmg || 1, b.x, b.y); if (boss === bb) perkHit(b, b.x, b.y, boss); else perkHit(b, b.x, b.y, null); if (b.pierce) b.hitBoss = true; else b.dead = true; }
@@ -3067,6 +3075,13 @@
     else { gr.addColorStop(0, "hsl(" + r.hue + ",35%,60%)"); gr.addColorStop(1, "hsl(" + r.hue + ",30%,25%)"); }
     ctx.fillStyle = gr; ctx.fill();
     ctx.lineWidth = r.big ? 3.5 : 2.5; ctx.strokeStyle = "hsl(" + r.hue + ",45%,75%)"; ctx.stroke();
+    if (versusOn() && r.side) {
+      var tint = vsApi() && vsApi().versusRockColor ? vsApi().versusRockColor(r.side) : (r.side === 1 ? "#ff8a40" : "#4ec3ff");
+      ctx.shadowColor = tint; ctx.shadowBlur = 16;
+      ctx.strokeStyle = tint; ctx.lineWidth = 3; ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 0.22; ctx.fillStyle = tint; ctx.fill(); ctx.globalAlpha = 1;
+    }
     ctx.fillStyle = "rgba(0,0,0,.2)";
     ctx.beginPath(); ctx.arc(r.r * 0.3, r.r * 0.2, r.r * 0.2, 0, 7); ctx.fill();
     ctx.beginPath(); ctx.arc(-r.r * 0.35, r.r * 0.35, r.r * 0.13, 0, 7); ctx.fill();
@@ -3787,7 +3802,7 @@
     var x = ship.x, y0 = ship.y - ship.h / 2;
     beams.push({ x: x, y0: y0, life: 0.12, sun: true, p2: curPid > 1, pid: curPid });
     function inB(o, r) { return o.y < y0 && o.y > -30 && Math.abs(o.x - x) < r + 9; }
-    rocks.forEach(function (r) { if (!r.dead && inB(r, r.r)) killRock(r, d); });
+    rocks.forEach(function (r) { if (!r.dead && !versusShotIgnores(r, curPid) && inB(r, r.r)) killRock(r, d); });
     ufos.forEach(function (u) { if (!u.dead && !(u.cloak && cloakVis(u) < 0.45) && inB(u, u.r)) killUfo(u); });
     drones.forEach(function (dr) { if (!dr.dead && !(dr.warn > 0) && inB(dr, 15)) killDrone(dr); });
     comets.forEach(function (c) { if (!c.dead && inB(c, c.r)) killComet(c); });
@@ -3797,7 +3812,7 @@
   }
   function chainBolt(x, y, o, dmg) {
     var cands = [];
-    rocks.forEach(function (r) { if (!r.dead && r !== o) cands.push([r, "r"]); });
+    rocks.forEach(function (r) { if (!r.dead && r !== o && !versusShotIgnores(r, curPid)) cands.push([r, "r"]); });
     ufos.forEach(function (u) { if (!u.dead && u !== o && !(u.cloak && cloakVis(u) < 0.45)) cands.push([u, "u"]); });
     drones.forEach(function (dr) { if (!dr.dead && dr !== o && !(dr.warn > 0)) cands.push([dr, "d"]); });
     cands = cands.filter(function (c) { var dx = c[0].x - x, dy = c[0].y - y; c.d = dx * dx + dy * dy; return c.d < 175 * 175; }).sort(function (a, b) { return a.d - b.d; }).slice(0, 2);
@@ -3813,7 +3828,7 @@
     if (b.perk === "chain" && !b.chained) { b.chained = true; chainBolt(x, y, o, b.dmg * 0.6); }
     if (b.perk === "quake") {
       particles.push({ ring: true, x: x, y: y, r: 10, vr: 380, life: 0.3, max: 0.3, c: "#ff9a3a" }); shake = Math.max(shake, 0.08);
-      rocks.forEach(function (r) { if (!r.dead && r !== o && hit(r.x, r.y, r.r, x, y, 105)) killRock(r, b.dmg * 0.5); });
+      rocks.forEach(function (r) { if (!r.dead && r !== o && !versusShotIgnores(r, b.pid || curPid) && hit(r.x, r.y, r.r, x, y, 105)) killRock(r, b.dmg * 0.5); });
       ufos.forEach(function (u) { if (!u.dead && u !== o && hit(u.x, u.y, u.r, x, y, 105)) killUfo(u); });
       drones.forEach(function (dr) { if (!dr.dead && dr !== o && hit(dr.x, dr.y, 15, x, y, 105)) killDrone(dr); });
     }
@@ -3831,12 +3846,12 @@
       explode(x, y, 12, FIRE, 160);
     } else if (b.perk === "nova") {
       particles.push({ ring: true, x: x, y: y, r: 8, vr: 260, life: 0.25, max: 0.25, c: "#ffb02a" }); perkCount.blast++;
-      rocks.forEach(function (r) { if (!r.dead && r !== o && hit(r.x, r.y, r.r, x, y, 60)) killRock(r, b.dmg); });
+      rocks.forEach(function (r) { if (!r.dead && r !== o && !versusShotIgnores(r, b.pid || curPid) && hit(r.x, r.y, r.r, x, y, 60)) killRock(r, b.dmg); });
       ufos.forEach(function (u) { if (!u.dead && u !== o && hit(u.x, u.y, u.r, x, y, 60)) killUfo(u); });
     } else if (b.perk === "blast") {
       particles.push({ ring: true, x: x, y: y, r: 10, vr: 330, life: 0.3, max: 0.3, c: "#ffe066" }); perkCount.blast++;
       explode(x, y, 18, ["#ffe066", "#ff7de9", "#ffffff"], 220); SFX.boom();
-      rocks.forEach(function (r) { if (!r.dead && r !== o && hit(r.x, r.y, r.r, x, y, 95)) killRock(r, b.dmg); });
+      rocks.forEach(function (r) { if (!r.dead && r !== o && !versusShotIgnores(r, b.pid || curPid) && hit(r.x, r.y, r.r, x, y, 95)) killRock(r, b.dmg); });
       ufos.forEach(function (u) { if (!u.dead && u !== o && hit(u.x, u.y, u.r, x, y, 95)) killUfo(u); });
       drones.forEach(function (d) { if (!d.dead && d !== o && hit(d.x, d.y, 15, x, y, 95)) killDrone(d); });
       comets.forEach(function (c) { if (!c.dead && c !== o && hit(c.x, c.y, c.r, x, y, 95)) killComet(c); });
@@ -3844,8 +3859,13 @@
   }
   function steerBullet(b, dt) {
     var best = null, bd = 1e9;
-    function consider(x, y) { if (y > b.y - 10) return; var dx = x - b.x, dy = y - b.y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = [x, y]; } }
-    rocks.forEach(function (r) { if (!r.dead) consider(r.x, r.y); });
+    var aimDown = versusOn() && (b.pid || 1) === 2;
+    function consider(x, y) {
+      if (aimDown) { if (y < b.y + 10) return; }
+      else if (y > b.y - 10) return;
+      var dx = x - b.x, dy = y - b.y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = [x, y]; }
+    }
+    rocks.forEach(function (r) { if (!r.dead && !versusShotIgnores(r, b.pid || 1)) consider(r.x, r.y); });
     for (var wI = 0; wI < wells.length; wI++) { var ww = wells[wI]; if (!(ww.warn > 0) && Math.abs(ww.x - b.x) < 200 && Math.abs(ww.y - b.y) < 200) return; } // Schwerkraft stört die Zielsuche
     ufos.forEach(function (u) { if (!u.dead && !(u.cloak && cloakVis(u) < 0.45)) consider(u.x, u.y); });
     drones.forEach(function (d) { if (!d.dead && !(d.warn > 0)) consider(d.x, d.y); });
@@ -4216,6 +4236,16 @@
   function isGuest() { return net.role === "guest" && net.inGame; }
   function versusOn() { return !!(typeof net !== "undefined" && net && net.versus); }
   function vsApi() { return window.__weltraum && window.__weltraum.versus; }
+  function versusShotIgnores(r, pid) {
+    if (!versusOn() || !r || r.side == null) return false;
+    var api = vsApi();
+    return api && api.versusShotIgnoresRock ? api.versusShotIgnoresRock(r.side, pid || 1) : ((pid === 1 && r.side === 2) || (pid === 2 && r.side === 1));
+  }
+  function versusRockHurts(r, pid) {
+    if (!versusOn() || !r || r.side == null) return true;
+    var api = vsApi();
+    return api && api.versusRockDamagesPid ? api.versusRockDamagesPid(r.side, pid || curPid) : (r.side === (pid || curPid));
+  }
   function maxSeats() { return versusOn() ? ((vsApi() && vsApi().VERSUS_MAX_PLAYERS) || 2) : MAX_PLAYERS; }
   function versusUpsNow() {
     var u = (typeof shop !== "undefined" && shop && shop.up) ? shop.up : {};
@@ -4254,6 +4284,8 @@
     var fromTop = side === 1;
     var rk = makeRock(rnd(r, W - r), fromTop ? -r : H + r, r, false);
     rk.vy = (fromTop ? 1 : -1) * Math.abs(rk.vy || 80);
+    rk.side = side;
+    rk.hue = vsApi() && vsApi().versusRockHue ? vsApi().versusRockHue(side) : (side === 1 ? 28 : 200);
     rocks.push(rk);
   }
   function versusNudgeRock(r, pid) {
@@ -5771,15 +5803,15 @@
       flame: ["255,240,255", "208,140,255", "255,120,40"], engines: [[-14, 30, 1], [14, 30, 1]], perkText: "3 Feuer-Schüsse + Feuer-Welle alle 5 s + Schild", desc: "Das mächtigste Flaggschiff der Galaxie! Drei Feuerkanonen auf einmal und alle 5 Sekunden eine riesige Feuer-Welle." },
     { id: "omega", name: "Omega-Stern", tier: 3, price: 160000, hearts: 8, speed: 1.7, rate: 0.2, shots: 3, dmg: 5.4, regen: 10, perk: "omega", perk2: "timeslow", drones: 2, bullet: "#ffffff",
       flame: ["255,255,255", "160,255,255", "255,213,74"], engines: [[-14, 32, 1], [0, 35, 1.3], [14, 32, 1]], perkText: "Zielsuchend + Durchschuss + 2 Drohnen + Zeitlupe", desc: "Das ultimative Schiff am Ende des Universums. Omega-Schüsse suchen ihr Ziel UND fliegen durch alles hindurch!" },
-    { id: "frostwal", name: "Frost-Frachter", tier: 4, price: 0, unlock: { L: 30 }, hearts: 6, speed: 1.3, rate: 0.26, shots: 3, dmg: 3.2, regen: 14, perk: "freeze", perk2: "frostaura", bullet: "#bff4ff",
+    { id: "frostwal", name: "Frost-Frachter", tier: 4, price: 18000, unlock: { L: 30 }, hearts: 6, speed: 1.3, rate: 0.26, shots: 3, dmg: 3.2, regen: 14, perk: "freeze", perk2: "frostaura", bullet: "#bff4ff",
       flame: ["255,255,255", "190,240,255", "90,180,255"], engines: [[-10, 32, 1], [10, 32, 1]], perkText: "3 Eis-Schüsse + Frost-Aura bremst Bomben", desc: "Belohnung für die Nebel-Festung! Ein riesiger Eis-Frachter mit Kälte-Feld: Bomben und Drohnen in seiner Nähe werden langsam." },
-    { id: "lindwurm", name: "Gewitter-Korvette", tier: 4, price: 0, unlock: { L: 45 }, hearts: 6, speed: 1.5, rate: 0.22, shots: 2, dmg: 3.8, regen: 0, perk: "chain", bullet: "#fff27a",
+    { id: "lindwurm", name: "Gewitter-Korvette", tier: 4, price: 28000, unlock: { L: 45 }, hearts: 6, speed: 1.5, rate: 0.22, shots: 2, dmg: 3.8, regen: 0, perk: "chain", bullet: "#fff27a",
       flame: ["255,255,230", "255,240,120", "80,200,255"], engines: [[0, 30, 1.1]], perkText: "Ketten-Blitze springen auf 2 weitere Gegner", desc: "Belohnung für den Frost-Geschützkreuzer! Jeder Treffer schickt einen Blitz, der auf zwei Gegner in der Nähe überspringt." },
-    { id: "hydra", name: "Smaragd-Dreizack", tier: 4, price: 0, unlock: { L: 60 }, hearts: 6, speed: 1.5, rate: 0.24, shots: 5, dmg: 3.2, regen: 0, perk: "homing", bullet: "#7dffa8",
+    { id: "hydra", name: "Smaragd-Dreizack", tier: 4, price: 42000, unlock: { L: 60 }, hearts: 6, speed: 1.5, rate: 0.24, shots: 5, dmg: 3.2, regen: 0, perk: "homing", bullet: "#7dffa8",
       flame: ["235,255,240", "125,255,168", "20,160,90"], engines: [[-8, 30, 0.9], [8, 30, 0.9]], perkText: "5 zielsuchende Schüsse aus 3 Köpfen", desc: "Belohnung für den Sonnen-Titan! Drei Kanonen-Spitzen, fünf zielsuchende Smaragd-Schüsse auf einmal." },
-    { id: "regenbogen", name: "Regenbogen-Komet", tier: 4, price: 0, unlock: { ach: "combo25" }, hearts: 5, speed: 1.75, rate: 0.22, shots: 3, dmg: 3.8, regen: 0, perk: "prism", bullet: "#ffffff",
+    { id: "regenbogen", name: "Regenbogen-Komet", tier: 4, price: 36000, unlock: { ach: "combo25" }, hearts: 5, speed: 1.75, rate: 0.22, shots: 3, dmg: 3.8, regen: 0, perk: "prism", bullet: "#ffffff",
       flame: ["255,255,255", "255,213,74", "255,90,200"], engines: [[0, 28, 1]], perkText: "5 Regenbogen-Schüsse: Eis, Feuer oder Sterne!", desc: "Belohnung für den Erfolg Combo-König (25er Combo)! Fächert 5 bunte Schüsse – jeder hat eine zufällige Kraft." },
-    { id: "kaiserbrecher", name: "Kaiser-Brecher", tier: 4, price: 0, unlock: { L: 90 }, hearts: 7, speed: 1.55, rate: 0.22, shots: 3, dmg: 5, regen: 10, perk: "nova", drones: 4, bullet: "#ffd54a",
+    { id: "kaiserbrecher", name: "Kaiser-Brecher", tier: 4, price: 90000, unlock: { L: 90 }, hearts: 7, speed: 1.55, rate: 0.22, shots: 3, dmg: 5, regen: 10, perk: "nova", drones: 4, bullet: "#ffd54a",
       flame: ["255,255,230", "255,213,74", "200,60,255"], engines: [[-16, 32, 1], [0, 35, 1.3], [16, 32, 1]], perkText: "Nova-Schüsse + 4 Kampf-Drohnen + 1,6x Schaden gegen den Robo-Kaiser", desc: "Belohnung für den Schwarzloch-Wächter! Gebaut, um den Robo-Kaiser zu besiegen: Nova-Wellen und vier Drohnen." },
     { id: "beepbuggy", name: "Roadster Basis", tier: 5, price: 900, hearts: 3, speed: 1.25, rate: 0.23, shots: 1, dmg: 1.05, regen: 0, bullet: "#ff6a5a",
       flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-6, 31, 0.7], [-2, 31, 0.7], [2, 31, 0.7], [6, 31, 0.7]], perkText: "Tesla Roadster", desc: "Tesla Roadster in Multi-Coat-Rot. Vier SpaceX-Kaltgasdüsen in einer Reihe unter der Heckleuchte. Der Einstiegs-Flieger." },
@@ -5791,65 +5823,65 @@
       flame: ["230,250,255", "90,180,255", "30,70,200"], engines: [[-7.2, 31, 0.85], [-2.4, 31, 0.95], [2.4, 31, 0.95], [7.2, 31, 0.85]], perkText: "Zielsuchend + Schild alle 14 s", desc: "Mitternachtssilberner Roadster-Rocket. SpaceX-Kaltgas-Cluster — vier Haupt- plus vier versenkte Düsen — Zielsuch-Schüsse und alle 14 Sekunden ein Schild. 0–60 unter 0,59 s." },
     { id: "apexflash", name: "Roadster Founders-Serie", tier: 5, price: 148000, hearts: 7, speed: 1.62, rate: 0.2, shots: 3, dmg: 4.8, regen: 11, perk: "homing", perk2: "pulse", bullet: "#ffd54a",
       flame: ["255,255,255", "140,210,255", "40,90,220"], engines: [[-7.4, 31, 0.9], [-2.5, 31, 1], [2.5, 31, 1], [7.4, 31, 0.9], [0, 34, 1.15]], perkText: "Zielsuch-Salve + Schildpuls", desc: "Tesla Roadster Founders-Serie. Chrom-Gold, der große Heckflügel vom offiziellen Raketen-Foto, volle SpaceX-Düsenreihe, dreifach zielsuchend und ein Schildpuls, der Bomben in der Nähe knallt." },
-    { id: "rivet", name: "Nieten-Drachen", tier: 6, price: 0, unlock: { L: 105 }, hearts: 5, speed: 1.35, rate: 0.26, shots: 2, dmg: 3, regen: 0, bullet: "hsl(172,85%,70%)",
+    { id: "rivet", name: "Nieten-Drachen", tier: 6, price: 180000, unlock: { L: 105 }, hearts: 5, speed: 1.35, rate: 0.26, shots: 2, dmg: 3, regen: 0, bullet: "hsl(172,85%,70%)",
       flame: ["255,255,255","80,160,255","30,70,200"], engines: [[0, 30, 1]], perkText: "Doppel-Nieten", desc: "Ein Werft-Drachen mit Nietenschüssen." },
-    { id: "crane", name: "Kran-Flügel", tier: 6, price: 0, unlock: { L: 110 }, hearts: 5, speed: 1.36, rate: 0.258, shots: 2, dmg: 3.09, regen: 0, perk: "pierce", bullet: "hsl(213,85%,70%)",
+    { id: "crane", name: "Kran-Flügel", tier: 6, price: 200000, unlock: { L: 110 }, hearts: 5, speed: 1.36, rate: 0.258, shots: 2, dmg: 3.09, regen: 0, perk: "pierce", bullet: "hsl(213,85%,70%)",
       flame: ["255,255,255","92,170,255","31,70,200"], engines: [[0, 30, 1]], perkText: "Kran-Strahl durch alles", desc: "Lange Kran-Flügel durchschlagen Gegner." },
-    { id: "welder", name: "Schweiss-Skip", tier: 6, price: 0, unlock: { L: 115 }, hearts: 5, speed: 1.37, rate: 0.256, shots: 2, dmg: 3.18, regen: 0, perk: "burn", bullet: "hsl(254,85%,70%)",
+    { id: "welder", name: "Schweiss-Skip", tier: 6, price: 220000, unlock: { L: 115 }, hearts: 5, speed: 1.37, rate: 0.256, shots: 2, dmg: 3.18, regen: 0, perk: "burn", bullet: "hsl(254,85%,70%)",
       flame: ["255,255,255","104,180,255","32,70,200"], engines: [[0, 30, 1]], perkText: "Schweiss-Funken", desc: "Funken setzen Steine in Brand." },
-    { id: "dockn", name: "Dock-Nadel", tier: 6, price: 0, unlock: { L: 120 }, hearts: 5, speed: 1.39, rate: 0.254, shots: 2, dmg: 3.27, regen: 0, perk: "small", perk2: "pierce", hitR: 13, bullet: "hsl(295,85%,70%)",
+    { id: "dockn", name: "Dock-Nadel", tier: 6, price: 240000, unlock: { L: 120 }, hearts: 5, speed: 1.39, rate: 0.254, shots: 2, dmg: 3.27, regen: 0, perk: "small", perk2: "pierce", hitR: 13, bullet: "hsl(295,85%,70%)",
       flame: ["255,255,255","116,190,255","33,70,200"], engines: [[0, 30, 1]], perkText: "Winzig + Durchschuss", desc: "Eine schlanke Nadel aus dem Trockendock. Schwer zu treffen!" },
-    { id: "boltfin", name: "Bolzen-Finne", tier: 6, price: 0, unlock: { L: 125 }, hearts: 5, speed: 1.4, rate: 0.252, shots: 2, dmg: 3.36, regen: 0, perk: "homing", bullet: "hsl(336,85%,70%)",
+    { id: "boltfin", name: "Bolzen-Finne", tier: 6, price: 260000, unlock: { L: 125 }, hearts: 5, speed: 1.4, rate: 0.252, shots: 2, dmg: 3.36, regen: 0, perk: "homing", bullet: "hsl(336,85%,70%)",
       flame: ["255,255,255","128,200,255","34,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuch-Bolzen", desc: "Flossen schießen Bolzen, die das Ziel suchen." },
-    { id: "hullmite", name: "Rumpf-Milbe", tier: 6, price: 0, unlock: { L: 130 }, hearts: 5, speed: 1.41, rate: 0.25, shots: 2, dmg: 3.45, regen: 0, perk: "split", bullet: "hsl(17,85%,70%)",
+    { id: "hullmite", name: "Rumpf-Milbe", tier: 6, price: 280000, unlock: { L: 130 }, hearts: 5, speed: 1.41, rate: 0.25, shots: 2, dmg: 3.45, regen: 0, perk: "split", bullet: "hsl(17,85%,70%)",
       flame: ["255,255,255","140,160,255","35,70,200"], engines: [[0, 30, 1]], perkText: "Splitter-Milben", desc: "Treffer zerplatzen in zwei kleine Milben." },
-    { id: "slagskip", name: "Schlacken-Skip", tier: 6, price: 0, unlock: { L: 135 }, hearts: 5, speed: 1.42, rate: 0.248, shots: 2, dmg: 3.54, regen: 0, perk: "quake", bullet: "hsl(58,85%,70%)",
+    { id: "slagskip", name: "Schlacken-Skip", tier: 6, price: 300000, unlock: { L: 135 }, hearts: 5, speed: 1.42, rate: 0.248, shots: 2, dmg: 3.54, regen: 0, perk: "quake", bullet: "hsl(58,85%,70%)",
       flame: ["255,255,255","152,170,255","36,70,200"], engines: [[0, 30, 1]], perkText: "Schlacken-Beben", desc: "Wirft schwere Schlacke, die die Bahn bebt." },
-    { id: "magmapike", name: "Magma-Pike", tier: 6, price: 0, unlock: { L: 140 }, hearts: 5, speed: 1.43, rate: 0.246, shots: 2, dmg: 3.63, regen: 13, perk: "burn", bullet: "hsl(99,85%,70%)",
+    { id: "magmapike", name: "Magma-Pike", tier: 6, price: 320000, unlock: { L: 140 }, hearts: 5, speed: 1.43, rate: 0.246, shots: 2, dmg: 3.63, regen: 13, perk: "burn", bullet: "hsl(99,85%,70%)",
       flame: ["255,255,255","164,180,255","37,70,200"], engines: [[0, 30, 1]], perkText: "Feuer-Pike + Schild", desc: "Eine Magma-Lanze mit langsamem Schildpuls." },
-    { id: "smeltwing", name: "Schmelz-Flügel", tier: 6, price: 0, unlock: { L: 145 }, hearts: 6, speed: 1.45, rate: 0.244, shots: 2, dmg: 3.72, regen: 0, perk: "burn", perk2: "wing", bullet: "hsl(140,85%,70%)",
+    { id: "smeltwing", name: "Schmelz-Flügel", tier: 6, price: 340000, unlock: { L: 145 }, hearts: 6, speed: 1.45, rate: 0.244, shots: 2, dmg: 3.72, regen: 0, perk: "burn", perk2: "wing", bullet: "hsl(140,85%,70%)",
       flame: ["255,255,255","80,190,255","38,70,200"], engines: [[0, 30, 1]], perkText: "Brand + Begleiter", desc: "Zwei heiße Begleiter fliegen neben dir." },
-    { id: "ingothulk", name: "Barren-Koloss", tier: 6, price: 0, unlock: { L: 150 }, hearts: 6, speed: 1.46, rate: 0.242, shots: 3, dmg: 3.81, regen: 0, bullet: "hsl(181,85%,70%)",
+    { id: "ingothulk", name: "Barren-Koloss", tier: 6, price: 360000, unlock: { L: 150 }, hearts: 6, speed: 1.46, rate: 0.242, shots: 3, dmg: 3.81, regen: 0, bullet: "hsl(181,85%,70%)",
       flame: ["255,255,255","92,200,255","39,70,200"], engines: [[0, 30, 1]], perkText: "Dreifach-Barren + Schild", desc: "Ein schwerer Gießerei-Panzer. Langsame Schüsse, große Herzen." },
-    { id: "crucibit", name: "Tiegel-Bit", tier: 6, price: 0, unlock: { L: 155 }, hearts: 6, speed: 1.47, rate: 0.24, shots: 2, dmg: 3.9, regen: 14, perk: "nova", bullet: "hsl(222,85%,70%)",
+    { id: "crucibit", name: "Tiegel-Bit", tier: 6, price: 380000, unlock: { L: 155 }, hearts: 6, speed: 1.47, rate: 0.24, shots: 2, dmg: 3.9, regen: 14, perk: "nova", bullet: "hsl(222,85%,70%)",
       flame: ["255,255,255","104,160,255","40,70,200"], engines: [[0, 30, 1]], perkText: "Nova-Schmelze", desc: "Alle paar Sekunden knallt eine Schmelz-Welle." },
-    { id: "forgefin", name: "Schmiede-Finne", tier: 6, price: 0, unlock: { L: 160 }, hearts: 6, speed: 1.48, rate: 0.238, shots: 3, dmg: 3.99, regen: 13, perk: "pierce", perk2: "orbit", drones: 1, bullet: "hsl(263,85%,70%)",
+    { id: "forgefin", name: "Schmiede-Finne", tier: 6, price: 400000, unlock: { L: 160 }, hearts: 6, speed: 1.48, rate: 0.238, shots: 3, dmg: 3.99, regen: 13, perk: "pierce", perk2: "orbit", drones: 1, bullet: "hsl(263,85%,70%)",
       flame: ["255,255,255","116,170,255","41,70,200"], engines: [[0, 30, 1]], perkText: "Durchschuss + Hammer-Drohne", desc: "Ein Flossen-Schmiedeschiff mit einer Hammer-Drohne." },
-    { id: "frostbit", name: "Frost-Bit", tier: 6, price: 0, unlock: { L: 165 }, hearts: 6, speed: 1.49, rate: 0.236, shots: 2, dmg: 4.08, regen: 0, perk: "freeze", bullet: "hsl(304,85%,70%)",
+    { id: "frostbit", name: "Frost-Bit", tier: 6, price: 420000, unlock: { L: 165 }, hearts: 6, speed: 1.49, rate: 0.236, shots: 2, dmg: 4.08, regen: 0, perk: "freeze", bullet: "hsl(304,85%,70%)",
       flame: ["255,255,255","128,180,255","42,70,200"], engines: [[0, 30, 1]], perkText: "Eis-Schüsse frieren", desc: "Kleine Eis-Bits frieren Steine in der Nähe." },
-    { id: "iceauger", name: "Eis-Bohrer", tier: 6, price: 0, unlock: { L: 170 }, hearts: 6, speed: 1.51, rate: 0.234, shots: 3, dmg: 4.17, regen: 0, perk: "pierce", bullet: "hsl(345,85%,70%)",
+    { id: "iceauger", name: "Eis-Bohrer", tier: 6, price: 440000, unlock: { L: 170 }, hearts: 6, speed: 1.51, rate: 0.234, shots: 3, dmg: 4.17, regen: 0, perk: "pierce", bullet: "hsl(345,85%,70%)",
       flame: ["255,255,255","140,190,255","43,70,200"], engines: [[0, 30, 1]], perkText: "Bohr-Durchschuss", desc: "Bohrt gerade durch alle Gegner in der Bahn." },
-    { id: "cryowing", name: "Kryo-Flügel", tier: 6, price: 0, unlock: { L: 175 }, hearts: 6, speed: 1.52, rate: 0.232, shots: 2, dmg: 4.26, regen: 0, perk: "freeze", perk2: "frostaura", bullet: "hsl(26,85%,70%)",
+    { id: "cryowing", name: "Kryo-Flügel", tier: 6, price: 460000, unlock: { L: 175 }, hearts: 6, speed: 1.52, rate: 0.232, shots: 2, dmg: 4.26, regen: 0, perk: "freeze", perk2: "frostaura", bullet: "hsl(26,85%,70%)",
       flame: ["255,255,255","152,200,255","44,70,200"], engines: [[0, 30, 1]], perkText: "Frost-Aura + 3 Schüsse", desc: "Ein Kältefeld bremst Bomben um dich." },
-    { id: "vaultskip", name: "Tresor-Skip", tier: 6, price: 0, unlock: { L: 180 }, hearts: 6, speed: 1.53, rate: 0.23, shots: 3, dmg: 4.35, regen: 14, perk: "phase", bullet: "hsl(67,85%,70%)",
+    { id: "vaultskip", name: "Tresor-Skip", tier: 6, price: 480000, unlock: { L: 180 }, hearts: 6, speed: 1.53, rate: 0.23, shots: 3, dmg: 4.35, regen: 14, perk: "phase", bullet: "hsl(67,85%,70%)",
       flame: ["255,255,255","164,160,255","45,70,200"], engines: [[0, 30, 1]], perkText: "Phasen-Tresor-Schüsse", desc: "Schüsse gleiten durch Eiswände." },
-    { id: "brinefin", name: "Laugen-Finne", tier: 6, price: 0, unlock: { L: 185 }, hearts: 7, speed: 1.54, rate: 0.228, shots: 2, dmg: 4.44, regen: 0, perk: "homing", bullet: "hsl(108,85%,70%)",
+    { id: "brinefin", name: "Laugen-Finne", tier: 6, price: 500000, unlock: { L: 185 }, hearts: 7, speed: 1.54, rate: 0.228, shots: 2, dmg: 4.44, regen: 0, perk: "homing", bullet: "hsl(108,85%,70%)",
       flame: ["255,255,255","80,170,255","46,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuch-Lauge", desc: "Salzige Such-Pfeile von Europa." },
-    { id: "ringshear", name: "Ring-Schere", tier: 6, price: 0, unlock: { L: 190 }, hearts: 7, speed: 1.55, rate: 0.226, shots: 3, dmg: 4.53, regen: 0, perk: "split", bullet: "hsl(149,85%,70%)",
+    { id: "ringshear", name: "Ring-Schere", tier: 6, price: 520000, unlock: { L: 190 }, hearts: 7, speed: 1.55, rate: 0.226, shots: 3, dmg: 4.53, regen: 0, perk: "split", bullet: "hsl(149,85%,70%)",
       flame: ["255,255,255","92,180,255","47,70,200"], engines: [[0, 30, 1]], perkText: "Splitter-Ringklingen", desc: "Jeder Treffer teilt sich in zwei Ringklingen." },
-    { id: "spokejet", name: "Speichen-Jet", tier: 6, price: 0, unlock: { L: 195 }, hearts: 7, speed: 1.57, rate: 0.224, shots: 2, dmg: 4.62, regen: 0, bullet: "hsl(190,85%,70%)",
+    { id: "spokejet", name: "Speichen-Jet", tier: 6, price: 540000, unlock: { L: 195 }, hearts: 7, speed: 1.57, rate: 0.224, shots: 2, dmg: 4.62, regen: 0, bullet: "hsl(190,85%,70%)",
       flame: ["255,255,255","104,190,255","48,70,200"], engines: [[0, 30, 1]], perkText: "Schnelle Speichen", desc: "Schneller Saturn-Jet. Schießt viel!" },
-    { id: "shepwing", name: "Hirten-Flügel", tier: 6, price: 0, unlock: { L: 200 }, hearts: 7, speed: 1.58, rate: 0.222, shots: 3, dmg: 4.71, regen: 15, perk: "homing", perk2: "wing", bullet: "hsl(231,85%,70%)",
+    { id: "shepwing", name: "Hirten-Flügel", tier: 6, price: 560000, unlock: { L: 200 }, hearts: 7, speed: 1.58, rate: 0.222, shots: 3, dmg: 4.71, regen: 15, perk: "homing", perk2: "wing", bullet: "hsl(231,85%,70%)",
       flame: ["255,255,255","116,200,255","49,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuchend + 2 Hirten", desc: "Zwei Mond-Hirten schießen mit." },
-    { id: "hexsail", name: "Hex-Segel", tier: 6, price: 0, unlock: { L: 205 }, hearts: 7, speed: 1.59, rate: 0.22, shots: 3, dmg: 4.8, regen: 14, perk: "beam", bullet: "hsl(272,85%,70%)",
+    { id: "hexsail", name: "Hex-Segel", tier: 6, price: 580000, unlock: { L: 205 }, hearts: 7, speed: 1.59, rate: 0.22, shots: 3, dmg: 4.8, regen: 14, perk: "beam", bullet: "hsl(272,85%,70%)",
       flame: ["255,255,255","128,160,255","50,70,200"], engines: [[0, 30, 1]], perkText: "Sonnenstrahl durch alles", desc: "Hex-Segel halten einen Dauerstrahl." },
-    { id: "scythesk", name: "Orbit-Sense", tier: 6, price: 0, unlock: { L: 210 }, hearts: 7, speed: 1.6, rate: 0.218, shots: 3, dmg: 4.89, regen: 0, perk: "pierce", perk2: "gravity", bullet: "hsl(313,85%,70%)",
+    { id: "scythesk", name: "Orbit-Sense", tier: 6, price: 600000, unlock: { L: 210 }, hearts: 7, speed: 1.6, rate: 0.218, shots: 3, dmg: 4.89, regen: 0, perk: "pierce", perk2: "gravity", bullet: "hsl(313,85%,70%)",
       flame: ["255,255,255","140,170,255","51,70,200"], engines: [[0, 30, 1]], perkText: "Sense + Schwerkraft", desc: "Eine Ringsense, die Gegner anzieht." },
-    { id: "stormcoil", name: "Sturm-Spule", tier: 6, price: 0, unlock: { L: 215 }, hearts: 7, speed: 1.61, rate: 0.216, shots: 3, dmg: 4.98, regen: 0, perk: "chain", bullet: "hsl(354,85%,70%)",
+    { id: "stormcoil", name: "Sturm-Spule", tier: 6, price: 620000, unlock: { L: 215 }, hearts: 7, speed: 1.61, rate: 0.216, shots: 3, dmg: 4.98, regen: 0, perk: "chain", bullet: "hsl(354,85%,70%)",
       flame: ["255,255,255","152,180,255","52,70,200"], engines: [[0, 30, 1]], perkText: "Kettenblitz", desc: "Treffer springen auf zwei weitere Gegner." },
-    { id: "tiltwing", name: "Kipp-Flügel", tier: 6, price: 0, unlock: { L: 220 }, hearts: 7, speed: 1.63, rate: 0.214, shots: 3, dmg: 5.07, regen: 15, perk: "phase", perk2: "timeslow", bullet: "hsl(35,85%,70%)",
+    { id: "tiltwing", name: "Kipp-Flügel", tier: 6, price: 640000, unlock: { L: 220 }, hearts: 7, speed: 1.63, rate: 0.214, shots: 3, dmg: 5.07, regen: 15, perk: "phase", perk2: "timeslow", bullet: "hsl(35,85%,70%)",
       flame: ["255,255,255","164,190,255","53,70,200"], engines: [[0, 30, 1]], perkText: "Phase + Zeitlupe", desc: "Kippt aus der Gefahr und bremst die Zeit." },
-    { id: "methanray", name: "Methan-Strahl", tier: 6, price: 0, unlock: { L: 225 }, hearts: 8, speed: 1.64, rate: 0.212, shots: 3, dmg: 5.16, regen: 0, perk: "beam", bullet: "hsl(76,85%,70%)",
+    { id: "methanray", name: "Methan-Strahl", tier: 6, price: 660000, unlock: { L: 225 }, hearts: 8, speed: 1.64, rate: 0.212, shots: 3, dmg: 5.16, regen: 0, perk: "beam", bullet: "hsl(76,85%,70%)",
       flame: ["255,255,255","80,200,255","54,70,200"], engines: [[0, 30, 1]], perkText: "Strahl + Schild", desc: "Ein cyaner Methan-Strahl von Uranus." },
-    { id: "aurorafin", name: "Aurora-Finne", tier: 6, price: 0, unlock: { L: 230 }, hearts: 8, speed: 1.65, rate: 0.21, shots: 3, dmg: 5.25, regen: 14, perk: "prism", bullet: "hsl(117,85%,70%)",
+    { id: "aurorafin", name: "Aurora-Finne", tier: 6, price: 680000, unlock: { L: 230 }, hearts: 8, speed: 1.65, rate: 0.21, shots: 3, dmg: 5.25, regen: 14, perk: "prism", bullet: "hsl(117,85%,70%)",
       flame: ["255,255,255","92,160,255","55,70,200"], engines: [[0, 30, 1]], perkText: "Prisma-Aurora", desc: "Fünf bunte Aurora-Schüsse." },
-    { id: "oortneedle", name: "Oort-Nadel", tier: 6, price: 0, unlock: { L: 235 }, hearts: 8, speed: 1.66, rate: 0.208, shots: 3, dmg: 5.34, regen: 0, perk: "small", perk2: "pierce", hitR: 13, bullet: "hsl(158,85%,70%)",
+    { id: "oortneedle", name: "Oort-Nadel", tier: 6, price: 700000, unlock: { L: 235 }, hearts: 8, speed: 1.66, rate: 0.208, shots: 3, dmg: 5.34, regen: 0, perk: "small", perk2: "pierce", hitR: 13, bullet: "hsl(158,85%,70%)",
       flame: ["255,255,255","104,170,255","56,70,200"], engines: [[0, 30, 1]], perkText: "Winzige Durchschuss-Nadel", desc: "Eine Kuiper-Nadel. Sehr klein, sehr scharf." },
-    { id: "plutospire", name: "Pluto-Turm", tier: 6, price: 0, unlock: { L: 240 }, hearts: 8, speed: 1.67, rate: 0.206, shots: 3, dmg: 5.43, regen: 16, perk: "homing", perk2: "orbit", drones: 2, bullet: "hsl(199,85%,70%)",
+    { id: "plutospire", name: "Pluto-Turm", tier: 6, price: 720000, unlock: { L: 240 }, hearts: 8, speed: 1.67, rate: 0.206, shots: 3, dmg: 5.43, regen: 16, perk: "homing", perk2: "orbit", drones: 2, bullet: "hsl(199,85%,70%)",
       flame: ["255,255,255","116,180,255","57,70,200"], engines: [[0, 30, 1]], perkText: "Zielsuchend + 2 Drohnen", desc: "Ein dunkler Turm mit zwei Eis-Drohnen." },
-    { id: "charongate", name: "Charon-Tor", tier: 6, price: 0, unlock: { L: 245 }, hearts: 8, speed: 1.69, rate: 0.204, shots: 3, dmg: 5.52, regen: 0, perk: "nova", perk2: "clone", bullet: "hsl(240,85%,70%)",
+    { id: "charongate", name: "Charon-Tor", tier: 6, price: 740000, unlock: { L: 245 }, hearts: 8, speed: 1.69, rate: 0.204, shots: 3, dmg: 5.52, regen: 0, perk: "nova", perk2: "clone", bullet: "hsl(240,85%,70%)",
       flame: ["255,255,255","128,190,255","58,70,200"], engines: [[0, 30, 1]], perkText: "Nova + Klon", desc: "Öffnet einen Tor-Klon auf der anderen Seite." },
-    { id: "starcrown", name: "Sternenkrone", tier: 6, price: 0, unlock: { L: 250 }, hearts: 8, speed: 1.7, rate: 0.202, shots: 3, dmg: 5.61, regen: 12, perk: "omega", perk2: "timeslow", drones: 2, bullet: "hsl(281,85%,70%)",
+    { id: "starcrown", name: "Sternenkrone", tier: 6, price: 900000, unlock: { L: 250 }, hearts: 8, speed: 1.7, rate: 0.202, shots: 3, dmg: 5.61, regen: 12, perk: "omega", perk2: "timeslow", drones: 2, bullet: "hsl(281,85%,70%)",
       flame: ["255,255,255","140,200,255","59,70,200"], engines: [[0, 30, 1]], perkText: "Omega-Krone + Drohnen", desc: "Belohnung für den Weltraum-Kaiser auf 250! Kronen-Schüsse suchen und durchschlagen." }
   ];
   var SHIP_BY = {}; SHIPS.forEach(function (d) { SHIP_BY[d.id] = d; if (d.tier === undefined) d.tier = d.price >= 3000 ? 1 : 0; });
@@ -7045,7 +7077,7 @@
   }
 
   // ---------- Shop / Hangar ----------
-  var shopOpen = false, shopSel = "starter", shopT = 0, shopParts = [], pvCtx = null;
+  var shopOpen = false, shopSel = "starter", shopT = 0, shopParts = [], pvCtx = null, shopBuyConfirm = "";
   function openShop() {
     audio(); shopOpen = true; shopSel = shop.equipped; shopParts = [];
     $("shopScreen").classList.remove("hidden"); $("shopToast").textContent = ""; $("secretBox").classList.add("hidden");
@@ -7077,10 +7109,14 @@
   function maxFirePower() { var m = 0; SHIPS.forEach(function (d) { m = Math.max(m, firePower(statsFor(d.id))); }); return m; }
   function bar(f) { return '<span class="sbar"><i style="width:' + Math.round(Math.max(0.06, Math.min(1, f)) * 100) + '%"></i></span>'; }
   var SHOP_TABS = [["🚀", "tabStart"], ["⭐", "tabPro"], ["🌌", "tabGalaxy"], ["👑", "tabLegend"], ["🎁", "tabSpecial"], ["🏎️", "tabRoadster"], ["☄️", "tabOuter"]], shopTab = 0;
+  function shipSalePrice(sd) { return (sd && sd.price > 0) ? sd.price : 0; }
+  function shipCanBuy(sd) { return !!(sd && shop.owned.indexOf(sd.id) < 0 && shipSalePrice(sd) > 0); }
   function shipCardLabel(sd) {
     var o = shop.owned.indexOf(sd.id) >= 0, e = shop.equipped === sd.id;
     if (e) return "✅ " + tr("equipped"); if (o) return tr("tips.owned");
-    if (sd.unlock) return shipUnlocked(sd) ? "🎁 " + tr("tips.free") : (sd.unlock.L ? "🔒 " + tr("level") + " " + sd.unlock.L : "🔒 " + tr("achievements"));
+    if (sd.unlock && shipUnlocked(sd)) return "🎁 " + tr("tips.free");
+    if (shipCanBuy(sd)) return "🪙 " + fmtN(sd.price);
+    if (sd.unlock) return sd.unlock.L ? "🔒 " + tr("level") + " " + sd.unlock.L : "🔒 " + tr("achievements");
     return "🪙 " + fmtN(sd.price);
   }
   function renderShop() {
@@ -7105,8 +7141,17 @@
     var b = $("pvBtn");
     b.className = "big" + (eq ? " equipped" : owned ? " owned" : "");
     var lockd = !owned && d.unlock && !shipUnlocked(d);
-    b.textContent = eq ? "✅ " + tr("equipped") : owned ? tr("tips.select") + " 🚀" : d.unlock ? (lockd ? unlockText(d) : "🎁 " + tr("tips.getFree")) : tr("tips.buyFor") + " 🪙 " + fmtN(d.price);
-    if (lockd) b.className += " locked";
+    var buyP = shipSalePrice(d);
+    if (eq) b.textContent = "✅ " + tr("equipped");
+    else if (owned) b.textContent = tr("tips.select") + " 🚀";
+    else if (d.unlock && !lockd) b.textContent = "🎁 " + tr("tips.getFree");
+    else if (buyP > 0) {
+      b.className += " buy";
+      b.textContent = shopBuyConfirm === shopSel ? ("✅ " + tr("tips.confirmBuyBtn") + " 🪙 " + fmtN(buyP)) : (tr("tips.buyAnyway") + " 🪙 " + fmtN(buyP));
+    } else {
+      b.textContent = lockd ? unlockText(d) : tr("tips.buyFor") + " 🪙 " + fmtN(d.price);
+      if (lockd) b.className += " locked";
+    }
     var tb = $("shipTabs"); tb.innerHTML = "";
     SHOP_TABS.forEach(function (tdef, ti) {
       var list = SHIPS.filter(function (sd) { return sd.tier === ti; }); if (!list.length) return;
@@ -7119,10 +7164,10 @@
     var g = $("shipGrid"); g.innerHTML = "";
     SHIPS.forEach(function (sd) {
       if (sd.tier !== shopTab) return;
-      var e = shop.equipped === sd.id, lk = sd.unlock && shop.owned.indexOf(sd.id) < 0 && !shipUnlocked(sd);
-      var c = document.createElement("div"); c.className = "scard" + (sd.id === shopSel ? " sel" : "") + (e ? " eq" : "") + (lk ? " lock" : ""); c.dataset.id = sd.id;
+      var e = shop.equipped === sd.id, lk = sd.unlock && shop.owned.indexOf(sd.id) < 0 && !shipUnlocked(sd) && !shipCanBuy(sd);
+      var c = document.createElement("div"); c.className = "scard" + (sd.id === shopSel ? " sel" : "") + (e ? " eq" : "") + (lk ? " lock" : "") + (shipCanBuy(sd) ? " buyable" : ""); c.dataset.id = sd.id;
       c.innerHTML = '<canvas width="120" height="90"></canvas><b>' + shipNameOf(sd) + '</b><small>' + shipCardLabel(sd) + '</small>';
-      c.addEventListener("click", function () { shopSel = sd.id; shopToast(""); renderShop.keepTab = true; renderShop(); tone(700, 900, 0.05, "triangle", 0.05); });
+      c.addEventListener("click", function () { shopSel = sd.id; shopBuyConfirm = ""; shopToast(""); renderShop.keepTab = true; renderShop(); tone(700, 900, 0.05, "triangle", 0.05); });
       g.appendChild(c);
     });
     var u = $("upGrid"); u.innerHTML = "";
@@ -7139,18 +7184,31 @@
     audio();
     var d = SHIP_BY[shopSel], owned = shop.owned.indexOf(shopSel) >= 0;
     if (shop.equipped === shopSel) return;
-    if (!owned && d.unlock) {
-      if (!shipUnlocked(d)) { shopToast(unlockText(d) + " " + tr("tips.thenFree"), "bad"); tone(220, 140, 0.25, "square", 0.06); return; }
+    if (!owned && d.unlock && shipUnlocked(d)) {
       shop.owned.push(shopSel); shop.equipped = shopSel; saveShop(); curStats = shipStats();
       if (window.__weltraum && window.__weltraum.onClaimShip) window.__weltraum.onClaimShip(shopSel);
+      shopBuyConfirm = "";
       shopToast("🎁 " + tr("tips.nowYours", { name: shipNameOf(d) }), "good"); celebrate(); renderShop(); achCheck && achCheck();
       flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]')); return;
     }
-    if (owned) { shop.equipped = shopSel; saveShop(); curStats = shipStats(); if (window.__weltraum && window.__weltraum.onEquipShip) window.__weltraum.onEquipShip(shopSel); refreshVersusListing(); shopToast("✅ " + tr("tips.nowEquipped", { name: shipNameOf(d) }), "good"); SFX.level(); renderShop(); flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]')); return; }
-    if (shop.coins < d.price) { notEnough(d.price); return; }
-    shop.coins -= d.price; shop.owned.push(shopSel); saveShop();
+    if (owned) { shop.equipped = shopSel; saveShop(); curStats = shipStats(); if (window.__weltraum && window.__weltraum.onEquipShip) window.__weltraum.onEquipShip(shopSel); refreshVersusListing(); shopBuyConfirm = ""; shopToast("✅ " + tr("tips.nowEquipped", { name: shipNameOf(d) }), "good"); SFX.level(); renderShop(); flashEl(document.querySelector('.scard[data-id="' + shopSel + '"]')); return; }
+    var price = shipSalePrice(d);
+    if (price <= 0) {
+      if (d.unlock) { shopToast(unlockText(d) + " " + tr("tips.thenFree"), "bad"); tone(220, 140, 0.25, "square", 0.06); }
+      return;
+    }
+    if (shop.coins < price) { shopBuyConfirm = ""; notEnough(price); renderShop(); return; }
+    if (shopBuyConfirm !== shopSel) {
+      shopBuyConfirm = shopSel;
+      shopToast(tr("tips.confirmBuy", { name: shipNameOf(d), n: fmtN(price) }), "");
+      renderShop();
+      tone(700, 900, 0.06, "triangle", 0.05);
+      return;
+    }
+    shopBuyConfirm = "";
+    shop.coins -= price; shop.owned.push(shopSel); saveShop();
     shop.equipped = shopSel; saveShop(); curStats = shipStats();
-    if (window.__weltraum && window.__weltraum.onPurchaseShip) window.__weltraum.onPurchaseShip(shopSel, d.price);
+    if (window.__weltraum && window.__weltraum.onPurchaseShip) window.__weltraum.onPurchaseShip(shopSel, price);
     if (window.__weltraum && window.__weltraum.onEquipShip) window.__weltraum.onEquipShip(shopSel);
     trackPlay("shop_purchase");
     shopToast("🎉 " + tr("tips.bought", { name: shipNameOf(d) }), "good"); celebrate(); renderShop();
@@ -7275,6 +7333,7 @@
   // Zickzack wie in der Zeichnung: 1 unten links, 2 rechts höher, 3 links höher, 4 oben rechts …
   var ZIG = [-0.10, 0.10, -0.12, 0.13, -0.08, 0.12, -0.13, 0.09, -0.10, 0.12, -0.09, 0.11, -0.12, 0.10, -0.09, 0.13, -0.11, 0.03];
   var mapScroll = 0, mapT = 0, mapAnim = null, rocketS = 0, shooters = [], shooterTimer = 1, lockShake = 0, mapPtr = null, mapWorld = 0;
+  var mapWorldSlide = 0, mapWorldVel = 0, mapScrollVel = 0, mapWheelX = 0, mapSnap = null;
   function mapSpacing() { return Math.max(130, Math.min(230, (H - 270) / 3.2)); }
   function mapBaseY() { return H - 150 - safeBottom; }
   function worldBase() { return SECTORS[mapWorld].from - 1; }
@@ -7291,14 +7350,33 @@
     var prev = $("worldPrev"), next = $("worldNext");
     if (prev) prev.disabled = mapWorld <= 0;
     if (next) next.disabled = mapWorld >= maxVisitWorld();
+    var dots = $("worldDots");
+    if (dots) {
+      var maxW = maxVisitWorld(), html = "";
+      for (var di = 0; di <= maxW; di++) html += "<i data-w=\"" + di + "\" class=\"" + (di === mapWorld ? "on" : "") + "\" title=\"" + (di + 1) + "\"></i>";
+      dots.innerHTML = html;
+      Array.prototype.forEach.call(dots.querySelectorAll("i"), function (dot) {
+        dot.addEventListener("click", function (e) {
+          e.stopPropagation(); audio();
+          setMapWorld(parseInt(dot.getAttribute("data-w"), 10) || 0);
+          tone(500, 700, 0.06, "triangle", 0.04);
+        });
+      });
+    }
   }
   function setMapWorld(i) {
     var next = Math.max(0, Math.min(maxVisitWorld(), i | 0));
-    if (next === mapWorld) return;
-    mapWorld = next; mapScroll = 0; mapPtr = null;
+    if (next === mapWorld) { mapWorldSlide = 0; mapWorldVel = 0; mapSnap = null; return; }
+    mapWorld = next; mapScroll = 0; mapPtr = null; mapWorldSlide = 0; mapWorldVel = 0; mapSnap = null; mapScrollVel = 0;
     var focus = Math.max(SECTORS[mapWorld].from, Math.min(SECTORS[mapWorld].to, progress.unlocked));
     centerOn(focus - 1);
     refreshWorldPager();
+  }
+  function snapMapWorld(dir) {
+    var next = Math.max(0, Math.min(maxVisitWorld(), mapWorld + (dir < 0 ? 1 : dir > 0 ? -1 : 0)));
+    if (next === mapWorld) { mapSnap = { from: mapWorldSlide, to: 0, t: 0, dur: 0.22, stay: true }; mapWorldVel = 0; return; }
+    mapSnap = { from: mapWorldSlide, to: (next > mapWorld ? -1 : 1) * W, t: 0, dur: 0.28, next: next };
+    mapWorldVel = 0;
   }
   // Platz zwischen den Knopf-Spalten links/rechts (damit kein Knopf einen Planeten verdeckt)
   var MAP_LCOL = ["helpBtn", "modeBar", "weeklyBtn", "missionBtn", "onlineBtn", "achBtn", "langBtn"], MAP_RCOL = ["twoPBtn", "ghostBtn", "statsBtn", "accountBtn", "fsBtn", "muteBtn"], zigK = 1, zigDirty = true;
@@ -7924,6 +8002,31 @@
 
   function updateMap(dt) {
     mapT += dt;
+    if (mapSnap) {
+      mapSnap.t += dt;
+      var k = Math.min(1, mapSnap.t / mapSnap.dur), e = 1 - Math.pow(1 - k, 3);
+      mapWorldSlide = mapSnap.from + (mapSnap.to - mapSnap.from) * e;
+      if (k >= 1) {
+        var go = mapSnap.next;
+        mapSnap = null; mapWorldSlide = 0;
+        if (go !== undefined) { var keep = mapPtr; setMapWorld(go); mapPtr = keep; }
+      }
+    } else if (!mapPtr || mapPtr.axis !== "x") {
+      if (Math.abs(mapWorldVel) > 8) {
+        mapWorldSlide += mapWorldVel * dt;
+        mapWorldVel *= Math.pow(0.08, dt);
+        if (Math.abs(mapWorldSlide) > W * 0.22) snapMapWorld(mapWorldSlide);
+        else if (Math.abs(mapWorldVel) < 40 && Math.abs(mapWorldSlide) > 8) snapMapWorld(mapWorldSlide);
+      } else if (Math.abs(mapWorldSlide) > 1) {
+        mapWorldSlide += (0 - mapWorldSlide) * Math.min(1, dt * 10);
+        if (Math.abs(mapWorldSlide) < 1) mapWorldSlide = 0;
+      } else mapWorldSlide = 0;
+    }
+    if ((!mapPtr || mapPtr.axis !== "y") && Math.abs(mapScrollVel) > 4 && !mapAnim) {
+      mapScroll = Math.max(0, Math.min(maxScroll(), mapScroll + mapScrollVel * dt));
+      mapScrollVel *= Math.pow(0.12, dt);
+      if (mapScroll <= 0 || mapScroll >= maxScroll()) mapScrollVel = 0;
+    }
     if (lockShake > 0) lockShake -= dt;
     shooterTimer -= dt;
     if (shooterTimer <= 0) { shooterTimer = rnd(1.5, 3.5); var fl = Math.random() < 0.5; shooters.push({ x: fl ? rnd(-50, W * 0.4) : rnd(W * 0.6, W + 50), y: rnd(-20, H * 0.5), vx: (fl ? 1 : -1) * rnd(450, 650), vy: rnd(200, 320), life: 1.1 }); }
@@ -7973,6 +8076,7 @@
 
   function drawMap() {
     ctx.save();
+    if (mapWorldSlide) ctx.translate(mapWorldSlide, 0);
     // Hintergrund: jede Galaxie hat ihre Farbe, an den Grenzen weich überblendet
     var sp = mapSpacing();
     ctx.fillStyle = SECTORS[0].map; ctx.fillRect(0, 0, W, H);
@@ -8278,23 +8382,45 @@
   function mapPointerDown(e) {
     if (state !== "map") return false;
     e.preventDefault(); audio();
-    mapPtr = { id: e.pointerId, y0: e.clientY, x0: e.clientX, s0: mapScroll, moved: false };
+    mapSnap = null; mapWorldVel = 0; mapScrollVel = 0;
+    mapPtr = { id: e.pointerId, y0: e.clientY, x0: e.clientX, s0: mapScroll, w0: mapWorldSlide, t0: performance.now(), lastX: e.clientX, lastY: e.clientY, lastT: performance.now(), vx: 0, vy: 0, moved: false, axis: null };
     try { canvas.setPointerCapture(e.pointerId); } catch (x) {}
     return true;
   }
   canvas.addEventListener("pointermove", function (e) {
     if (state !== "map" || !mapPtr || e.pointerId !== mapPtr.id) return;
-    var dy = (e.clientY - mapPtr.y0) / S;
-    if (Math.abs(dy) > 8 || Math.abs(e.clientX - mapPtr.x0) > 8) mapPtr.moved = true;
-    if (!mapAnim) mapScroll = Math.max(0, Math.min(maxScroll(), mapPtr.s0 + dy));
+    var dx = (e.clientX - mapPtr.x0) / S, dy = (e.clientY - mapPtr.y0) / S;
+    if (!mapPtr.axis && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) mapPtr.axis = Math.abs(dx) > Math.abs(dy) * 1.05 ? "x" : "y";
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) mapPtr.moved = true;
+    var now = performance.now(), dtm = Math.max(8, now - mapPtr.lastT);
+    mapPtr.vx = ((e.clientX - mapPtr.lastX) / S) / (dtm / 1000);
+    mapPtr.vy = ((e.clientY - mapPtr.lastY) / S) / (dtm / 1000);
+    mapPtr.lastX = e.clientX; mapPtr.lastY = e.clientY; mapPtr.lastT = now;
+    if (mapPtr.axis === "x") { mapWorldSlide = mapPtr.w0 + dx; mapWorldVel = mapPtr.vx; }
+    else if (!mapAnim) { mapScroll = Math.max(0, Math.min(maxScroll(), mapPtr.s0 + dy)); mapScrollVel = mapPtr.vy; }
   });
   canvas.addEventListener("pointerup", function (e) {
     if (state !== "map" || !mapPtr || e.pointerId !== mapPtr.id) return;
     if (!mapPtr.moved) mapTap(e.clientX / S, e.clientY / S);
+    else if (mapPtr.axis === "x") {
+      mapWorldVel = mapPtr.vx;
+      if (Math.abs(mapWorldSlide) > W * 0.16 || Math.abs(mapWorldVel) > 380) snapMapWorld(mapWorldSlide + mapWorldVel * 0.12);
+    }
     mapPtr = null;
   });
   canvas.addEventListener("pointercancel", function () { mapPtr = null; });
-  canvas.addEventListener("wheel", function (e) { if (state === "map" && !mapAnim) { e.preventDefault(); mapScroll = Math.max(0, Math.min(maxScroll(), mapScroll - e.deltaY * 0.6)); } }, { passive: false });
+  canvas.addEventListener("wheel", function (e) {
+    if (state !== "map" || mapAnim) return;
+    e.preventDefault();
+    var ax = Math.abs(e.deltaX), ay = Math.abs(e.deltaY);
+    if (ax > ay && ax > 2) {
+      mapWheelX += e.deltaX;
+      if (Math.abs(mapWheelX) > 70) { snapMapWorld(mapWheelX > 0 ? -1 : 1); mapWheelX = 0; }
+    } else {
+      mapScrollVel -= e.deltaY * 2.4;
+      mapScroll = Math.max(0, Math.min(maxScroll(), mapScroll - e.deltaY * 0.6));
+    }
+  }, { passive: false });
   if ($("worldPrev")) $("worldPrev").addEventListener("click", function () { audio(); setMapWorld(mapWorld - 1); tone(500, 700, 0.06, "triangle", 0.04); });
   if ($("worldNext")) $("worldNext").addEventListener("click", function () { audio(); setMapWorld(mapWorld + 1); tone(500, 700, 0.06, "triangle", 0.04); });
 
@@ -8958,8 +9084,9 @@
     wormState: function () { return { wy: worm ? Math.round(worm.y) : null, sy: ship ? Math.round(ship.y) : null, x: ship ? Math.round(ship.x) : null, exit: ship ? ship.wormExit : null, cool: +wormCool.toFixed(2), bullets: bullets.map(function (b) { return Math.round(b.x); }) }; },
     lt: function () { return levelTime; },
     progress: function () { return JSON.parse(JSON.stringify(progress)); },
-    mapInfo: function () { var a = []; for (var i = worldBase(); i < SECTORS[mapWorld].to; i++) { var p = planetPos(i); a.push({ L: i + 1, x: Math.round(p.x * S), y: Math.round(p.y * S), r: Math.round(planetR(i) * S) }); } return { planets: a, anim: mapAnim ? mapAnim.type : null, rocketS: rocketS, scroll: mapScroll, state: state, world: mapWorld }; },
+    mapInfo: function () { var a = []; for (var i = worldBase(); i < SECTORS[mapWorld].to; i++) { var p = planetPos(i); a.push({ L: i + 1, x: Math.round(p.x * S), y: Math.round(p.y * S), r: Math.round(planetR(i) * S) }); } return { planets: a, anim: mapAnim ? mapAnim.type : null, rocketS: rocketS, scroll: mapScroll, state: state, world: mapWorld, slide: Math.round(mapWorldSlide), maxWorld: maxVisitWorld(), dots: $("worldDots") ? $("worldDots").querySelectorAll("i").length : 0 }; },
     setMapWorld: function (i) { setMapWorld(i); return mapWorld; },
+    swipeGalaxy: function (dir) { snapMapWorld(dir < 0 ? -1 : 1); return { world: mapWorld, slide: mapWorldSlide, snap: !!(mapSnap && mapSnap.next) }; },
     drawOuterSheet: function () {
       var ids = Object.keys(OUTER_KITS), cols = 6, rows = 5, cell = 210, pad = 18;
       var cv = document.createElement("canvas"); cv.width = cols * cell + pad * 2; cv.height = rows * cell + pad * 2 + 40;
@@ -9203,6 +9330,35 @@
     },
     sendVersusEmote: function (id) { sendVersusEmote(id); return vsEmotes.slice(); },
     spawnVersusPickupNow: function () { spawnVersusPickup(); return powers.map(function (p) { return p.type; }); },
+    spawnVersusRock: function (side, y) {
+      net.versus = true;
+      var s = side === 2 ? 2 : 1, r = 26;
+      var yy = (typeof y === "number") ? y : (s === 1 ? H * 0.28 : H * 0.72);
+      var rk = makeRock(s === 1 ? W * 0.38 : W * 0.62, yy, r, false);
+      rk.vy = (s === 1 ? 1 : -1) * 40; rk.vx = 0; rk.side = s;
+      rk.hue = vsApi() && vsApi().versusRockHue ? vsApi().versusRockHue(s) : (s === 1 ? 28 : 200);
+      rocks.push(rk);
+      return { side: rk.side, hue: rk.hue, y: Math.round(rk.y), n: rocks.length };
+    },
+    versusRocks: function () {
+      return rocks.map(function (r) {
+        return { side: r.side || 0, hue: r.hue, y: Math.round(r.y), x: Math.round(r.x), dead: !!r.dead, color: vsApi() && vsApi().versusRockColor ? vsApi().versusRockColor(r.side || 1) : "" };
+      });
+    },
+    versusHitCheck: function (pid, side) {
+      return { hurts: versusRockHurts({ side: side }, pid), ignores: versusShotIgnores({ side: side }, pid) };
+    },
+    shopBuyInfo: function (id) {
+      if (id) shopSel = id;
+      if (typeof renderShop === "function") renderShop();
+      var d = SHIP_BY[shopSel] || SHIPS[0];
+      return {
+        sel: shopSel, coins: shop.coins, owned: shop.owned.slice(), price: d.price || 0,
+        btn: $("pvBtn") && $("pvBtn").textContent, toast: $("shopToast") && $("shopToast").textContent,
+        confirm: shopBuyConfirm, canBuy: shipCanBuy(d)
+      };
+    },
+    shopTapBuy: function () { buyShipOrEquip(); return { coins: shop.coins, owned: shop.owned.slice(), confirm: shopBuyConfirm, toast: $("shopToast") && $("shopToast").textContent, btn: $("pvBtn") && $("pvBtn").textContent, equipped: shop.equipped }; },
     forceSuddenDeath: function () { net.vsSudden = true; net.vsRoundTime = (vsApi() && vsApi().VERSUS_SUDDEN_SEC) || 28; paintVsHud(); maybeFinishSuddenDeath(); return { sudden: true, wins: net.vsWins.slice() }; },
     setVersusFun: function (fun) { vsFun = fun || vsFun; return vsFun; },
     showVersusFunDemo: function (kind) {

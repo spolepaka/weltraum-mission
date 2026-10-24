@@ -381,6 +381,42 @@ export function filterVersusByStrength<T extends { strength?: number; rating?: n
   });
 }
 
+/** Host / P1 tint (own-side rocks spawn at the bottom). */
+export const VERSUS_P1_COLOR = '#4ec3ff';
+/** Guest / P2 tint (own-side rocks spawn at the top). */
+export const VERSUS_P2_COLOR = '#ff8a40';
+
+/**
+ * Rock.side is the spawn edge: 1 = top (guest edge), 2 = bottom (host edge).
+ * Incoming rocks for a player come from the other player's side.
+ */
+export function versusRockDamagesPid(side: number, pid: number): boolean {
+  return (side === 1 && pid === 1) || (side === 2 && pid === 2);
+}
+
+/** Shots, auto-aim, and homing ignore asteroids from the shooter's own side. */
+export function versusShotIgnoresRock(side: number, shooterPid: number): boolean {
+  return !versusRockDamagesPid(side, shooterPid);
+}
+
+export function versusRockHue(side: number): number {
+  return side === 1 ? 28 : 200;
+}
+
+export function versusRockColor(side: number): string {
+  return side === 1 ? VERSUS_P2_COLOR : VERSUS_P1_COLOR;
+}
+
+/** 1v1 may use a ship if it is owned (bought or unlocked). Level gates do not apply. */
+export function versusOwnsShip(owned: Iterable<string> | null | undefined, shipId: string): boolean {
+  const id = String(shipId || 'starter');
+  if (id === 'starter') return true;
+  for (const s of owned || []) {
+    if (s === id) return true;
+  }
+  return false;
+}
+
 /** Canonical: P1 bottom (shoots up, -1), P2 top (shoots down, +1). */
 export function versusAimSign(pid: number): -1 | 1 {
   return pid === 2 ? 1 : -1;

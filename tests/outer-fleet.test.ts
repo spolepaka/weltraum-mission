@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { BOSSES, MAX_LEVEL, bossForLevel, isBossLevel, isSectorBoss } from '../src/lib/boss-catalog';
-import { MAX_LEVEL as ECON_MAX, SHIP_PRICES, UNLOCK_SHIPS } from '../src/lib/economy';
+import { MAX_LEVEL as ECON_MAX, SHIP_PRICES, UNLOCK_SHIPS, outerSalePrice } from '../src/lib/economy';
 import { OUTER_IDS, OUTER_SHIPS, outerCombat } from '../src/lib/outer-ships';
 import { OUTER_IDS as SERVER_OUTER_IDS, OUTER_SHIPS as SERVER_OUTER, outerCombat as serverCombat } from '../server/spacetimedb/src/outer-ships';
 import { shipCombat } from '../src/lib/versus';
@@ -29,7 +29,7 @@ describe('outer fleet ships', () => {
     const server = serverCombat();
     for (const id of OUTER_IDS) {
       expect(server[id]).toEqual(client[id]);
-      expect(SHIP_PRICES[id]).toBe(0);
+      expect(SHIP_PRICES[id]).toBe(outerSalePrice(OUTER_IDS.indexOf(id)));
       expect(UNLOCK_SHIPS[id]).toEqual({ level: OUTER_SHIPS.find((s) => s.id === id)!.unlockL });
       expect(shipCombat(id).dmg).toBe(client[id].dmg);
       expect(HTML).toContain(`id: "${id}"`);

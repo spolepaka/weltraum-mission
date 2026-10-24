@@ -18,6 +18,7 @@ import {
   shipCombatPower,
   unpackUps,
   validateVersusReport,
+  versusOwnsShip,
   VERSUS_ELO_START,
   VERSUS_QUEUE_TTL_US,
   type VersusUpgrades,
@@ -1079,7 +1080,6 @@ export const claimUnlockShip = spacetimedb.reducer(
     ensurePlayer(ctx);
     const identity = ctx.sender;
     if (!validateShip(shipId)) throw new Error(`Invalid ship: ${shipId}`);
-    if (salePrice(shipId) !== null) throw new Error('Ship is for sale');
     const rule = UNLOCK_SHIPS[shipId];
     if (!rule) throw new Error('Ship is not an unlock reward');
     if (rule.level) {
@@ -2851,8 +2851,8 @@ function senderResolvedShip(ctx: AnyCtx, claimed?: string): string {
   const equipped = validateShip(shop?.equippedShip || '') ? shop!.equippedShip : 'starter';
   const owned = senderOwnedShips(ctx);
   const want = claimed && validateShip(claimed) ? claimed : equipped;
-  if (owned.has(want)) return want;
-  if (owned.has(equipped)) return equipped;
+  if (versusOwnsShip(owned, want)) return want;
+  if (versusOwnsShip(owned, equipped)) return equipped;
   return 'starter';
 }
 
