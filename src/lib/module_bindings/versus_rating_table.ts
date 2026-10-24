@@ -15,4 +15,5 @@ export default __t.row({
   rating: __t.u32(),
   matches: __t.u32(),
   strength: __t.u32(),
+  wins: __t.u32(),
 });

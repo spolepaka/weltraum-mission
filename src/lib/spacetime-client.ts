@@ -26,6 +26,14 @@ import {
   versusRowFromServer,
   type VersusQueueRow,
 } from './versus-queue';
+
+export type VersusRatingRow = {
+  identity: string;
+  rating: number;
+  matches: number;
+  strength: number;
+  wins: number;
+};
 import { isAutomatedClient } from './geo-privacy';
 import {
   loadAuthUser,
@@ -109,6 +117,11 @@ class SpacetimeClient {
   private versusListeners: Array<(rows: VersusQueueRow[]) => void> = [];
   private liveVersusQueue = false;
   private versusCallbacksBound = false;
+  private versusRatingHandle: SubscriptionHandle | null = null;
+  private versusRatings = new Map<string, VersusRatingRow>();
+  private versusRatingListeners: Array<(row: VersusRatingRow | null) => void> = [];
+  private liveVersusRating = false;
+  private versusRatingBound = false;
   private localCache: PlayerData | null = null;
   private pendingReducerCalls: Array<() => Promise<void>> = [];
   private dataListeners: Array<(data: PlayerData) => void> = [];
@@ -343,7 +356,9 @@ class SpacetimeClient {
             this.connection = null;
             this.subscriptionHandle = null;
             this.roomSubscriptionHandle = null;
+            this.versusRatingHandle = null;
             this.livePublicRooms = false;
+            this.liveVersusRating = false;
             this.roomCallbacksBound = false;
             if (!this.silentReconnect && !this.isReconnecting) {
               this.scheduleReconnect();
@@ -437,6 +452,22 @@ class SpacetimeClient {
         'SELECT * FROM versus_queue',
       ]);
     this.bindVersusQueueCallbacks(conn);
+
+    this.versusRatingHandle = conn.subscriptionBuilder()
+      .onApplied(() => {
+        console.log('[SpacetimeDB] versus_rating subscription applied');
+        this.liveVersusRating = true;
+        this.bindVersusRatingCallbacks(conn);
+        this.seedVersusRatingFromTable(conn);
+      })
+      .onError((ctx) => {
+        console.warn('[SpacetimeDB] versus_rating subscribe failed (module republish needed)', ctx.event);
+        this.liveVersusRating = false;
+      })
+      .subscribe([
+        'SELECT * FROM versus_rating',
+      ]);
+    this.bindVersusRatingCallbacks(conn);
   }
 
   private publicRoomTable(conn: DbConnection | null = this.connection): {
@@ -1570,6 +1601,85 @@ class SpacetimeClient {
     this.versusListeners.forEach((fn) => fn(rows));
   }
 
+  private versusRatingTable(conn: DbConnection | null = this.connection): {
+    onInsert: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+    onUpdate: (cb: (ctx: unknown, oldRow: Record<string, unknown>, row: Record<string, unknown>) => void) => void;
+    onDelete: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+    iter: () => Iterable<Record<string, unknown>>;
+  } | null {
+    const table = (conn?.db as { versusRating?: {
+      onInsert: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+      onUpdate: (cb: (ctx: unknown, oldRow: Record<string, unknown>, row: Record<string, unknown>) => void) => void;
+      onDelete: (cb: (ctx: unknown, row: Record<string, unknown>) => void) => void;
+      iter: () => Iterable<Record<string, unknown>>;
+    } } | undefined)?.versusRating;
+    return table || null;
+  }
+
+  private ratingRowFromServer(row: Record<string, unknown>): VersusRatingRow {
+    const ident = row.identity as { toHexString?: () => string } | string | undefined;
+    const hex = typeof ident === 'string' ? ident : (ident && ident.toHexString ? ident.toHexString() : '');
+    return {
+      identity: hex,
+      rating: Number(row.rating) || 1000,
+      matches: Number(row.matches) || 0,
+      strength: Number(row.strength) || 0,
+      wins: Number(row.wins) || 0,
+    };
+  }
+
+  private notifyVersusRating(): void {
+    const mine = this.getMyVersusRating();
+    this.versusRatingListeners.forEach((fn) => fn(mine));
+  }
+
+  private bindVersusRatingCallbacks(conn: DbConnection): void {
+    if (this.versusRatingBound) return;
+    const table = this.versusRatingTable(conn);
+    if (!table) return;
+    this.versusRatingBound = true;
+    table.onInsert((_ctx, row) => {
+      const next = this.ratingRowFromServer(row);
+      if (next.identity) this.versusRatings.set(next.identity, next);
+      this.notifyVersusRating();
+    });
+    table.onUpdate((_ctx, _old, row) => {
+      const next = this.ratingRowFromServer(row);
+      if (next.identity) this.versusRatings.set(next.identity, next);
+      this.notifyVersusRating();
+    });
+    table.onDelete((_ctx, row) => {
+      const next = this.ratingRowFromServer(row);
+      if (next.identity) this.versusRatings.delete(next.identity);
+      this.notifyVersusRating();
+    });
+  }
+
+  private seedVersusRatingFromTable(conn: DbConnection): void {
+    const table = this.versusRatingTable(conn);
+    if (!table) return;
+    this.versusRatings.clear();
+    for (const row of table.iter()) {
+      const next = this.ratingRowFromServer(row);
+      if (next.identity) this.versusRatings.set(next.identity, next);
+    }
+    this.notifyVersusRating();
+  }
+
+  getMyVersusRating(): VersusRatingRow | null {
+    const hex = this.getIdentityHex();
+    if (!hex) return null;
+    return this.versusRatings.get(hex) || null;
+  }
+
+  onVersusRating(callback: (row: VersusRatingRow | null) => void): () => void {
+    this.versusRatingListeners.push(callback);
+    callback(this.getMyVersusRating());
+    return () => {
+      this.versusRatingListeners = this.versusRatingListeners.filter((fn) => fn !== callback);
+    };
+  }
+
   getOpenVersus(): VersusQueueRow[] {
     return listOpenVersus(this.versusQueue);
   }
@@ -1580,6 +1690,10 @@ class SpacetimeClient {
 
   hasLiveVersusQueue(): boolean {
     return this.liveVersusQueue;
+  }
+
+  hasLiveVersusRating(): boolean {
+    return this.liveVersusRating;
   }
 
   onVersusQueue(callback: (rows: VersusQueueRow[]) => void): () => void {

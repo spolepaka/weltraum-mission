@@ -1,0 +1,20 @@
+{
+  "base": "http://127.0.0.1:4179",
+  "at": "2026-10-23T23:28:55.000Z",
+  "errorCount": 0,
+  "notes": [
+    "rank EN: Gold · 1280 · 11W; duels show bronze/gold badges",
+    "rank DE: Gold · 1280 · 11W; Gewinne 1-gegen-1…",
+    "stats EN: Hits 7 / Pickups 3 / Bombs 1 / You win!",
+    "stats DE: Treffer 7 / Power-ups 3 / Bomben 1 / Du gewinnst!",
+    "sudden EN: You 1 – 1 Rival · ⚡ 16s; pickup triple spawned",
+    "emotes / vsHud / vsSudden / vsStats / vsRankBadge wired"
+  ],
+  "shots": [
+    "versus_fun_rank_en",
+    "versus_fun_rank_de",
+    "versus_fun_stats_en",
+    "versus_fun_stats_de",
+    "versus_fun_sudden_en"
+  ]
+}

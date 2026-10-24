@@ -401,3 +401,121 @@ export function nudgeRockVy(vy: number, shooterPid: number, impulse = VERSUS_NUD
 export function spawnSide(waveIndex: number): 1 | 2 {
   return waveIndex % 2 === 0 ? 1 : 2;
 }
+
+/** Kid-fun 1 vs 1 extras: pickups, sudden-death, emotes, ranks. */
+
+export const VERSUS_SUDDEN_SEC = 28;
+export const VERSUS_PICKUP_FIRST = 5.5;
+export const VERSUS_PICKUP_EVERY = 8;
+export const VERSUS_BOMB_R = 86;
+export const VERSUS_RANK_SILVER = 1050;
+export const VERSUS_RANK_GOLD = 1200;
+export const VERSUS_EMOTE_SEC = 2.4;
+
+export const VERSUS_PICKUPS = ['shield', 'rapid', 'bomb'] as const;
+export type VersusPickup = (typeof VERSUS_PICKUPS)[number];
+
+export const VERSUS_EMOTES = ['wave', 'cool', 'wow', 'yay'] as const;
+export type VersusEmote = (typeof VERSUS_EMOTES)[number];
+
+export const VERSUS_EMOTE_ICON: Record<VersusEmote, string> = {
+  wave: '😄',
+  cool: '😎',
+  wow: '😱',
+  yay: '🎉',
+};
+
+export type VersusRankId = 'unranked' | 'bronze' | 'silver' | 'gold';
+
+export type VersusFunStats = {
+  hits: [number, number];
+  pickups: [number, number];
+  bombs: [number, number];
+  timeSec: number;
+};
+
+export function emptyVersusFunStats(): VersusFunStats {
+  return { hits: [0, 0], pickups: [0, 0], bombs: [0, 0], timeSec: 0 };
+}
+
+export function nextVersusPickup(seq: number): VersusPickup {
+  const i = ((seq | 0) % VERSUS_PICKUPS.length + VERSUS_PICKUPS.length) % VERSUS_PICKUPS.length;
+  return VERSUS_PICKUPS[i];
+}
+
+export function versusPickupType(kind: VersusPickup): string {
+  return kind === 'rapid' ? 'triple' : kind;
+}
+
+export function versusPickupLaneX(seq: number, width: number): number {
+  const lanes = [0.28, 0.5, 0.72];
+  const w = Math.max(120, width || 400);
+  return Math.round(w * lanes[((seq | 0) % lanes.length + lanes.length) % lanes.length]);
+}
+
+export function versusRank(rating: number, matches = 0): VersusRankId {
+  if ((matches | 0) <= 0) return 'unranked';
+  const r = clampElo(rating);
+  if (r >= VERSUS_RANK_GOLD) return 'gold';
+  if (r >= VERSUS_RANK_SILVER) return 'silver';
+  return 'bronze';
+}
+
+/** Listed duel rows only have rating — skip unranked so kids still see a badge. */
+export function versusRankFromRating(rating: number): VersusRankId {
+  const r = clampElo(rating);
+  if (r >= VERSUS_RANK_GOLD) return 'gold';
+  if (r >= VERSUS_RANK_SILVER) return 'silver';
+  return 'bronze';
+}
+
+export function versusRankIcon(rank: VersusRankId): string {
+  if (rank === 'gold') return '🥇';
+  if (rank === 'silver') return '🥈';
+  if (rank === 'bronze') return '🥉';
+  return '🤍';
+}
+
+export function isSuddenDeathRound(hostWins: number, guestWins: number): boolean {
+  return (hostWins | 0) === 1 && (guestWins | 0) === 1;
+}
+
+export function suddenDeathLeft(elapsedSec: number, limit = VERSUS_SUDDEN_SEC): number {
+  return Math.max(0, Math.ceil(limit - (elapsedSec || 0)));
+}
+
+export function suddenDeathTimedOut(elapsedSec: number, limit = VERSUS_SUDDEN_SEC): boolean {
+  return (elapsedSec || 0) >= limit;
+}
+
+/** Death still wins first. After the timer: more hits, then more lives. Tie keeps playing. */
+export function suddenDeathWinner(opts: {
+  hostLives: number;
+  guestLives: number;
+  hostHits: number;
+  guestHits: number;
+  timedOut: boolean;
+}): 0 | 1 | 2 {
+  const live = roundWinner(opts.hostLives | 0, opts.guestLives | 0);
+  if (live) return live;
+  if (!opts.timedOut) return 0;
+  if ((opts.hostHits | 0) !== (opts.guestHits | 0)) return (opts.hostHits | 0) > (opts.guestHits | 0) ? 1 : 2;
+  if ((opts.hostLives | 0) !== (opts.guestLives | 0)) return (opts.hostLives | 0) > (opts.guestLives | 0) ? 1 : 2;
+  return 0;
+}
+
+export function validVersusEmote(raw: string): VersusEmote | '' {
+  return (VERSUS_EMOTES as readonly string[]).includes(String(raw || '')) ? (raw as VersusEmote) : '';
+}
+
+export function bumpFunCount(stats: VersusFunStats, key: 'hits' | 'pickups' | 'bombs', pid: number): VersusFunStats {
+  const next: VersusFunStats = {
+    hits: [stats.hits[0], stats.hits[1]],
+    pickups: [stats.pickups[0], stats.pickups[1]],
+    bombs: [stats.bombs[0], stats.bombs[1]],
+    timeSec: stats.timeSec,
+  };
+  const slot = pid === 2 ? 1 : 0;
+  next[key][slot] += 1;
+  return next;
+}

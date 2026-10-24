@@ -28,6 +28,20 @@ import {
   statsForShip,
   VERSUS_ELO_START,
   VERSUS_PRIZE,
+  VERSUS_SUDDEN_SEC,
+  bumpFunCount,
+  emptyVersusFunStats,
+  isSuddenDeathRound,
+  nextVersusPickup,
+  suddenDeathLeft,
+  suddenDeathTimedOut,
+  suddenDeathWinner,
+  validVersusEmote,
+  versusPickupLaneX,
+  versusPickupType,
+  versusRank,
+  versusRankFromRating,
+  versusRankIcon,
 } from '../src/lib/versus';
 import {
   applyVersusQueueEvent,
@@ -202,5 +216,40 @@ describe('versus queue rows', () => {
     const map = new Map<string, VersusQueueRow>();
     applyVersusQueueEvent(map, { type: 'insert', row }, now);
     expect(listOpenVersus(map, now).map((r) => r.code)).toEqual(['SEEN1']);
+  });
+});
+
+describe('versus kid-fun extras', () => {
+  it('cycles three arena pickups and parks them in mid-lane slots', () => {
+    expect(nextVersusPickup(1)).toBe('rapid');
+    expect(nextVersusPickup(2)).toBe('bomb');
+    expect(nextVersusPickup(3)).toBe('shield');
+    expect(versusPickupType('rapid')).toBe('triple');
+    expect(versusPickupType('bomb')).toBe('bomb');
+    expect(versusPickupLaneX(1, 400)).toBe(Math.round(400 * 0.5));
+    expect(versusPickupLaneX(2, 400)).toBe(Math.round(400 * 0.72));
+  });
+
+  it('treats 1-1 as sudden death and times out to the player with more hits', () => {
+    expect(isSuddenDeathRound(1, 1)).toBe(true);
+    expect(isSuddenDeathRound(1, 0)).toBe(false);
+    expect(suddenDeathLeft(0)).toBe(VERSUS_SUDDEN_SEC);
+    expect(suddenDeathTimedOut(VERSUS_SUDDEN_SEC)).toBe(true);
+    expect(suddenDeathWinner({ hostLives: 2, guestLives: 0, hostHits: 0, guestHits: 9, timedOut: false })).toBe(1);
+    expect(suddenDeathWinner({ hostLives: 2, guestLives: 2, hostHits: 4, guestHits: 1, timedOut: true })).toBe(1);
+    expect(suddenDeathWinner({ hostLives: 2, guestLives: 2, hostHits: 3, guestHits: 3, timedOut: true })).toBe(0);
+  });
+
+  it('maps Elo to bronze / silver / gold and keeps unused emotes out', () => {
+    expect(versusRank(1000, 0)).toBe('unranked');
+    expect(versusRank(1000, 2)).toBe('bronze');
+    expect(versusRank(1050, 3)).toBe('silver');
+    expect(versusRank(1200, 8)).toBe('gold');
+    expect(versusRankFromRating(1000)).toBe('bronze');
+    expect(versusRankIcon('gold')).toBe('🥇');
+    expect(validVersusEmote('yay')).toBe('yay');
+    expect(validVersusEmote('nope')).toBe('');
+    const stats = bumpFunCount(emptyVersusFunStats(), 'hits', 2);
+    expect(stats.hits).toEqual([0, 1]);
   });
 });

@@ -429,6 +429,7 @@ const spacetimedb = schema({
       rating: t.u32(),
       matches: t.u32(),
       strength: t.u32(),
+      wins: t.u32().default(0),
     }
   ),
 
@@ -3149,14 +3150,16 @@ export const claimVersusQueue = spacetimedb.reducer(
   }
 );
 
-function writeVersusRating(ctx: AnyCtx, ident: { toHexString?: () => string }, nextRating: number, strength: number): void {
+function writeVersusRating(ctx: AnyCtx, ident: { toHexString?: () => string }, nextRating: number, strength: number, won = false): void {
   const existing = ctx.db.versusRating.identity.find(ident);
+  const wins = (existing?.wins || 0) + (won ? 1 : 0);
   if (existing) {
     ctx.db.versusRating.identity.update({
       identity: ident,
       rating: nextRating,
       matches: (existing.matches || 0) + 1,
       strength,
+      wins,
     });
     return;
   }
@@ -3165,6 +3168,7 @@ function writeVersusRating(ctx: AnyCtx, ident: { toHexString?: () => string }, n
     rating: nextRating,
     matches: 1,
     strength,
+    wins: won ? 1 : 0,
   });
 }
 
@@ -3208,17 +3212,18 @@ export const reportVersusResult = spacetimedb.reducer(
     }
     const hostElo = ctx.db.versusRating.identity.find(row.hostIdentity)?.rating || VERSUS_ELO_START;
     const guestElo = ctx.db.versusRating.identity.find(row.guestIdentity)?.rating || VERSUS_ELO_START;
-    const next = eloUpdate(hostElo, guestElo, (winnerPid | 0) === 1);
+    const hostWon = (winnerPid | 0) === 1;
+    const next = eloUpdate(hostElo, guestElo, hostWon);
     writeVersusRating(ctx, row.hostIdentity, next.a, effectiveStrength({
       rating: next.a,
       shipId: row.hostShip,
       upgrades: unpackUps(row.hostUps),
-    }));
+    }), hostWon);
     if (guestHex) writeVersusRating(ctx, row.guestIdentity, next.b, effectiveStrength({
       rating: next.b,
       shipId: row.guestShip,
       upgrades: unpackUps(row.guestUps),
-    }));
+    }), !hostWon);
     console.info(`versus_settle ${id} winner=${winnerHex.slice(0, 8)} prize=${prize}`);
   }
 );
