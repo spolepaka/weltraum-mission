@@ -191,8 +191,11 @@ describe('Tesla Roadster purchase / equip', () => {
     if (!free.ok) expect(free.reason).toBe('already_owned');
 
     const reward = purchaseShipLocal({ coins: 999999, owned: ['starter'], equipped: 'starter' }, 'kaiserbrecher', SHIP_PRICES, VALID);
-    expect(reward.ok).toBe(false);
-    if (!reward.ok) expect(reward.reason).toBe('not_for_sale');
+    expect(reward.ok).toBe(true);
+    if (reward.ok) {
+      expect(reward.price).toBe(90000);
+      expect(reward.shop.owned).toContain('kaiserbrecher');
+    }
 
     const bogus = purchaseShipLocal(shop, 'not-a-ship', SHIP_PRICES, VALID);
     expect(bogus.ok).toBe(false);

@@ -32,6 +32,9 @@ describe('versus HTML and module wiring', () => {
     expect(html).toContain('function versusStatsFor(');
     expect(html).toContain('function versusMaxLives(');
     expect(html).toContain('function spawnVersusWave()');
+    expect(html).toContain('rk.side = side');
+    expect(html).toContain('versusShotIgnores');
+    expect(html).toContain('versusRockHurts');
     expect(html).toContain('function versusBulletHitPlayer(');
     expect(html).toContain('function flipVersusView()');
     expect(html).toContain('function finishVersusRound(');

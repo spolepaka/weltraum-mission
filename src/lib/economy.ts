@@ -7,6 +7,21 @@ import { OUTER_SHIPS, outerUnlockMap } from './outer-ships';
 
 export const MAX_LEVEL = 250;
 
+/** Unlock-reward ships can also be bought. Keep in lockstep with the server catalog. */
+export const UNLOCK_SALE_PRICES: Record<string, number> = {
+  frostwal: 18000,
+  lindwurm: 28000,
+  hydra: 42000,
+  regenbogen: 36000,
+  kaiserbrecher: 90000,
+};
+
+/** Outer Fleet: expensive early, Star Crown is the wallet-breaker. */
+export function outerSalePrice(index: number): number {
+  const i = Math.max(0, Math.floor(index) || 0);
+  return i >= 29 ? 900000 : 180000 + i * 20000;
+}
+
 export const SHIP_PRICES: Record<string, number> = {
   starter: 0,
   blitz: 150,
@@ -32,17 +47,17 @@ export const SHIP_PRICES: Record<string, number> = {
   schatten: 105000,
   drache: 125000,
   omega: 160000,
-  frostwal: 0,
-  lindwurm: 0,
-  hydra: 0,
-  regenbogen: 0,
-  kaiserbrecher: 0,
+  frostwal: UNLOCK_SALE_PRICES.frostwal,
+  lindwurm: UNLOCK_SALE_PRICES.lindwurm,
+  hydra: UNLOCK_SALE_PRICES.hydra,
+  regenbogen: UNLOCK_SALE_PRICES.regenbogen,
+  kaiserbrecher: UNLOCK_SALE_PRICES.kaiserbrecher,
   beepbuggy: 900,
   cloudcoupe: 6000,
   shadowspeeder: 22000,
   chromewasp: 45000,
   apexflash: 148000,
-  ...Object.fromEntries(OUTER_SHIPS.map((s) => [s.id, 0])),
+  ...Object.fromEntries(OUTER_SHIPS.map((s, i) => [s.id, outerSalePrice(i)])),
 };
 
 export const UPGRADE_PRICES: Record<string, number[]> = {

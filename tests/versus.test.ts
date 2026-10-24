@@ -11,6 +11,9 @@ import {
   rematchReady,
   roundWinner,
   spawnSide,
+  versusOwnsShip,
+  versusRockDamagesPid,
+  versusShotIgnoresRock,
   utcDayKey,
   validateVersusReport,
   versusAimSign,
@@ -123,6 +126,9 @@ describe('versus arena geometry', () => {
     expect(nudgeRockVy(-40, 2)).toBeGreaterThan(0);
     expect(spawnSide(0)).toBe(1);
     expect(spawnSide(1)).toBe(2);
+    expect(versusRockDamagesPid(1, 1)).toBe(true);
+    expect(versusShotIgnoresRock(2, 1)).toBe(true);
+    expect(versusOwnsShip(['starter', 'rivet'], 'rivet')).toBe(true);
   });
 });
 
