@@ -86,8 +86,16 @@ describe('L250 prime Kaiser — 50 phases', () => {
       expect(en.tips[`primePhase${n}`]).toMatch(new RegExp(`Phase ${n}/50`));
       expect(de.tips[`primePhase${n}`]).toMatch(new RegExp(`Phase ${n}/50`));
     }
-    expect(HTML).toContain('tr("game.phase") + " " + b.phase + "/" + (b.prime ? PRIME_KAISER_PHASES');
+    expect(HTML).toContain('tr("game.phase") + " " + b.phase + "/" + PRIME_KAISER_PHASES');
     expect(HTML).toContain('"Phase " + rp + "/" + PRIME_KAISER_PHASES');
+    expect(HTML).toContain('function drawPrimeBossBar');
+    expect(HTML).toContain('function primePhaseBand');
+    expect(HTML).toMatch(/labelW \? labelW \+ 10/);
+    expect(HTML).toContain('i === 8 || i === 18 || i === 28 || i === 38');
+    expect(HTML).toContain('rgba(255,255,220,.48)');
+    expect(HTML).toContain('if (b.prime) { drawPrimeBossBar(b); return; }');
+    expect(HTML).toContain('var bw = Math.min(big ? 480 : 320, W * (big ? 0.6 : 0.7))');
+    expect(HTML).not.toMatch(/PRIME_PHASE_MIN|phaseBreak|clampPrimeBossHp/);
   });
 
   it('does not rewrite L250 or L100 Kaiser art', () => {

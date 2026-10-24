@@ -4035,15 +4035,80 @@
     for (var i = -3; i <= 3; i++) { ctx.fillStyle = (Math.floor(b.t * 5) + i) % 2 ? "#ffd54a" : "#7dffea"; ctx.beginPath(); ctx.arc(i * 20, 6, 4, 0, 7); ctx.fill(); }
     ctx.restore();
   }
+  function primePhaseBand(ph) {
+    ph = Math.max(1, Math.min(PRIME_KAISER_PHASES, ph || 1));
+    if (ph <= 1) return { a: 0.98, b: 1 };
+    if (ph >= PRIME_KAISER_PHASES) return { a: 0, b: 0.02 };
+    return { a: PRIME_KAISER_THRESHOLDS[ph - 1], b: PRIME_KAISER_THRESHOLDS[ph - 2] };
+  }
+  function drawPrimeBossBar(b) {
+    var margin = Math.max(16, Math.min(28, W * 0.032)), stack = W < 700, tall = H >= W;
+    var labelW = stack ? 0 : Math.min(136, Math.max(112, W * 0.15));
+    var bw = W - margin * 2 - (labelW ? labelW + 10 : 0), bh = tall ? 34 : 30;
+    var bx = margin, by = tall ? 124 : 114, fr = Math.max(0, Math.min(1, b.hp / b.maxHp));
+    var band = primePhaseBand(b.phase || 1), i, f, x, major, num, filled;
+    var segX = bx + bw * band.a, segW = Math.max(5, bw * (band.b - band.a));
+    ctx.save();
+    ctx.fillStyle = "rgba(5,8,22,.82)"; ctx.fillRect(bx - 5, by - 6, bw + 10, bh + 12);
+    ctx.fillStyle = "#2a0c16"; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = fr > 0.35 ? "#ffb02a" : "#ff5a3a";
+    ctx.fillRect(bx, by, bw * fr, bh);
+    ctx.fillStyle = "rgba(255,255,220,.48)";
+    ctx.fillRect(segX, by - 3, segW, bh + 6);
+    ctx.shadowColor = "#ffd54a"; ctx.shadowBlur = 12;
+    ctx.strokeStyle = "#fff6c8"; ctx.lineWidth = 3;
+    ctx.strokeRect(segX + 0.5, by - 3.5, segW - 1, bh + 6);
+    ctx.shadowBlur = 0;
+    for (i = 0; i < PRIME_KAISER_THRESHOLDS.length; i++) {
+      f = PRIME_KAISER_THRESHOLDS[i];
+      major = (i === 8 || i === 18 || i === 28 || i === 38);
+      x = bx + bw * f;
+      filled = f <= fr + 0.001;
+      if (major) {
+        ctx.fillStyle = "#1a0a00";
+        ctx.fillRect(x - 2.2, by - 5, 4.4, bh + 10);
+        ctx.fillStyle = "#fff3b0";
+        ctx.fillRect(x - 1.1, by - 4, 2.2, bh + 8);
+        num = i + 2;
+        ctx.font = "bold 13px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(5,8,22,.88)";
+        ctx.strokeText(String(num), x, by + bh + 7);
+        ctx.fillStyle = "#ffd54a";
+        ctx.fillText(String(num), x, by + bh + 7);
+      } else {
+        ctx.fillStyle = filled ? "rgba(40,16,0,.75)" : "rgba(255,246,200,.9)";
+        ctx.fillRect(x - 0.7, by, 1.4, bh);
+      }
+    }
+    if (tall) {
+      ctx.fillStyle = "#fff6c8";
+      ctx.font = "bold 13px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif";
+      ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+      ctx.fillText("👑 " + (b.name || tr("canvas.boss")), bx, by - 6);
+    }
+    var lx = stack ? bx : bx + bw + 10, ly = stack ? by + bh + 30 : by + bh / 2;
+    var pill = tr("game.phase") + " " + b.phase + "/" + PRIME_KAISER_PHASES;
+    ctx.font = "bold " + (stack ? 14 : 16) + "px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif";
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    var tw = ((ctx.measureText && ctx.measureText(pill).width) || 88) + 16, th = stack ? 22 : 26;
+    var px = lx, py = ly - th / 2;
+    ctx.fillStyle = "rgba(5,8,22,.88)"; ctx.strokeStyle = "#ffd54a"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.rect(px, py, Math.min(tw, W - px - margin), th); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#fff6c8";
+    ctx.fillText(pill, px + 8, ly);
+    ctx.restore();
+  }
   function drawBossBar() {
     var b = boss, big = b.type === "emperor";
+    if (b.prime) { drawPrimeBossBar(b); return; }
     var bw = Math.min(big ? 480 : 320, W * (big ? 0.6 : 0.7)), bx = W / 2 - bw / 2, by = big ? (W < 900 ? 120 : 58) : 170, bh = big ? 22 : 16; // Hochformat: unter die Knöpfe, damit nichts verdeckt wird
     ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.fillRect(bx - 3, by - 3, bw + 6, bh + 6);
     ctx.fillStyle = "#5a1a2a"; ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = b.hp / b.maxHp > 0.35 ? (big ? "#ffb02a" : "#ff4a7a") : "#ff5a3a"; ctx.fillRect(bx, by, bw * Math.max(0, b.hp / b.maxHp), bh);
-    if (big) { ctx.fillStyle = "#fff"; (b.prime ? PRIME_KAISER_THRESHOLDS : b.final ? [0.15, 0.3, 0.44, 0.58, 0.72, 0.86] : [0.15, 0.4, 0.6, 0.8]).forEach(function (f) { ctx.fillRect(bx + bw * f - 1, by, 2, bh); }); if (b.shield && b.shield.phase === "on") { ctx.strokeStyle = "#7dffea"; ctx.lineWidth = 3; ctx.strokeRect(bx - 4, by - 4, bw + 8, bh + 8); } }
+    if (big) { ctx.fillStyle = "#fff"; (b.final ? [0.15, 0.3, 0.44, 0.58, 0.72, 0.86] : [0.15, 0.4, 0.6, 0.8]).forEach(function (f) { ctx.fillRect(bx + bw * f - 1, by, 2, bh); }); if (b.shield && b.shield.phase === "on") { ctx.strokeStyle = "#7dffea"; ctx.lineWidth = 3; ctx.strokeRect(bx - 4, by - 4, bw + 8, bh + 8); } }
     ctx.fillStyle = "#fff"; ctx.font = "bold " + (big ? 15 : 13) + "px Trebuchet MS, Segoe UI, Arial, Noto Sans, DejaVu Sans, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText((big ? "👑 " : "") + (b.name || tr("canvas.boss")) + (big ? "  ·  " + tr("game.phase") + " " + b.phase + "/" + (b.prime ? PRIME_KAISER_PHASES : b.final ? 7 : 5) + (b.shield && b.shield.phase === "on" ? " 🛡️" : "") : ""), W / 2, by + bh / 2);
+    ctx.fillText((big ? "👑 " : "") + (b.name || tr("canvas.boss")) + (big ? "  ·  " + tr("game.phase") + " " + b.phase + "/" + (b.final ? 7 : 5) + (b.shield && b.shield.phase === "on" ? " 🛡️" : "") : ""), W / 2, by + bh / 2);
   }
   function drawTwinMark(x, y) {
     ctx.save(); ctx.strokeStyle = "rgba(125,255,170,.7)"; ctx.lineWidth = 2; ctx.setLineDash([4, 5]);
