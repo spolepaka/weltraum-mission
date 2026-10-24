@@ -284,7 +284,7 @@ function stubEnv(viewport: { W: number; H: number }): FightEnv {
     ship: { x: viewport.W / 2, y: viewport.H - 80, down: 0 },
     boss: {
       type: 'emperor', prime: true, k: 1.15, x: viewport.W / 2, y: 220, targetY: 220,
-      hp: 594000, maxHp: 594000, phase: 1, bph: 1, atk: 1,
+      hp: 1782000, maxHp: 1782000, phase: 1, bph: 1, atk: 1,
       bombTimer: 1, laserCd: 2, spreadT: 3, fx1: 2, fx2: 4, fx3: 5, dashT: 3,
       laser: null, shock: null, cage: null, blades: null, t: 0, flash: 0, vx: 40,
     },
