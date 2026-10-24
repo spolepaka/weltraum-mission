@@ -34,6 +34,14 @@ describe('public rooms live wiring', () => {
     expect(clientSrc).toMatch(/public_room subscribe failed/);
   });
 
+  it('merges listPublicRooms into the live cache so a second iPad sees the host quickly', () => {
+    expect(clientSrc).not.toMatch(/if \(this\.livePublicRooms\) return this\.getPublicRooms\(\);/);
+    expect(clientSrc).toMatch(/async listPublicRooms\(\)[\s\S]*fetchPublicRoomsProcedure\(\)/);
+    expect(clientSrc).toMatch(/if \(fromProc\.length\)/);
+    expect(clientSrc).toContain('void this.listPublicRooms()');
+    expect(html).toMatch(/onPublicRooms\(function \(rows\) \{ paintPublic\(rows\); \}\);\s*refreshRoomList\(\);/);
+  });
+
   it('would have caught a heartbeat restart that closes the live row', () => {
     expect(shouldCloseListing({ leaving: false, listed: true })).toBe(false);
     expect(html).not.toMatch(/function startRoomHeartbeat\(\) \{\s*stopRoomHeartbeat\(\)/);
@@ -49,6 +57,14 @@ describe('public rooms live wiring', () => {
     expect(en.noPublicRooms).toMatch(/No public rooms yet/);
     expect(de.noPublicRooms).toMatch(/Noch keine öffentlichen Räume/);
     expect(html).toContain('tr("noPublicRooms")');
+  });
+
+  it('serves a favicon so the tab is not a 404', () => {
+    expect(html).toContain('href="/favicon.svg"');
+    expect(html).toContain('href="/favicon.ico"');
+    const vite = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
+    expect(vite).toContain('function faviconPlugin');
+    expect(vite).toContain("middlewares.use('/favicon.ico'");
   });
 });
 

@@ -548,7 +548,7 @@ class SpacetimeClient {
         return;
       }
       this.notifyPublicRooms();
-      if (ticks % 4 === 0) void this.fetchPublicRoomsProcedure();
+      if (ticks % 4 === 0) void this.listPublicRooms();
     }, 1000);
   }
 
@@ -1737,8 +1737,16 @@ class SpacetimeClient {
   }
 
   async listPublicRooms(): Promise<PublicRoomRow[]> {
-    if (this.livePublicRooms) return this.getPublicRooms();
-    return this.refreshPublicRoomsFromProcedure();
+    const fromProc = await this.fetchPublicRoomsProcedure();
+    if (fromProc.length) {
+      for (const row of fromProc) {
+        applyPublicRoomEvent(this.publicRooms, { type: 'insert', row });
+      }
+      this.notifyPublicRooms();
+    } else if (!this.livePublicRooms) {
+      return this.refreshPublicRoomsFromProcedure();
+    }
+    return this.getPublicRooms();
   }
 
   setUpgradeLevel(upgradeId: string, level: number): void {

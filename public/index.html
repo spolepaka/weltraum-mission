@@ -10,6 +10,8 @@
 <meta name="theme-color" content="#050816">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net https://apis.google.com https://www.gstatic.com; connect-src 'self' https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com https://0.peerjs.com wss://0.peerjs.com https://*.peerjs.com wss://*.peerjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*.web.app;">
 <title>Space Mission</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="any">
 <script type="module" src="/src/main.ts"></script>
 <style>
   * { box-sizing: border-box; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
@@ -4959,6 +4961,7 @@
     if (st && st.onPublicRooms) {
       if (unsubPublicRooms) { try { unsubPublicRooms(); } catch (e) {} }
       unsubPublicRooms = st.onPublicRooms(function (rows) { paintPublic(rows); });
+      refreshRoomList();
       return;
     }
     if (lastVersusQueueRows.length) renderVersusRows(lastVersusQueueRows);
@@ -7533,6 +7536,7 @@
   }
   function finishWelcome() {
     $("welcomeScreen").classList.add("hidden");
+    if ($("namePickScreen")) $("namePickScreen").classList.add("hidden");
     var api = onboardApi();
     if (api) api.markWelcome(api.loadOnboard());
     persistOnboard();
@@ -7857,9 +7861,17 @@
     persistOnboard();
     if (window.__weltraum && window.__weltraum.ensureCloud) window.__weltraum.ensureCloud();
   }
+  function namePickBlocked() {
+    if (trainOn || mapTourOn) return true;
+    if (state === "play" || state === "dying" || state === "sucked") return true;
+    if ($("welcomeScreen") && !$("welcomeScreen").classList.contains("hidden")) return true;
+    if ($("onboardScreen") && !$("onboardScreen").classList.contains("hidden")) return true;
+    return false;
+  }
   function maybePickName() {
     var names = window.__weltraum && window.__weltraum.names;
     if (!names) return;
+    if (namePickBlocked()) return;
     if (names.current() && !(names.needsPick && names.needsPick())) return;
     $("namePickTitle").textContent = tr("tips.pickName");
     $("namePickReroll").textContent = tr("account.reroll");

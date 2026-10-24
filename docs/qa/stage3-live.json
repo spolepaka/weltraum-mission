@@ -1,0 +1,32 @@
+{
+  "base": "http://127.0.0.1:4177",
+  "at": "2026-10-23T23:25:10.740Z",
+  "errors": [
+    {
+      "type": "gap",
+      "message": "guest list missed host MYW7W after 12s: No public rooms yet — create one!"
+    }
+  ],
+  "notes": [
+    "favicon.ico status=200 svg=200",
+    "account ui: google=Sign in with Google email=true signOutHidden=true",
+    "admin visible=true title=Play funnel (no names) onlineHud=🟢 0 online onlineMap=🟢 0 online body={}",
+    "coop host: {\"code\":\"MYW7W\",\"listed\":{\"public\":true,\"code\":\"MYW7W\",\"hostPid\":1,\"gen\":0,\"peerReady\":true,\"listed\":true,\"rows\":[],\"duels\":[]},\"net\":{\"role\":\"host\",\"peerReady\":true,\"connected\":false,\"versus\":false}}",
+    "coop guest list after wait: No public rooms yet — create one!",
+    "after join: pending=[{\"peerId\":\"94fdadc3-f412-4be8-a932-61e68a6a5873\",\"timestamp\":1792797830781,\"status\":\"pending\"}] hostNet={\"role\":\"host\",\"guests\":[],\"connected\":false}",
+    "approved pending guest",
+    "versus host: {\"code\":\"9ECVY\",\"title\":\"⚔️ 1 vs 1 Duel\",\"status\":\"⏳ Looking for a rival…\"}",
+    "versus guest duels: No open 1 vs 1 yet — tap 1 vs 1!"
+  ],
+  "shots": [
+    "qa-account-signin-ui",
+    "qa-admin-funnel",
+    "qa-coop-host-live",
+    "qa-coop-guest-list-live",
+    "qa-coop-approve-prompt",
+    "qa-coop-approved",
+    "qa-versus-host-live",
+    "qa-versus-guest-list-live"
+  ],
+  "errorCount": 1
+}
