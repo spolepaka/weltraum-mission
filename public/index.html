@@ -997,8 +997,8 @@
   function isSectorBoss(L) { return !!SECTOR_BOSS[L]; }
   // ---------- Schwierigkeit ab Level 19 ("Hitze"), per Balance-Test in 3er-Gruppen eingestellt (siehe levels-log.md) ----------
   var TUNE = { 19: 1.45, 22: 1.45, 25: 1.45, 28: 1.1, 37: 1.45, 40: 1.26, 46: 1.26, 49: 1.15, 52: 1.26, 55: 1.1, 61: 1.15, 64: 1.26, 67: 1.26, 70: 1.38, 73: 1.15, 76: 1.59, 82: 1.26, 91: 1.52, 94: 1.26, 97: 1.54 }; // Gruppe (erstes Level der 3er-Gruppe) -> Faktor
-  var TUNE_BOSS = { 33: 0.6, 57: 0.9, 60: 0.9, 72: 0.85, 81: 0.65, 84: 0.85, 90: 0.8, 100: 0.9, 120: 0.88, 150: 0.86, 174: 0.85, 198: 0.84, 225: 0.83, 250: 1 }; // v30: weniger Herzen → 90/100 etwas leichter; 250 full heat — 10-phase prime Kaiser
-  var PRIME_KAISER_HP = 60000, PRIME_KAISER_PHASES = 10, PRIME_KAISER_THRESHOLDS = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
+  var TUNE_BOSS = { 33: 0.6, 57: 0.9, 60: 0.9, 72: 0.85, 81: 0.65, 84: 0.85, 90: 0.8, 100: 0.9, 120: 0.88, 150: 0.86, 174: 0.85, 198: 0.84, 225: 0.83, 250: 1 }; // 250 full heat — 20-phase prime Kaiser
+  var PRIME_KAISER_HP = 120000, PRIME_KAISER_PHASES = 20, PRIME_KAISER_THRESHOLDS = [0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05];
   function primeKaiserPhase(fr) { var i; for (i = 0; i < PRIME_KAISER_THRESHOLDS.length; i++) if (fr > PRIME_KAISER_THRESHOLDS[i]) return i + 1; return PRIME_KAISER_PHASES; }
   var TUNE_ATK = { 33: 0.65, 57: 0.9, 72: 0.85, 81: 0.7, 84: 0.85, 60: 0.85, 90: 0.4 }; // Sektor-Bosse: weniger Angriffe statt weniger HP
   var TUNE_MOD = { 60: 2.5, 90: 2.5 }; // + halb so viele Steine während des Kampfs // Abstand zwischen Boss-Tricks (Minen, Lenkraketen …) x Faktor // Level -> extra Boss-Faktor (Level 100: Robo-Kaiser, Ziel 20–40 % Siegchance mit dem besten Schiff)
@@ -1351,6 +1351,7 @@
     u.dead = true; hits++; missionAdd("ufos", 1); comboKill(u.x, u.y); dropCoin(u.x, u.y, u.sniper ? 0.75 : 0.55, 5); addScore(u.sniper ? 40 : 25); explode(u.x, u.y, 30, GREEN); SFX.boom(); maybeDrop(u.x, u.y, 0.25); }
   function killComet(c) { c.dead = true; hits++; recAdd("comets"); comboKill(c.x, c.y); dropCoin(c.x, c.y, 1, 10); addScore(50); explode(c.x, c.y, 40, CYAN, 320); SFX.star(); SFX.boom(); showMsg("☄️ " + tr("tips.comet"), "good", 1.2); }
   function damageBoss(n, x, y) {
+    if (primeGuarded()) { explode(x, y, 8, CYAN, 120); return; }
     boss.hp -= n; boss.flash = 0.08; addScore(Math.round(2 * n));
     tone(300, 200, 0.05, "square", 0.03);
     particles.push({ x: x, y: y, vx: rnd(-60, 60), vy: rnd(-60, 0), life: 0.3, max: 0.3, r: 3, c: "#ffffff" });
@@ -1625,79 +1626,144 @@
   }
   function laserOrigin() { return { x: boss.x, y: boss.y + (boss.type === "emperor" ? 8 * boss.k : 30) }; }
   function laserTipX() { var L = boss.laser; return L.phase === "fire" ? L.tx0 + (L.tx1 - L.tx0) * Math.min(1, L.t / L.fireDur) : L.tx0; }
+  function primeGuarded() { return !!(boss && boss.prime && drones.some(function (d) { return d.sdrone && !d.dead; })); }
+  function dropPrimeBomb(x, y, vx, vy, extra) {
+    var hk = (0.75 + 0.25 * heat()) * 1.25, o = { x: x, y: y, vx: (vx || 0) * hk, vy: (vy || 110) * hk * speedScale(), r: 11, t: 0 };
+    if (extra) { for (var ek in extra) o[ek] = extra[ek]; }
+    bombs.push(o);
+  }
+  function spawnSpiralGalaxy() {
+    var arms = 3, n = 5, base = time * 1.8, ar, j, ang, v;
+    for (ar = 0; ar < arms; ar++) {
+      for (j = 0; j < n; j++) {
+        ang = base + ar * 2.094 + j * 0.24; v = 64 + j * 16;
+        dropPrimeBomb(boss.x, boss.y + 28 * boss.k, Math.cos(ang) * v, 52 + Math.max(0, Math.sin(ang)) * 36);
+      }
+    }
+  }
+  function startShockwave() {
+    var tg = aimTarget(boss.x, boss.y);
+    boss.shock = { phase: "warn", t: 0, r: 40, gapA: Math.atan2(tg.y - boss.y, tg.x - boss.x), gapW: 1.2 };
+    tone(180, 70, 0.45, "sawtooth", 0.06);
+  }
+  function startLaserCage() {
+    var tg = aimTarget(boss.x, boss.y);
+    boss.cage = { phase: "warn", t: 0, gapX: Math.max(150, Math.min(W - 150, tg.x)), gapW: 230 };
+    tone(820, 820, 0.12, "square", 0.05);
+  }
+  function spawnShieldDrones() {
+    drones = drones.filter(function (d) { return !d.sdrone; });
+    for (var i = 0; i < 3; i++) drones.push({ sdrone: true, a: i * 2.094, orb: 98, hp: 3, hp0: 3, t: 0, warn: 0.95, x: boss.x, y: boss.y });
+  }
+  function spawnMirrorClones() {
+    [-1, 1].forEach(function (sd) { drones.push({ clone: true, x: boss.x + sd * 150, y: boss.y + 8, vx: 0, t: 0, warn: 1.05, life: 3.4, hp: 2 }); });
+  }
+  function seedMineField() {
+    var gap = 176, x0 = 48 + ((time * 41) % 70), i, mx;
+    for (i = 0; i < 5; i++) { mx = x0 + i * gap; if (mx > 36 && mx < W - 36) mines.push({ x: mx, y: -28 - (i % 2) * 36, vy: 46 * speedScale(), r: 15, t: 0 }); }
+  }
   function primeKaiserFight(dt) {
     var b = boss, fr = b.hp / b.maxHp, rp = primeKaiserPhase(fr), k = b.k, cy = b.y + 8 * k, tg = aimTarget(b.x, b.y);
     b.bph = rp;
-    if (rp !== b.phase) {
+      if (rp !== b.phase) {
       b.phase = rp; b.laserCd = 1.2; SFX.boss(); shake = 0.45;
       var pmsg = tr("tips.primePhase" + rp);
       showMsg(pmsg !== ("tips.primePhase" + rp) ? pmsg : ("Phase " + rp + "/" + PRIME_KAISER_PHASES), "boss", 2.2);
-      if (rp >= 8) b.atk = Math.max(b.atk || 1, 1.35 + (rp - 8) * 0.15);
+      if (rp >= 18) b.atk = Math.max(b.atk || 1, 2.45);
     }
     b.fx1 = (b.fx1 === undefined ? 2 : b.fx1) - dt;
     b.fx2 = (b.fx2 === undefined ? 4 : b.fx2) - dt;
     b.fx3 = (b.fx3 === undefined ? 5 : b.fx3) - dt;
     b.dashT = (b.dashT === undefined ? 3 : b.dashT) - dt;
     if (rp === 1) {
-      if (b.bombTimer <= 0) { b.bombTimer = 1.55; [-70, 0, 70].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 105); }); }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.35; [-80, -20, 40, 90].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 108); }); }
     } else if (rp === 2) {
       if (b.bombTimer <= 0) {
-        b.bombTimer = 1.05;
+        b.bombTimer = 0.88;
         var dx = tg.x - b.x, dy = Math.max(80, tg.y - cy), d = Math.sqrt(dx * dx + dy * dy);
-        dropBomb(b.x, cy + 36 * k, dx / d * 90, 140);
+        dropPrimeBomb(b.x, cy + 36 * k, dx / d * 100, 148);
       }
     } else if (rp === 3) {
       if (b.laserCd <= 0) { startBossLaser(); return; }
-      if (b.bombTimer <= 0) { b.bombTimer = 1.8; [-40, 40].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 110); }); }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.7; [-50, 50].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 112); }); }
     } else if (rp === 4) {
-      if (b.bombTimer <= 0) { b.bombTimer = 1.35; [-1, 1].forEach(function (sd) { dropBomb(b.x + sd * 120 * k, b.y - 40 * k, sd * 40, 115); }); }
-      if (b.fx1 <= 0) { b.fx1 = 4.2; spawnUfo(); spawnUfo(); }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.2; [-1, 1].forEach(function (sd) { dropPrimeBomb(b.x + sd * 120 * k, b.y - 40 * k, sd * 44, 118); }); }
+      if (b.fx1 <= 0) { b.fx1 = 3.8; spawnUfo(); spawnUfo(); }
     } else if (rp === 5) {
-      if (b.bombTimer <= 0) { b.bombTimer = 1.7; [-50, 0, 50].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 100); }); }
+      if (b.fx1 <= 0) { b.fx1 = 2.6; spawnSpiralGalaxy(); }
     } else if (rp === 6) {
-      if (b.bombTimer <= 0) { b.bombTimer = 1.4; [-90, -30, 30, 90].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 115); }); }
-      if (b.fx1 <= 0) { b.fx1 = 3.4; spawnUfo(); spawnUfo(); spawnUfo(); }
-      if (b.fx2 <= 0 && drones.length < 5) {
-        b.fx2 = 3.2;
-        [-1, 1].forEach(function (sd) { if (drones.length < 5) drones.push({ x: b.x + sd * 125 * k, y: b.y - 30 * k, vx: sd * 40, t: 0, warn: 0.6 }); });
-      }
+      if (b.fx1 <= 0) { b.fx1 = 9.5; if (!grid && !flare) startGrid(); }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.8; [-40, 40].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 108); }); }
     } else if (rp === 7) {
+      if (b.fx2 <= 0) {
+        b.fx2 = 5.2;
+        if (drones.filter(function (d) { return d.missile; }).length < 4)
+          [0, 1, 2].forEach(function (q) { drones.push({ missile: true, x: rnd(60, W - 60), y: -24 - q * 46, vx: 0, t: 0, warn: 0.85 }); });
+      }
+    } else if (rp === 8) {
+      if (b.fx1 <= 0 && wells.length < 2) {
+        b.fx1 = 7.5;
+        wells.push({ mini: false, x: tg.x < W / 2 ? W * 0.82 : W * 0.18, y: H * 0.46, r: 22, vx: 0, vy: 10, t: 0, warn: 1.5, side: 0 });
+      }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.5; [-60, 60].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 110); }); }
+    } else if (rp === 9) {
+      if (b.fx1 <= 0) { b.fx1 = 6.8; seedMineField(); }
+    } else if (rp === 10) {
+      if (b.fx1 <= 0 && !b.shock) { b.fx1 = 3.6; startShockwave(); }
+    } else if (rp === 11) {
+      if (b.bombTimer <= 0) {
+        b.bombTimer = 1.55;
+        [-70, 70].forEach(function (vx) { dropPrimeBomb(b.x, cy + 36 * k, vx, 95, { splitAt: 0.7 }); });
+      }
+    } else if (rp === 12) {
+      if (b.fx1 <= 0 && !drones.some(function (d) { return d.sdrone && !d.dead; })) { b.fx1 = 8.5; spawnShieldDrones(); }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.9; dropPrimeBomb(b.x, cy + 40 * k, (tg.x - b.x) * 0.18, 120); }
+    } else if (rp === 13) {
+      if (b.fx1 <= 0) { b.fx1 = 6.2; spawnMirrorClones(); }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.6; dropPrimeBomb(b.x, cy + 40 * k, 0, 118); }
+    } else if (rp === 14) {
       if (b.dashT <= 0) {
-        b.dashT = 4.4;
-        var nx = Math.max(70, Math.min(W - 70, tg.x + (tg.x < W / 2 ? 160 : -160)));
-        var di;
-        for (di = 1; di <= 4; di++) dropBomb(b.x + (nx - b.x) * (di / 5), cy + 36 * k, (di - 2.5) * 28, 125);
+        b.dashT = 4.2;
+        var nx = Math.max(70, Math.min(W - 70, tg.x + (tg.x < W / 2 ? 170 : -170))), di;
+        for (di = 1; di <= 4; di++) dropPrimeBomb(b.x + (nx - b.x) * (di / 5), cy + 36 * k, (di - 2.5) * 30, 128);
         explode(b.x, b.y, 28, FIRE, 160); b.x = nx; explode(b.x, b.y, 36, ["#ffd54a", "#ffffff"], 200); tone(180, 80, 0.2, "sawtooth", 0.08);
       }
-      if (b.bombTimer <= 0) { b.bombTimer = 1.2; dropBomb(b.x, cy + 40 * k, (tg.x - b.x) * 0.25, 130); }
-    } else if (rp === 8) {
+      if (b.bombTimer <= 0) { b.bombTimer = 1.15; dropPrimeBomb(b.x, cy + 40 * k, (tg.x - b.x) * 0.22, 132); }
+    } else if (rp === 15) {
+      if (!b.blades) b.blades = { a: 0, n: 6, shotT: 1.6 };
+      if (b.bombTimer <= 0) { b.bombTimer = 1.7; [-50, 50].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 112); }); }
+    } else if (rp === 16) {
+      if (b.fx1 <= 0) { b.fx1 = 9; if (!shower) { shower = { phase: "warn", t: 0, n: 0 }; showMsg("☄️ " + tr("tips.fireMeteors"), "bad", 1.6); } }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.5; [-80, 0, 80].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 115); }); }
+    } else if (rp === 17) {
+      if (b.fx1 <= 0 && !b.cage) { b.fx1 = 6.4; startLaserCage(); }
+    } else if (rp === 18) {
+      if (b.fx1 <= 0) { b.fx1 = 9; if (!grid && !flare) startGrid(); }
+      if (b.fx2 <= 0) { b.fx2 = 3.6; spawnUfo(); spawnUfo(); }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.05; [-100, -35, 35, 100].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 120); }); }
+    } else if (rp === 19) {
       if (b.laserCd <= 0) { startBossLaser(); return; }
-      if (b.bombTimer <= 0) { b.bombTimer = 1.15; [-80, 0, 80].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 120); }); }
       if (b.fx2 <= 0) {
-        b.fx2 = 5.5;
+        b.fx2 = 4.8;
         if (drones.filter(function (d) { return d.missile; }).length < 5)
-          [0, 1, 2].forEach(function (q) { drones.push({ missile: true, x: rnd(50, W - 50), y: -20 - q * 40, vx: 0, t: 0, warn: 0.7 }); });
-      }
-    } else if (rp === 9) {
-      if (b.fx1 <= 0) { b.fx1 = 10; if (!grid && !flare) startGrid(); }
-      if (b.fx3 <= 0) { b.fx3 = 8; if (ufos.filter(function (u) { return u.sniper && !u.dead; }).length < 2) spawnSniper(); }
-      if (b.bombTimer <= 0) { b.bombTimer = 1.0; [-110, -55, 0, 55, 110].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 120); }); }
-    } else {
-      if (b.laserCd <= 0) { startBossLaser(); return; }
-      if (b.bombTimer <= 0) { b.bombTimer = 0.72; [-120, -60, 0, 60, 120].forEach(function (vx) { dropBomb(b.x, cy + 40 * k, vx, 130); }); }
-      if (b.fx1 <= 0) { b.fx1 = 8; if (!grid && !flare) startGrid(); }
-      if (b.fx2 <= 0) {
-        b.fx2 = 4.2;
-        if (drones.filter(function (d) { return d.missile; }).length < 6)
-          [0, 1].forEach(function (q) { drones.push({ missile: true, x: rnd(40, W - 40), y: -18 - q * 36, vx: 0, t: 0, warn: 0.55 }); });
-        spawnUfo(); spawnUfo();
-        if (drones.length < 6) [-1, 1].forEach(function (sd) { if (drones.length < 6) drones.push({ x: b.x + sd * 130 * k, y: b.y - 30 * k, vx: sd * 50, t: 0, warn: 0.45 }); });
+          [0, 1].forEach(function (q) { drones.push({ missile: true, x: rnd(50, W - 50), y: -20 - q * 40, vx: 0, t: 0, warn: 0.7 }); });
       }
       if (b.dashT <= 0) {
-        b.dashT = 3.4;
-        explode(b.x, b.y, 32, FIRE, 180); b.x = Math.max(70, Math.min(W - 70, rnd(80, W - 80))); explode(b.x, b.y, 40, ["#ffd54a", "#ff3a5a"], 220);
+        b.dashT = 4.0; explode(b.x, b.y, 28, FIRE, 160);
+        b.x = Math.max(70, Math.min(W - 70, tg.x < W / 2 ? W * 0.72 : W * 0.28));
+        explode(b.x, b.y, 36, ["#ffd54a", "#ff3a5a"], 200);
       }
-      if (b.fx3 <= 0) { b.fx3 = 9; if (ufos.filter(function (u) { return u.sniper && !u.dead; }).length < 3) spawnSniper(); }
+      if (b.bombTimer <= 0) { b.bombTimer = 1.1; [-90, 0, 90].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 124); }); }
+    } else {
+      if (b.laserCd <= 0) { startBossLaser(); return; }
+      if (b.fx1 <= 0 && !b.cage) { b.fx1 = 7.2; startLaserCage(); }
+      if (b.fx2 <= 0) { b.fx2 = 2.8; spawnSpiralGalaxy(); }
+      if (b.fx3 <= 0) {
+        b.fx3 = 5.0;
+        if (drones.filter(function (d) { return d.missile; }).length < 4)
+          [0, 1].forEach(function (q) { drones.push({ missile: true, x: rnd(50, W - 50), y: -18 - q * 36, vx: 0, t: 0, warn: 0.7 }); });
+      }
+      if (b.bombTimer <= 0) { b.bombTimer = 0.85; [-110, -40, 40, 110].forEach(function (vx) { dropPrimeBomb(b.x, cy + 40 * k, vx, 128); }); }
     }
   }
   function bossAttack(dt) {
@@ -1705,7 +1771,7 @@
     if (b.laser) {
       var L = b.laser; L.t += dt;
       if (L.phase === "warn" && L.t >= L.warnDur) { L.phase = "fire"; L.t = 0; noise(1.1, 0.12, 3000); tone(150, 120, 1.1, "sawtooth", 0.08); }
-      else if (L.phase === "fire" && L.t >= L.fireDur) { b.laser = null; b.laserCd = b.prime ? (b.phase >= 10 ? 1.35 : b.phase >= 9 ? 1.7 : b.phase >= 8 ? 2.1 : b.phase === 3 ? 1.9 : 3.2) : b.type === "emperor" ? ((b.bph || b.phase) === 5 ? (b.phase === 7 ? 2.4 : 2.8) : (b.bph || b.phase) === 4 ? 3.1 : (b.bph || b.phase) === 3 ? 5 : 3.6) : b.type === "guardian" ? 4.6 : b.type === "crystal" ? (b.hp / b.maxHp < 0.5 ? 4 : 5.5) : 4.5; }
+      else if (L.phase === "fire" && L.t >= L.fireDur) { b.laser = null; b.laserCd = b.prime ? (b.phase >= 19 ? 1.55 : b.phase === 3 ? 2.0 : 3.0) : b.type === "emperor" ? ((b.bph || b.phase) === 5 ? (b.phase === 7 ? 2.4 : 2.8) : (b.bph || b.phase) === 4 ? 3.1 : (b.bph || b.phase) === 3 ? 5 : 3.6) : b.type === "guardian" ? 4.6 : b.type === "crystal" ? (b.hp / b.maxHp < 0.5 ? 4 : 5.5) : 4.5; }
       return;
     }
     b.bombTimer -= dt; b.spreadT -= dt; b.laserCd -= dt;
@@ -2122,21 +2188,62 @@
       ctx.beginPath(); ctx.moveTo(b.x + 40, b.y - 70); ctx.lineTo(b.aim.tx, b.aim.ty); ctx.stroke(); ctx.restore();
     }
   }
+  function updatePrimeKaiserFx(dt) {
+    var b = boss; if (!b || !b.prime) return;
+    if (b.shock) {
+      b.shock.t += dt;
+      if (b.shock.phase === "warn" && b.shock.t >= 1.35) { b.shock.phase = "go"; b.shock.t = 0; noise(0.35, 0.1, 400); shake = 0.25; }
+      else if (b.shock.phase === "go") {
+        b.shock.r += 390 * dt;
+        if (state === "play") eachPlayer(function () {
+          if (ship.down || roadsterSafe()) return;
+          var dx = ship.x - b.x, dy = ship.y - b.y, dist = Math.sqrt(dx * dx + dy * dy), ang = Math.atan2(dy, dx);
+          var da = Math.atan2(Math.sin(ang - b.shock.gapA), Math.cos(ang - b.shock.gapA));
+          if (Math.abs(dist - b.shock.r) < 16 && Math.abs(da) > b.shock.gapW / 2) hurt(ship.x, ship.y);
+        });
+        if (b.shock.r > 540) b.shock = null;
+      }
+    }
+    if (b.cage) {
+      b.cage.t += dt;
+      if (b.cage.phase === "warn" && b.cage.t >= 1.8) { b.cage.phase = "fire"; b.cage.t = 0; noise(0.45, 0.1, 2200); }
+      else if (b.cage.phase === "fire") {
+        b.cage.gapX = Math.max(150, Math.min(W - 150, b.cage.gapX + Math.sin(time * 0.7) * 18 * dt));
+        if (state === "play") eachPlayer(function () {
+          if (ship.down || roadsterSafe()) return;
+          if (Math.abs(ship.x - b.cage.gapX) > b.cage.gapW / 2 - 16) hurt(ship.x, ship.y);
+        });
+        if (b.cage.t >= 2.5) b.cage = null;
+      }
+    }
+    if (b.blades) {
+      b.blades.a += dt * 1.55; b.blades.shotT -= dt;
+      if (b.blades.shotT <= 0) {
+        b.blades.shotT = 2.15;
+        [0, Math.PI].forEach(function (off) {
+          var ang = b.blades.a + off;
+          dropPrimeBomb(b.x + Math.cos(ang) * 86, b.y + Math.sin(ang) * 50, Math.cos(ang) * 90, 70 + Math.sin(ang) * 40, { blade: true });
+        });
+      }
+    }
+  }
   // ---------- Robo-Kaiser: Schild, Drohnen, Power-ups, Rauch ----------
   var drones = [];
   function emperorExtras(dt) {
     var b = boss, k = b.k;
     if (b.immuneT > 0) b.immuneT -= dt;
     if (state !== "play" || b.y < b.targetY - 2) return;
-    // Energie-Schild: erst Warnung (blinkt), dann 3 s an
-    if (b.shield) {
-      b.shield.t += dt;
-      var onDur = b.prime ? (b.phase === 5 ? 4.4 : b.phase >= 9 ? 3.6 : 3.4) : 3;
-      if (b.shield.phase === "warn" && b.shield.t >= 1.4) { b.shield.phase = "on"; b.shield.t = 0; tone(500, 900, 0.3, "sine", 0.08); }
-      else if (b.shield.phase === "on" && b.shield.t >= onDur) { b.shield = null; b.shieldCd = b.prime ? (b.phase === 5 ? 3.2 : b.phase >= 8 ? 4.2 : 5.5) : (b.phase >= 4 ? 6.5 : 8.5); tone(900, 400, 0.3, "sine", 0.06); }
-    } else {
-      b.shieldCd -= dt;
-      if (b.shieldCd <= 0) { b.shield = { phase: "warn", t: 0 }; showMsg("🛡️ " + tr("tips.empShield"), "bad", 1.4); tone(700, 700, 0.15, "square", 0.05); }
+    if (b.prime) updatePrimeKaiserFx(dt);
+    if (!b.prime) {
+      if (b.shield) {
+        b.shield.t += dt;
+        var onDur = 3;
+        if (b.shield.phase === "warn" && b.shield.t >= 1.4) { b.shield.phase = "on"; b.shield.t = 0; tone(500, 900, 0.3, "sine", 0.08); }
+        else if (b.shield.phase === "on" && b.shield.t >= onDur) { b.shield = null; b.shieldCd = (b.phase >= 4 ? 6.5 : 8.5); tone(900, 400, 0.3, "sine", 0.06); }
+      } else {
+        b.shieldCd -= dt;
+        if (b.shieldCd <= 0) { b.shield = { phase: "warn", t: 0 }; showMsg("🛡️ " + tr("tips.empShield"), "bad", 1.4); tone(700, 700, 0.15, "square", 0.05); }
+      }
     }
     // Hilfe für Joshi: ab und zu Schild oder Herz
     b.powerT -= dt;
@@ -2156,6 +2263,16 @@
     drones.forEach(function (d) {
       d.t += dt;
       if (d.warn > 0) { d.warn -= dt; return; }
+      if (d.sdrone && boss) {
+        d.a += dt * 1.35; d.x = boss.x + Math.cos(d.a) * d.orb; d.y = boss.y + Math.sin(d.a) * d.orb * 0.55;
+        return;
+      }
+      if (d.clone) {
+        d.life -= dt;
+        if (!d.fired) { d.fired = true; dropPrimeBomb(d.x, d.y + 20, 0, 120); }
+        if (d.life <= 0) d.dead = true;
+        return;
+      }
       var mv = d.missile ? 120 : 70, want = Math.max(-mv, Math.min(mv, (aimTarget(d.x, d.y).x - d.x) * 0.9));
       d.vx += (want - d.vx) * Math.min(1, dt * (d.missile ? 1.1 : 1.5));
       var dk = d.chillUntil > time ? 0.4 : 1; d.x += d.vx * dt * dk; d.y += (d.missile ? 115 : 75) * ss * dt * dk;
@@ -2164,7 +2281,11 @@
     });
     drones = drones.filter(function (d) { return !d.dead; });
   }
-  function killDrone(d) { d.dead = true; dropCoin(d.x, d.y, 0.5, 3); addScore(20); explode(d.x, d.y, 18, FIRE, 160); tone(600, 200, 0.12, "square", 0.05); }
+  function killDrone(d) {
+    if ((d.sdrone || d.clone) && d.hp > 1) { d.hp--; d.flash = 0.12; explode(d.x, d.y, 10, CYAN, 120); tone(900, 500, 0.06, "square", 0.04); return; }
+    d.dead = true; dropCoin(d.x, d.y, 0.5, 3); addScore(20); explode(d.x, d.y, 18, FIRE, 160); tone(600, 200, 0.12, "square", 0.05);
+    if (d.sdrone && boss && boss.prime && !drones.some(function (o) { return o !== d && o.sdrone && !o.dead; })) showMsg("🛡️ " + tr("tips.satDown"), "good", 1.2);
+  }
   function updateFeatures(dt) {
     var F = feats(), playing = state === "play", calm = !boss;
     if (frozen > 0) frozen -= dt;
@@ -2758,7 +2879,14 @@
     rocks.forEach(function (r) { r.y += r.vy * dt; r.x += r.vx * dt; r.rot += r.vr * dt; if (r.x < r.r && r.vx < 0 || r.x > W - r.r && r.vx > 0) r.vx = -r.vx; });
     ufos.forEach(function (u) { if (u.sat) { updateSat(u, dt); return; } if (u.sniper) { u.t += dt; updateSniper(u, dt); return; }
       if (u.treasure) { u.t += dt; u.x += u.vx * dt; u.y = u.by + Math.sin(u.t * 3) * 16; if (u.x < -90 || u.x > W + 90) u.dead = true; if (Math.random() < dt * 12) particles.push({ x: u.x + rnd(-20, 20), y: u.y + 8, vx: -u.vx * 0.2, vy: rnd(20, 60), life: 0.5, max: 0.5, r: rnd(1.5, 3), c: pick(GOLD) }); return; } u.t += dt; u.y += u.vy * dt; u.x = u.baseX + Math.sin(u.t * 2.2) * u.amp; u.x = Math.max(25, Math.min(W - 25, u.x)); if (level >= 19 && state === "play") ufoShoot(u, dt); });
-    bombs.forEach(function (b) { b.y += b.vy * dt; b.x += b.vx * dt; b.t += dt; });
+    bombs.forEach(function (b) {
+      b.y += b.vy * dt; b.x += b.vx * dt; b.t += dt;
+      if (b.splitAt && !b.didSplit && b.t >= b.splitAt) {
+        b.didSplit = true; b.dead = true;
+        [-1, 0, 1].forEach(function (sd) { dropPrimeBomb(b.x, b.y, sd * 70, 90); });
+        explode(b.x, b.y, 14, FIRE, 120);
+      }
+    });
     stars.forEach(function (s) { s.y += s.vy * dt; s.rot += dt * 2; });
     powers.forEach(function (p) { p.y += p.vy * dt; p.t += dt; });
     comets.forEach(function (c) { c.x += c.vx * dt; c.y += c.vy * dt; c.t += dt;
@@ -3004,6 +3132,7 @@
       });
       drawBossFx(boss);
       if (boss.laser) drawBossLaser();
+      if (boss.prime) drawPrimeKaiserFx();
       drawBossBar();
     }
     drones.forEach(drawDrone);
@@ -4115,6 +4244,21 @@
   }
   function drawDrone(d) {
     if (d.missile) { drawMissile(d); return; }
+    if (d.sdrone) {
+      ctx.save(); ctx.translate(d.x, d.y);
+      if (d.warn > 0) ctx.globalAlpha = 0.45 + 0.45 * Math.sin(d.t * 20);
+      ctx.strokeStyle = "#7dffea"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.stroke();
+      ctx.fillStyle = d.flash > 0 ? "#fff" : "#1a3a40"; ctx.beginPath(); ctx.arc(0, 0, 12, 0, 7); ctx.fill();
+      ctx.fillStyle = "#7dffea"; ctx.fillRect(-10, 14, 20 * (d.hp / (d.hp0 || 3)), 3);
+      glowDot(0, 0, 5, "#7dffea", 12); ctx.restore(); return;
+    }
+    if (d.clone) {
+      ctx.save(); ctx.translate(d.x, d.y); ctx.globalAlpha = d.warn > 0 ? 0.4 + 0.4 * Math.sin(d.t * 16) : 0.55;
+      ctx.fillStyle = "#c8d0e0"; ctx.strokeStyle = "#1a202c"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, -22); ctx.lineTo(16, 8); ctx.lineTo(-16, 8); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#ff4a3a"; ctx.fillRect(-8, -6, 6, 5); ctx.fillRect(2, -6, 6, 5);
+      ctx.restore(); return;
+    }
     ctx.save(); ctx.translate(d.x, d.y);
     if (d.warn > 0) { ctx.globalAlpha = 0.4 + 0.4 * Math.sin(d.t * 30); }
     ctx.strokeStyle = "rgba(200,220,255,.8)"; ctx.lineWidth = 2;
@@ -4124,6 +4268,35 @@
     ctx.fillStyle = g; ctx.strokeStyle = "#1a202c"; ctx.beginPath(); ctx.ellipse(0, 0, 15, 10, 0, 0, 7); ctx.fill(); ctx.stroke();
     ctx.shadowColor = "#ff2a2a"; ctx.shadowBlur = 10; ctx.fillStyle = "#ff3a3a"; ctx.beginPath(); ctx.arc(0, 2, 4, 0, 7); ctx.fill();
     ctx.restore();
+  }
+  function drawPrimeKaiserFx() {
+    var b = boss; if (!b) return;
+    if (b.shock) {
+      var warn = b.shock.phase === "warn", pulse = 0.45 + 0.45 * Math.sin(time * 14);
+      ctx.save(); ctx.translate(b.x, b.y); ctx.strokeStyle = warn ? "rgba(255,180,60," + pulse + ")" : "rgba(255,80,40,.85)";
+      ctx.lineWidth = warn ? 5 : 10; ctx.setLineDash(warn ? [14, 10] : []);
+      ctx.beginPath(); ctx.arc(0, 0, warn ? 70 : b.shock.r, b.shock.gapA + b.shock.gapW / 2, b.shock.gapA + Math.PI * 2 - b.shock.gapW / 2); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    }
+    if (b.cage) {
+      var cw = b.cage.phase === "warn", left = b.cage.gapX - b.cage.gapW / 2, right = b.cage.gapX + b.cage.gapW / 2, a = cw ? 0.25 + 0.25 * Math.sin(time * 16) : 0.55;
+      ctx.save(); ctx.fillStyle = "rgba(255,40,60," + a + ")";
+      ctx.fillRect(0, 0, left, H); ctx.fillRect(right, 0, W - right, H);
+      ctx.fillStyle = "rgba(255,40,60," + (a * 0.7) + ")"; ctx.fillRect(0, 0, W, 28);
+      ctx.strokeStyle = cw ? "rgba(255,220,80,.9)" : "#fff"; ctx.lineWidth = 3; ctx.setLineDash(cw ? [10, 8] : []);
+      ctx.beginPath(); ctx.moveTo(left, 0); ctx.lineTo(left, H); ctx.moveTo(right, 0); ctx.lineTo(right, H); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    }
+    if (b.blades) {
+      var i, ang;
+      for (i = 0; i < b.blades.n; i++) {
+        ang = b.blades.a + i * Math.PI * 2 / b.blades.n;
+        ctx.save(); ctx.translate(b.x + Math.cos(ang) * 86, b.y + Math.sin(ang) * 50); ctx.rotate(ang);
+        ctx.fillStyle = "#ffd54a"; ctx.strokeStyle = "#1a202c"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-8, -6); ctx.lineTo(-8, 6); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+    }
   }
   function drawBossLaser() {
     var L = boss.laser, o = laserOrigin(), yEnd = H + 20;
@@ -9761,6 +9934,41 @@
       paint(320, 100, false, "Level 100 — Weltraum Kaiser");
       paint(960, 250, true, "Level 250 — Weltraum Kaiser: Star Crown");
       ctx = main; boss = sb; level = sl;
+      return cv.toDataURL("image/png");
+    },
+    drawPrimePhaseStrip: function () {
+      var cells = [
+        [5, "5 · Spiral"], [10, "10 · Shockwave"], [12, "12 · Shield drones"],
+        [15, "15 · Blade halo"], [17, "17 · Laser cage"], [20, "20 · Starfall"]
+      ];
+      var cv = document.createElement("canvas"); cv.width = 1920; cv.height = 520;
+      var main = ctx, sb = boss, sl = level, sd = drones.slice(); ctx = cv.getContext("2d");
+      ctx.fillStyle = "#050816"; ctx.fillRect(0, 0, 1920, 520);
+      ctx.fillStyle = "#ffd54a"; ctx.font = "bold 22px Trebuchet MS, sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("L250 Kaiser — sample of the 20 phases (look unchanged)", 960, 36);
+      cells.forEach(function (cell, i) {
+        var x = 160 + i * 310;
+        boss = { x: 0, y: 0, t: 1.2, flash: 0, hp: 1, maxHp: 1, k: 0.72, phase: cell[0], wind: 0, type: "emperor", final: true, prime: true, mods: [] };
+        if (cell[0] === 10) boss.shock = { phase: "warn", t: 0.6, r: 70, gapA: 1.4, gapW: 1.2 };
+        if (cell[0] === 15 || cell[0] === 20) boss.blades = { a: 0.4, n: 6, shotT: 1 };
+        ctx.save(); ctx.translate(x, 280);
+        level = 250; drawEmperor(boss);
+        if (cell[0] === 12) {
+          drones = [{ sdrone: true, x: -70, y: 20, t: 1, warn: 0, hp: 3, hp0: 3 }, { sdrone: true, x: 70, y: 10, t: 1, warn: 0, hp: 2, hp0: 3 }];
+          drones.forEach(drawDrone);
+        }
+        if (cell[0] === 5 || cell[0] === 20) {
+          [0, 2.1, 4.2].forEach(function (a) { glowDot(Math.cos(a) * 80, Math.sin(a) * 50, 6, "#ffd54a", 14); });
+        }
+        drawPrimeKaiserFx();
+        if (cell[0] === 17 || cell[0] === 20) {
+          ctx.save(); ctx.strokeStyle = "rgba(255,80,80,.85)"; ctx.lineWidth = 6; ctx.setLineDash([10, 8]);
+          ctx.strokeRect(-110, -150, 220, 300); ctx.restore();
+        }
+        ctx.restore();
+        ctx.fillStyle = "#c8d0e0"; ctx.font = "bold 16px Trebuchet MS, sans-serif"; ctx.fillText(cell[1], x, 490);
+      });
+      ctx = main; boss = sb; level = sl; drones = sd;
       return cv.toDataURL("image/png");
     },
     drawLateBossSheet: function () {
